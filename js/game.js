@@ -3,9 +3,10 @@
 
 const Game = (() => {
   const D = DATA;
-  const SAVE_KEY = 'harvest-empire-save-v2';
+  const SAVE_KEY = 'harvest-empire-save-v3';
 
   let state = null;
+  let animalUid = 1;
   const listeners = {};
 
   // ---------------- events ----------------
@@ -15,6 +16,7 @@ const Game = (() => {
     (listeners[type] || []).forEach(fn => fn(...args));
   }
   function toast(msg, kind) { emit('toast', msg, kind); }
+  // fx coordinates are in TILE units — the renderer projects them
   function fx(kind, x, y, text, color) { emit('fx', { kind, x, y, text, color }); }
 
   // ---------------- helpers ----------------
@@ -51,10 +53,11 @@ const Game = (() => {
     return p >= 0 && state.unlockedParcels.includes(p);
   }
 
-  function hasBuilding(type) { return state.buildings.some(b => b.type === type); }
+  function liveBuildings() { return state.buildings.filter(Boolean); }
+  function hasBuilding(type) { return state.buildings.some(b => b && b.type === type); }
 
   function isProtected(x, y) { // scarecrow guards a 5x5 area against crows & storms
-    return state.buildings.some(b => b.type === 'scarecrow' && Math.abs(b.x - x) <= 2 && Math.abs(b.y - y) <= 2);
+    return state.buildings.some(b => b && b.type === 'scarecrow' && Math.abs(b.x - x) <= 2 && Math.abs(b.y - y) <= 2);
   }
 
   function seasonOK(cropId) {
@@ -71,33 +74,34 @@ const Game = (() => {
     }
 
     state = {
-      v: 2,
+      v: 3,
       farmName: 'My Farm',
       diff: 'classic',
       setupDone: false,
-      coins: 3000,
+      coins: 3000,             // dollars
+      fuel: 0,                 // gallons
       xp: 0,
       level: 1,
-      now: 0,             // total gameplay seconds
-      day: 1, t: 0.25,    // morning of day 1
+      now: 0,                  // total gameplay seconds
+      day: 1, t: 0.25,         // morning of day 1
       season: 0, year: 1,
       weather: 'sun',
       forecast: 'rain',
       can: { tier: 0, water: D.CAN_TIERS[0].cap },
-      hoe: { tier: 0 },
+      till: { tier: 0 },
       tiles,
       buildings: [],
       animals: [],
       inventory: {},
-      market: { mults: {}, hot: 'turnip' },
+      market: { mults: {}, hot: 'turnip', fuelPrice: D.FUEL.startPrice },
       orders: [],
       orderTimer: 20,
       unlockedParcels: [0],
       goalIndex: 0,
-      stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0, fertilized: 0, earned: 0 },
+      stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0, fertilized: 0, earned: 0, lost: 0 },
       settings: { sound: true },
       lastSaved: Date.now(),
-      _flags: {},
+      _flags: { deaths: { dry: 0, rot: 0, season: 0 } },
     };
 
     for (const id of Object.keys(D.ITEMS)) state.market.mults[id] = 0.9 + rnd() * 0.3;
@@ -124,8 +128,10 @@ const Game = (() => {
     const b = { type, x, y };
     if (def.capacity) b.capacity = def.capacity;
     if (['bakery', 'creamery', 'press', 'loom'].includes(type)) b.queue = [];
-    state.buildings.push(b);
-    const idx = state.buildings.length - 1;
+    // reuse tombstone slots so indexes stay stable
+    let idx = state.buildings.indexOf(null);
+    if (idx === -1) { state.buildings.push(b); idx = state.buildings.length - 1; }
+    else state.buildings[idx] = b;
     for (let dy = 0; dy < def.h; dy++)
       for (let dx = 0; dx < def.w; dx++)
         state.tiles[y + dy][x + dx].obj = { t: 'b', i: idx };
@@ -145,11 +151,12 @@ const Game = (() => {
     if (!raw) { newGame(); return { fresh: true }; }
     try {
       const st = JSON.parse(raw);
-      if (!st || st.v !== 2 || !st.tiles || !st.setupDone) { newGame(); return { fresh: true }; }
+      if (!st || st.v !== 3 || !st.tiles || !st.setupDone) { newGame(); return { fresh: true }; }
       state = st;
       state._flags = state._flags || {};
-      state.stats.fertilized = state.stats.fertilized || 0;
-      state.stats.earned = state.stats.earned || 0;
+      state._flags.deaths = state._flags.deaths || { dry: 0, rot: 0, season: 0 };
+      for (const a of state.animals) if (!a.uid) a.uid = animalUid++;
+      animalUid = Math.max(animalUid, ...state.animals.map(a => a.uid + 1), 1);
       const elapsed = Math.min((Date.now() - (state.lastSaved || Date.now())) / 1000, 4 * 3600);
       let away = null;
       if (elapsed > 45) away = fastForward(elapsed);
@@ -165,10 +172,12 @@ const Game = (() => {
     newGame();
   }
 
-  // simulate time that passed while the game was closed (gentle: no disasters)
+  // simulate time that passed while the game was closed
+  // (kinder than live play: decay runs at half speed, no disasters)
   function fastForward(elapsed) {
     state._offline = true;
     const before = readyCounts();
+    const lostBefore = state.stats.lost;
     let remaining = elapsed;
     while (remaining > 0) {
       const step = Math.min(2, remaining);
@@ -181,6 +190,7 @@ const Game = (() => {
       seconds: elapsed,
       crops: Math.max(0, after.crops - before.crops),
       produce: Math.max(0, after.produce - before.produce),
+      lost: state.stats.lost - lostBefore,
     };
   }
 
@@ -208,6 +218,18 @@ const Game = (() => {
     if (state.market.hot === item) m *= 1.5;
     m *= (1 + D.repBonus(state.level)) * diff().sellBonus;
     return Math.max(1, Math.round(base * m));
+  }
+
+  function fuelPrice() { return state.market.fuelPrice; }
+
+  function buyFuel(gal) {
+    const cost = Math.ceil(gal * state.market.fuelPrice);
+    if (state.coins < cost) { toast('Not enough cash for fuel!', 'bad'); return false; }
+    state.coins -= cost;
+    state.fuel = Math.round((state.fuel + gal) * 100) / 100;
+    emit('sound', 'water');
+    toast(`⛽ +${gal} gal of fuel (${D.$(cost)})`, 'good');
+    return true;
   }
 
   // items an order may reasonably ask for: crops in season, products of owned
@@ -259,7 +281,7 @@ const Game = (() => {
     state.stats.orders++;
     state.orders.splice(i, 1);
     state.orderTimer = 30;
-    toast(`Order complete! +${order.coins.toLocaleString()} 🪙`, 'good');
+    toast(`Order complete! +${D.$(order.coins)}`, 'good');
     emit('sound', 'coin');
     checkGoal();
     return true;
@@ -294,7 +316,7 @@ const Game = (() => {
     if (!t || !isUnlocked(x, y) || t.k !== 'grass' || t.obj) return false;
     t.k = 'soil';
     state.stats.tilled++;
-    fx('burst', (x + .5) * D.TILE, (y + .5) * D.TILE, null, '#8d6e4a');
+    fx('burst', x + .5, y + .5, null, '#7d5c3c');
     checkGoal();
     return true;
   }
@@ -303,10 +325,14 @@ const Game = (() => {
     const t = tileAt(x, y);
     const def = D.CROPS[cropId];
     if (!t || !def || t.k !== 'soil' || t.crop || t.obj) return false;
-    if (state.coins < def.seed) { toast('Not enough coins for seeds!', 'bad'); return false; }
-    if (!seasonOK(cropId)) { toast(`${D.ITEMS[cropId].name} won't grow in ${D.SEASONS[state.season].name}!`, 'bad'); return false; }
+    if (state.coins < def.seed) { toast('Not enough cash for seeds!', 'bad'); return false; }
+    // planting out of season is allowed — but the crop will wither and die.
+    if (!seasonOK(cropId) && state._flags.offWarnDay !== state.now && !state._offline) {
+      state._flags.offWarnDay = state.now;
+      toast(`⚠️ ${D.ITEMS[cropId].name} is out of season — it will wither and the seed money is gone!`, 'bad');
+    }
     state.coins -= def.seed;
-    t.crop = { id: cropId, prog: 0, water: 0, dead: false, fert: false, regrown: false };
+    t.crop = { id: cropId, prog: 0, water: 0, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
     if (state.weather === 'rain' || state.weather === 'storm') t.crop.water = 1;
     state.stats.planted++;
     checkGoal();
@@ -320,7 +346,7 @@ const Game = (() => {
     state.can.water--;
     t.crop.water = 1;
     state.stats.watered++;
-    fx('burst', (x + .5) * D.TILE, (y + .35) * D.TILE, null, '#4fc3f7');
+    fx('burst', x + .5, y + .35, null, '#4a90b8');
     checkGoal();
     return true;
   }
@@ -332,7 +358,7 @@ const Game = (() => {
     state.coins -= D.FERT_COST;
     t.crop.fert = true;
     state.stats.fertilized++;
-    fx('burst', (x + .5) * D.TILE, (y + .4) * D.TILE, null, '#ffd54f');
+    fx('burst', x + .5, y + .4, null, '#d9b23c');
     checkGoal();
     return true;
   }
@@ -355,6 +381,7 @@ const Game = (() => {
 
     if (def.regrow && seasonOK(id)) { // multi-harvest crops grow back
       t.crop.prog = 0;
+      t.crop.rot = 0;
       t.crop.regrown = true;
       t.crop.fert = false;
     } else {
@@ -362,8 +389,8 @@ const Game = (() => {
     }
 
     if (!silent) {
-      fx('float', (x + .5) * D.TILE, y * D.TILE, `+${n} ${D.ITEMS[id].emoji}`, n > 1 ? '#ffe082' : '#fff');
-      fx('burst', (x + .5) * D.TILE, (y + .4) * D.TILE, null, def.color);
+      fx('float', x + .5, y, `+${n} ${D.ITEMS[id].emoji}`, n > 1 ? '#ffe082' : '#fff');
+      fx('burst', x + .5, y + .4, null, def.color);
     }
     checkGoal();
     return n;
@@ -373,7 +400,7 @@ const Game = (() => {
     const t = tileAt(x, y);
     if (!t || !t.crop || !t.crop.dead) return false;
     t.crop = null;
-    fx('burst', (x + .5) * D.TILE, (y + .4) * D.TILE, null, '#9e9e9e');
+    fx('burst', x + .5, y + .4, null, '#8a8178');
     return true;
   }
 
@@ -386,7 +413,7 @@ const Game = (() => {
     return true;
   }
 
-  // area for hoe / can tiers: NxN block around tap point
+  // area for tilling / watering tiers: NxN block around tap point
   function areaCells(x, y, area) {
     const cells = [];
     const start = area === 3 ? -1 : 0;
@@ -401,8 +428,19 @@ const Game = (() => {
   function applyTool(tool, x, y, seed) {
     let count = 0;
     if (tool === 'hoe') {
-      for (const [cx, cy] of areaCells(x, y, D.HOE_TIERS[state.hoe.tier].area)) if (till(cx, cy)) count++;
+      const tier = D.TILL_TIERS[state.till.tier];
+      let area = tier.area;
+      let noFuel = false;
+      if (tier.fuel > 0 && state.fuel < tier.fuel) { area = 1; noFuel = true; } // hand-till fallback
+      for (const [cx, cy] of areaCells(x, y, area)) {
+        if (tier.fuel > 0 && !noFuel && state.fuel < tier.fuel) break;
+        if (till(cx, cy)) {
+          count++;
+          if (tier.fuel > 0 && !noFuel) state.fuel = Math.max(0, Math.round((state.fuel - tier.fuel) * 100) / 100);
+        }
+      }
       if (count) emit('sound', 'till');
+      if (noFuel && count) return 'nofuel';
     } else if (tool === 'water') {
       let empty = false;
       for (const [cx, cy] of areaCells(x, y, D.CAN_TIERS[state.can.tier].area)) {
@@ -432,7 +470,7 @@ const Game = (() => {
 
     if (t.obj && t.obj.t === 'b') {
       const b = state.buildings[t.obj.i];
-      if (b.type === 'well') { refillCan(); return { act: 'well' }; }
+      if (b && b.type === 'well') { refillCan(); return { act: 'well' }; }
       return { act: 'building', index: t.obj.i };
     }
 
@@ -454,7 +492,11 @@ const Game = (() => {
     }
 
     if (t.k === 'soil') return { act: 'seedsheet', x, y };
-    if (t.k === 'grass') { applyTool('hoe', x, y); return { act: 'till' }; }
+    if (t.k === 'grass') {
+      const r = applyTool('hoe', x, y);
+      if (r === 'nofuel') toast('⛽ Out of fuel — hand-tilling one plot. Buy fuel in the Shop!', 'bad');
+      return { act: 'till' };
+    }
     return { act: 'none' };
   }
 
@@ -472,7 +514,7 @@ const Game = (() => {
   function placeBuilding(type, x, y) {
     const def = D.BUILDINGS[type];
     if (!canPlaceBuilding(type, x, y)) return false;
-    if (state.coins < def.cost) { toast('Not enough coins!', 'bad'); return false; }
+    if (state.coins < def.cost) { toast('Not enough cash!', 'bad'); return false; }
     state.coins -= def.cost;
     const idx = placeBuildingRaw(type, x, y);
     emit('sound', 'build');
@@ -482,10 +524,32 @@ const Game = (() => {
     return true;
   }
 
+  // sell a building back at 50% — a lifeline when cash runs dry
+  function sellBuilding(index) {
+    const b = state.buildings[index];
+    if (!b) return false;
+    const def = D.BUILDINGS[b.type];
+    if (def.capacity && animalsIn(index).length > 0) {
+      toast('Sell or move the animals first!', 'bad');
+      return false;
+    }
+    const refund = Math.floor(def.cost / 2);
+    for (let dy = 0; dy < def.h; dy++)
+      for (let dx = 0; dx < def.w; dx++) {
+        const t = tileAt(b.x + dx, b.y + dy);
+        if (t && t.obj && t.obj.t === 'b' && t.obj.i === index) t.obj = null;
+      }
+    state.buildings[index] = null; // tombstone keeps other indexes stable
+    state.coins += refund;
+    emit('sound', 'coin');
+    toast(`Sold the ${def.name} for ${D.$(refund)}`, 'good');
+    return true;
+  }
+
   function buyParcel(index) {
     const p = D.PARCELS[index];
     if (!p || state.unlockedParcels.includes(index)) return false;
-    if (state.coins < p.cost) { toast('Not enough coins!', 'bad'); return false; }
+    if (state.coins < p.cost) { toast('Not enough cash!', 'bad'); return false; }
     state.coins -= p.cost;
     state.unlockedParcels.push(index);
     emit('sound', 'build');
@@ -503,11 +567,13 @@ const Game = (() => {
       }
   }
 
-  // drones auto-harvest and replant a 5x5 area each dawn
+  // drones auto-harvest and replant a 5x5 area each dawn — if they have fuel
   function runDrones() {
-    let harvested = 0, replanted = 0;
+    let harvested = 0, replanted = 0, grounded = false;
     for (const b of state.buildings) {
-      if (b.type !== 'drone') continue;
+      if (!b || b.type !== 'drone') continue;
+      if (state.fuel < D.FUEL.dronePerDay) { grounded = true; continue; }
+      let worked = false;
       for (let dy = -2; dy <= 2; dy++)
         for (let dx = -2; dx <= 2; dx++) {
           const x = b.x + dx, y = b.y + dy;
@@ -515,17 +581,20 @@ const Game = (() => {
           if (!t || !t.crop || t.crop.dead || t.crop.prog < 1) continue;
           const id = t.crop.id;
           harvested += harvest(x, y, true);
+          worked = true;
           if (!tileAt(x, y).crop && state.coins >= D.CROPS[id].seed && seasonOK(id)) {
             if (plant(x, y, id)) replanted++;
           }
         }
+      if (worked) state.fuel = Math.max(0, Math.round((state.fuel - D.FUEL.dronePerDay) * 100) / 100);
     }
     if (harvested) toast(`🤖 Drones harvested ${harvested} crop${harvested > 1 ? 's' : ''}${replanted ? ` and replanted ${replanted}` : ''}!`, 'good');
+    if (grounded) toast('🤖 A drone is grounded — no fuel! Buy some in the Shop.', 'bad');
   }
 
   // ---------------- animals ----------------
   function buildingsOf(homeType) {
-    return state.buildings.map((b, i) => ({ b, i })).filter(e => e.b.type === homeType);
+    return state.buildings.map((b, i) => ({ b, i })).filter(e => e.b && e.b.type === homeType);
   }
 
   function animalsIn(bIdx) { return state.animals.filter(a => a.home === bIdx); }
@@ -535,13 +604,15 @@ const Game = (() => {
     const b = state.buildings[bIdx];
     if (!def || !b || b.type !== def.home) return false;
     if (animalsIn(bIdx).length >= b.capacity) { toast('This building is full!', 'bad'); return false; }
-    if (state.coins < def.cost) { toast('Not enough coins!', 'bad'); return false; }
+    if (state.coins < def.cost) { toast('Not enough cash!', 'bad'); return false; }
     state.coins -= def.cost;
     state.animals.push({
+      uid: animalUid++,
       type, home: bIdx,
       name: pick(D.ANIMAL_NAMES),
       fedUntil: state.now + D.DAY_LEN * 1.2,
       happiness: 60,
+      sick: false,
       prodProg: 0,
     });
     emit('sound', 'plant');
@@ -550,7 +621,33 @@ const Game = (() => {
     return true;
   }
 
-  // feeding uses grain (wheat/corn) if you own a Feed Mill, otherwise coins
+  // sell an animal back at 60% of its price
+  function sellAnimal(index) {
+    const a = state.animals[index];
+    if (!a) return false;
+    const refund = Math.floor(D.ANIMALS[a.type].cost * 0.6 * (a.sick ? 0.5 : 1));
+    state.animals.splice(index, 1);
+    state.coins += refund;
+    emit('sound', 'coin');
+    toast(`${a.name} sold for ${D.$(refund)}`, 'good');
+    return true;
+  }
+
+  // a sick animal stops producing until you pay the vet
+  function vetAnimal(index) {
+    const a = state.animals[index];
+    if (!a || !a.sick) return false;
+    const cost = Math.ceil(D.ANIMALS[a.type].cost * D.VET_RATE);
+    if (state.coins < cost) { toast('Not enough cash for the vet!', 'bad'); return false; }
+    state.coins -= cost;
+    a.sick = false;
+    a.happiness = 50;
+    emit('sound', 'goal');
+    toast(`🩺 ${a.name} is healthy again!`, 'good');
+    return true;
+  }
+
+  // feeding uses grain (wheat/corn) if you own a Feed Mill, otherwise dollars
   function feedCostFor(animal) {
     const def = D.ANIMALS[animal.type];
     if (hasBuilding('mill')) {
@@ -568,11 +665,11 @@ const Game = (() => {
       state.inventory[cost.grain]--;
       if (state.inventory[cost.grain] <= 0) delete state.inventory[cost.grain];
     } else {
-      if (state.coins < cost.coins) { toast('Not enough coins for feed!', 'bad'); return false; }
+      if (state.coins < cost.coins) { toast('Not enough cash for feed!', 'bad'); return false; }
       state.coins -= cost.coins;
     }
     a.fedUntil = state.now + D.DAY_LEN * 1.2;
-    a.happiness = clamp(a.happiness + 8, 0, 100);
+    if (!a.sick) a.happiness = clamp(a.happiness + 8, 0, 100);
     return true;
   }
 
@@ -596,10 +693,10 @@ const Game = (() => {
       gainXp += Math.ceil(D.ITEMS[def.product].base / 8);
       state.stats.collected++;
     }
-    if (n) {
+    if (n && b) {
       addXp(gainXp);
       emit('sound', 'harvest');
-      fx('float', (b.x + 1) * D.TILE, b.y * D.TILE, `+${n} 📦`, '#fff');
+      fx('float', b.x + 1, b.y, `+${n} 📦`, '#fff');
       checkGoal();
     }
     return n;
@@ -645,7 +742,7 @@ const Game = (() => {
     });
     if (n) {
       emit('sound', 'harvest');
-      fx('float', (b.x + 1) * D.TILE, b.y * D.TILE, `+${n} 📦`, '#fff');
+      fx('float', b.x + 1, b.y, `+${n} 📦`, '#fff');
       checkGoal();
     }
     return n;
@@ -655,23 +752,23 @@ const Game = (() => {
   function buyCanTier() {
     const next = D.CAN_TIERS[state.can.tier + 1];
     if (!next) return false;
-    if (state.coins < next.cost) { toast('Not enough coins!', 'bad'); return false; }
+    if (state.coins < next.cost) { toast('Not enough cash!', 'bad'); return false; }
     state.coins -= next.cost;
     state.can.tier++;
     state.can.water = next.cap;
     emit('sound', 'build');
-    toast(`💧 Upgraded to ${next.name}!`, 'good');
+    toast(`💧 Upgraded to the ${next.name}!`, 'good');
     return true;
   }
 
-  function buyHoeTier() {
-    const next = D.HOE_TIERS[state.hoe.tier + 1];
+  function buyTillTier() {
+    const next = D.TILL_TIERS[state.till.tier + 1];
     if (!next) return false;
-    if (state.coins < next.cost) { toast('Not enough coins!', 'bad'); return false; }
+    if (state.coins < next.cost) { toast('Not enough cash!', 'bad'); return false; }
     state.coins -= next.cost;
-    state.hoe.tier++;
+    state.till.tier++;
     emit('sound', 'build');
-    toast(`⛏️ Upgraded to ${next.name}!`, 'good');
+    toast(`🚜 Upgraded to the ${next.name}! It burns ${next.fuel} gal per tile.`, 'good');
     return true;
   }
 
@@ -684,7 +781,7 @@ const Game = (() => {
     const [cur, need] = g.check(state);
     if (cur >= need) {
       state.coins += g.reward;
-      toast(`${g.icon} Goal complete: ${g.title}! +${g.reward.toLocaleString()} 🪙`, 'good');
+      toast(`${g.icon} Goal complete: ${g.title}! +${D.$(g.reward)}`, 'good');
       emit('sound', 'goal');
       state.goalIndex++;
       emit('goal');
@@ -708,24 +805,33 @@ const Game = (() => {
     state._flags.frostDone = false;
 
     // sprinklers water every dawn, then drones harvest & replant
-    for (const b of state.buildings) if (b.type === 'sprinkler') sprinkle(b);
+    for (const b of state.buildings) if (b && b.type === 'sprinkler') sprinkle(b);
     runDrones();
 
-    // hungry animals lose happiness
-    for (const a of state.animals) if (state.now >= a.fedUntil) a.happiness = clamp(a.happiness - 12, 0, 100);
+    // hungry animals lose happiness; at rock bottom they fall sick
+    for (const a of state.animals) {
+      if (state.now >= a.fedUntil) {
+        a.happiness = clamp(a.happiness - 12, 0, 100);
+        if (a.happiness <= 0 && !a.sick && !state._offline) {
+          a.sick = true;
+          toast(`🤒 ${a.name} the ${D.ANIMALS[a.type].name.toLowerCase()} is sick from neglect — call the vet!`, 'bad');
+        }
+      }
+    }
 
-    // market drift + hot item
+    // market drift + hot item + fuel price
     for (const id of Object.keys(state.market.mults)) {
       state.market.mults[id] = clamp(state.market.mults[id] * (0.82 + rnd() * 0.36), 0.6, 1.6);
     }
     state.market.hot = pick(Object.keys(D.ITEMS));
+    state.market.fuelPrice = Math.round(clamp(state.market.fuelPrice * (0.9 + rnd() * 0.2), D.FUEL.min, D.FUEL.max) * 10) / 10;
 
     // storms can flatten unprotected crops
     if (state.weather === 'storm' && !state._offline) {
       let smashed = 0;
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
-        if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12 * diff().eventMult) { t.crop.dead = true; smashed++; }
+        if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12 * diff().eventMult) { t.crop.dead = true; smashed++; state.stats.lost++; }
       }
       if (smashed) toast(`⛈️ The storm destroyed ${smashed} crop${smashed > 1 ? 's' : ''}! Scarecrows protect nearby plots.`, 'bad');
     }
@@ -744,8 +850,9 @@ const Game = (() => {
       if (targets.length) {
         const [x, y] = pick(targets);
         state.tiles[y][x].crop = null;
+        state.stats.lost++;
         toast('🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields.', 'bad');
-        fx('float', (x + .5) * D.TILE, y * D.TILE, '🐦‍⬛', '#333');
+        fx('float', x + .5, y, '🐦‍⬛', '#333');
       }
     }
   }
@@ -755,9 +862,22 @@ const Game = (() => {
     if (state.season === 3 && !hasBuilding('greenhouse') && !state._offline && rnd() < 0.4 * diff().eventMult) {
       let frozen = 0;
       for (const row of state.tiles) for (const t of row) {
-        if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3)) { t.crop.dead = true; frozen++; }
+        if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3)) { t.crop.dead = true; frozen++; state.stats.lost++; }
       }
       if (frozen) toast(`❄️ Frost killed ${frozen} crop${frozen > 1 ? 's' : ''}! Only winter crops survive — or build a Greenhouse.`, 'bad');
+    }
+  }
+
+  // batch crop-death notifications so a dying field doesn't spam toasts
+  function flushDeaths() {
+    const d = state._flags.deaths;
+    const msgs = [];
+    if (d.dry) msgs.push(`${d.dry} died of thirst 🥀`);
+    if (d.rot) msgs.push(`${d.rot} rotted in the field 🪰`);
+    if (d.season) msgs.push(`${d.season} withered out of season 🍂`);
+    if (msgs.length) {
+      toast(`Crop losses: ${msgs.join(' · ')}`, 'bad');
+      d.dry = d.rot = d.season = 0;
     }
   }
 
@@ -775,14 +895,34 @@ const Game = (() => {
 
     const raining = state.weather === 'rain' || state.weather === 'storm';
     const drain = state.weather === 'drought' ? 22 : (state.season === 3 ? 110 : 65); // seconds of moisture
+    const decayMult = state._offline ? 0.5 : 1; // gentler while you're away
+    const deaths = state._flags.deaths;
 
-    // crops
+    // crops: growth, thirst, wilting, rot
     for (const row of state.tiles) for (const tile of row) {
       const c = tile.crop;
       if (!c || c.dead) continue;
+      const off = !seasonOK(c.id);
       if (raining) c.water = 1;
       else c.water = Math.max(0, c.water - dt / drain);
-      if (c.prog < 1 && c.water > 0 && seasonOK(c.id)) {
+
+      // wilting: dry crops and out-of-season crops decline; watered ones recover
+      let wilting = false;
+      if (off) { c.wilt = (c.wilt || 0) + (dt * decayMult) / (0.8 * D.DAY_LEN); wilting = true; }
+      else if (c.water <= 0) { c.wilt = (c.wilt || 0) + (dt * decayMult) / (D.WILT_DAYS * D.DAY_LEN); wilting = true; }
+      if (!wilting && c.wilt > 0) c.wilt = Math.max(0, c.wilt - dt / D.DAY_LEN);
+      if (c.wilt >= 1) {
+        c.dead = true;
+        state.stats.lost++;
+        deaths[off ? 'season' : 'dry']++;
+        continue;
+      }
+
+      if (c.prog >= 1) {
+        // ripe crops rot if you leave them standing
+        c.rot = (c.rot || 0) + (dt * decayMult) / (D.ROT_DAYS * D.DAY_LEN);
+        if (c.rot >= 1) { c.dead = true; state.stats.lost++; deaths.rot++; }
+      } else if (c.water > 0 && !off) {
         const def = D.CROPS[c.id];
         const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
         const speed = c.fert ? 1.25 : 1;
@@ -790,9 +930,16 @@ const Game = (() => {
       }
     }
 
-    // animals produce while fed
+    // surface aggregated crop deaths every few seconds
+    state._flags.deathTimer = (state._flags.deathTimer || 0) + dt;
+    if (state._flags.deathTimer > 5) {
+      state._flags.deathTimer = 0;
+      if (!state._offline) flushDeaths();
+    }
+
+    // animals produce while fed and healthy
     for (const a of state.animals) {
-      if (state.now < a.fedUntil && a.prodProg < 1) {
+      if (!a.sick && state.now < a.fedUntil && a.prodProg < 1) {
         const speed = 0.75 + (a.happiness / 100) * 0.5; // 0.75x .. 1.25x
         a.prodProg = Math.min(1, a.prodProg + (dt * speed) / D.ANIMALS[a.type].prodTime);
       }
@@ -814,10 +961,14 @@ const Game = (() => {
     if (!state) return 0;
     let v = state.coins;
     for (const [item, qty] of Object.entries(state.inventory)) v += D.ITEMS[item].base * qty;
-    for (const b of state.buildings) v += D.BUILDINGS[b.type].cost;
+    for (const b of state.buildings) if (b) v += D.BUILDINGS[b.type].cost;
     for (const a of state.animals) v += D.ANIMALS[a.type].cost;
     for (const i of state.unlockedParcels) v += D.PARCELS[i].cost;
     return v;
+  }
+
+  function ownsPoweredGear() {
+    return state.till.tier > 0 || hasBuilding('drone');
   }
 
   return {
@@ -828,14 +979,14 @@ const Game = (() => {
     // world queries
     tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK,
     buildingsOf, animalsIn, readyIn, feedCostFor, canCraft, canFulfill,
-    currentGoal, sellPrice, availableItems, farmValue,
+    currentGoal, sellPrice, fuelPrice, availableItems, farmValue, ownsPoweredGear,
     // actions
     smartAction, applyTool, till, plant, water, fertilize, harvest, clearDead, refillCan,
-    canPlaceBuilding, placeBuilding, buyParcel,
-    buyAnimal, feedAnimal, feedAll, collectBuilding,
+    canPlaceBuilding, placeBuilding, sellBuilding, buyParcel,
+    buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding,
     startRecipe, collectRecipes,
     sellItem, fulfillOrder, skipOrder,
-    buyCanTier, buyHoeTier,
+    buyCanTier, buyTillTier, buyFuel,
     addXp, checkGoal,
   };
 })();

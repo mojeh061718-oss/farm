@@ -3,8 +3,8 @@
 
 const UI = (() => {
   const D = DATA;
-  const T = D.TILE;
   const $ = id => document.getElementById(id);
+  const $$ = D.$; // money formatter
 
   let tool = 'auto';
   let seed = 'turnip';          // currently selected seed for plant tool
@@ -79,6 +79,14 @@ const UI = (() => {
     $('dayfill').style.width = (s.t * 100) + '%';
     $('water-fill').style.width = (s.can.water / D.CAN_TIERS[s.can.tier].cap * 100) + '%';
 
+    // fuel gauge appears once you own powered equipment
+    const showFuel = Game.ownsPoweredGear() || s.fuel > 0;
+    $('pill-fuel').classList.toggle('hidden', !showFuel);
+    if (showFuel) {
+      $('fuel-amount').textContent = s.fuel.toFixed(1);
+      $('pill-fuel').classList.toggle('fuel-low', s.fuel < 1);
+    }
+
     const fulfillable = s.orders.filter(o => Game.canFulfill(o)).length;
     $('orders-badge').classList.toggle('hidden', fulfillable === 0);
     $('orders-badge').textContent = fulfillable;
@@ -99,7 +107,7 @@ const UI = (() => {
     $('goal-icon').textContent = g.icon;
     $('goal-title').textContent = g.title;
     $('goal-progress').textContent = Math.min(cur, need) + ' / ' + need;
-    $('goal-reward').textContent = '+' + g.reward + ' 🪙';
+    $('goal-reward').textContent = '+' + $$(g.reward);
   }
 
   // ---------------- sheet framework ----------------
@@ -148,7 +156,12 @@ const UI = (() => {
   function renderSeeds(body) {
     $('sheet-title').textContent = '🌱 Choose a seed';
     setTabs(null);
-    const s = Game.state;
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.style.padding = '0 6px 10px';
+    note.textContent = 'Crops need the right season and steady water — dry crops wilt and die, ripe ones rot if left standing.';
+    body.appendChild(note);
+
     const grid = document.createElement('div');
     grid.className = 'card-grid';
     const entries = Object.entries(D.CROPS).sort((a, b) => a[1].seed - b[1].seed);
@@ -156,16 +169,18 @@ const UI = (() => {
       const item = D.ITEMS[id];
       const off = !Game.seasonOK(id);
       const card = document.createElement('div');
-      card.className = 'item-card' + (off ? ' disabled' : '');
+      card.className = 'item-card' + (off ? ' off-season' : '');
       card.innerHTML = `
         <span class="season-tag">${c.seasons.map(i => D.SEASONS[i].emoji).join('')}</span>
-        ${c.regrow ? '<span class="lock-tag" style="background:#43a047">♻️ regrows</span>' : ''}
+        ${off ? '<span class="lock-tag" style="background:#b03a2a">⚠️ off-season</span>' : (c.regrow ? '<span class="lock-tag" style="background:#3f8a42">♻️ regrows</span>' : '')}
         <div class="emoji">${item.emoji}</div>
         <div class="name">${item.name}</div>
-        <div class="sub">${c.grow}s${c.regrow ? ' · then ' + c.regrow + 's' : ''} · sells ~${item.base} 🪙</div>
-        <div class="price">${c.seed} 🪙</div>`;
+        <div class="sub">${c.grow}s${c.regrow ? ' · then ' + c.regrow + 's' : ''} · sells ~${$$(item.base)}</div>
+        <div class="price">${$$(c.seed)}</div>`;
       card.onclick = () => {
-        if (off) { toast(`${item.name} only grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')}${Game.hasBuilding('greenhouse') ? '' : ' — or build a Greenhouse'}!`, 'bad'); return; }
+        if (off) {
+          toast(`⚠️ ${item.name} grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')} — planting now wastes the seed money!`, 'bad');
+        }
         seed = id;
         SOUNDS.tap();
         if (plantTarget) {
@@ -174,7 +189,7 @@ const UI = (() => {
         }
         setTool('plant');
         closeSheet();
-        toast(`${item.emoji} Planting ${item.name} — drag across tilled soil!`);
+        if (!off) toast(`${item.emoji} Planting ${item.name} — drag across tilled soil!`);
       };
       grid.appendChild(card);
     }
@@ -187,7 +202,8 @@ const UI = (() => {
     const tabs = [
       { id: 'build', label: '🏠 Buildings' },
       { id: 'animals', label: '🐔 Animals' },
-      { id: 'tools', label: '🛠️ Upgrades' },
+      { id: 'tools', label: '🚜 Equipment' },
+      { id: 'supplies', label: '⛽ Supplies' },
       { id: 'land', label: '🚧 Land' },
     ];
     sheetTab = sheetTab || 'build';
@@ -206,9 +222,9 @@ const UI = (() => {
           <div class="emoji">${b.emoji}</div>
           <div class="name">${b.name}</div>
           <div class="sub">${b.desc}</div>
-          <div class="price">${b.cost.toLocaleString()} 🪙</div>`;
+          <div class="price">${$$(b.cost)}</div>`;
         card.onclick = () => {
-          if (s.coins < b.cost) { toast(`Save up ${b.cost.toLocaleString()} coins for the ${b.name}!`, 'bad'); return; }
+          if (s.coins < b.cost) { toast(`Save up ${$$(b.cost)} for the ${b.name}!`, 'bad'); return; }
           SOUNDS.tap();
           startBuild(id);
         };
@@ -227,9 +243,9 @@ const UI = (() => {
           <div class="emoji">${a.emoji}</div>
           <div class="info">
             <div class="name">${a.name}</div>
-            <div class="sub">Makes ${D.ITEMS[a.product].emoji} ${D.ITEMS[a.product].name} (~${D.ITEMS[a.product].base} 🪙) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
+            <div class="sub">Makes ${D.ITEMS[a.product].emoji} ${D.ITEMS[a.product].name} (~${$$(D.ITEMS[a.product].base)}) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
           </div>
-          <div class="actions"><button class="mini gold">${a.cost.toLocaleString()} 🪙</button></div>`;
+          <div class="actions"><button class="mini gold">${$$(a.cost)}</button></div>`;
         row.querySelector('button').onclick = () => {
           if (!homes.length) { toast(`You need a ${D.BUILDINGS[a.home].name} with free space!`, 'bad'); return; }
           if (Game.buyAnimal(id, homes[0].i)) { updateHud(); renderSheet(); }
@@ -239,16 +255,37 @@ const UI = (() => {
     }
 
     if (sheetTab === 'tools') {
-      body.appendChild(toolRow('💧', 'Watering Can', D.CAN_TIERS, s.can.tier,
+      body.appendChild(toolRow('🚜', 'Tilling', D.TILL_TIERS, s.till.tier,
+        t => `Tills ${t.area}×${t.area} at once${t.fuel ? ` · burns ${t.fuel} gal/tile` : ' · no fuel needed'}`, () => Game.buyTillTier()));
+      body.appendChild(toolRow('💧', 'Watering', D.CAN_TIERS, s.can.tier,
         t => `Holds ${t.cap} water · waters ${t.area}×${t.area}`, () => Game.buyCanTier()));
-      body.appendChild(toolRow('⛏️', 'Hoe', D.HOE_TIERS, s.hoe.tier,
-        t => `Tills ${t.area}×${t.area} at once`, () => Game.buyHoeTier()));
+    }
+
+    if (sheetTab === 'supplies') {
+      const price = Game.fuelPrice();
+      const fuelRow = document.createElement('div');
+      fuelRow.className = 'row-card';
+      fuelRow.innerHTML = `
+        <div class="emoji">⛽</div>
+        <div class="info">
+          <div class="name">Diesel · $${price.toFixed(2)}/gal today</div>
+          <div class="sub">Runs the rototiller, tractor and drones. You have ${s.fuel.toFixed(1)} gal. Prices change daily!</div>
+        </div>
+        <div class="actions">
+          <button class="mini blue">+5 gal · ${$$(Math.ceil(5 * price))}</button>
+          <button class="mini gold">+20 gal · ${$$(Math.ceil(20 * price))}</button>
+        </div>`;
+      const btns = fuelRow.querySelectorAll('button');
+      btns[0].onclick = () => { if (Game.buyFuel(5)) { updateHud(); renderSheet(); } };
+      btns[1].onclick = () => { if (Game.buyFuel(20)) { updateHud(); renderSheet(); } };
+      body.appendChild(fuelRow);
+
       const fert = document.createElement('div');
       fert.className = 'row-card';
       fert.innerHTML = `
         <div class="emoji">✨</div>
         <div class="info">
-          <div class="name">Fertilizer · ${D.FERT_COST} 🪙 per use</div>
+          <div class="name">Fertilizer · ${$$(D.FERT_COST)} per use</div>
           <div class="sub">Use the ✨ tool on growing crops: +25% growth speed and a 45% chance of a double harvest.</div>
         </div>`;
       body.appendChild(fert);
@@ -268,7 +305,7 @@ const UI = (() => {
             <div class="name">Land parcel · ${p.w}×${p.h} tiles</div>
             <div class="sub">${broke ? 'Keep saving — every tile is an opportunity!' : 'Ready to farm!'}</div>
           </div>
-          <div class="actions"><button class="mini gold">${p.cost.toLocaleString()} 🪙</button></div>`;
+          <div class="actions"><button class="mini gold">${$$(p.cost)}</button></div>`;
         row.querySelector('button').onclick = () => {
           if (Game.buyParcel(i)) { updateHud(); renderSheet(); }
         };
@@ -294,7 +331,7 @@ const UI = (() => {
         <div class="name">${name}: ${tiers[cur].name} → ${next.name}</div>
         <div class="sub">${describe(next)}</div>
       </div>
-      <div class="actions"><button class="mini gold">${next.cost.toLocaleString()} 🪙</button></div>`;
+      <div class="actions"><button class="mini gold">${$$(next.cost)}</button></div>`;
     row.querySelector('button').onclick = () => { if (buy()) { updateHud(); renderSheet(); } };
     return row;
   }
@@ -326,9 +363,9 @@ const UI = (() => {
     const sellAll = document.createElement('button');
     sellAll.className = 'chunky gold';
     sellAll.style.cssText = 'width:100%;margin-bottom:12px';
-    sellAll.textContent = `Sell everything · +${total.toLocaleString()} 🪙`;
+    sellAll.textContent = `Sell everything · +${$$(total)}`;
     sellAll.onclick = () => {
-      confirmBox('⚖️', `Sell your entire inventory for ${total.toLocaleString()} coins?`, 'Sell all', () => {
+      confirmBox('⚖️', `Sell your entire inventory for ${$$(total)}?`, 'Sell all', () => {
         for (const [id, qty] of items) Game.sellItem(id, qty);
         updateHud(); renderSheet();
       });
@@ -346,11 +383,11 @@ const UI = (() => {
         <div class="emoji">${item.emoji}${hot === id ? '🔥' : ''}</div>
         <div class="info">
           <div class="name">${item.name} × ${qty}</div>
-          <div class="sub">${price} 🪙 each · ${dir}</div>
+          <div class="sub">${$$(price)} each · ${dir}</div>
         </div>
         <div class="actions">
-          <button class="mini">Sell 1 · ${price} 🪙</button>
-          ${qty > 1 ? `<button class="mini gold">All · ${(price * qty).toLocaleString()} 🪙</button>` : ''}
+          <button class="mini">Sell 1 · ${$$(price)}</button>
+          ${qty > 1 ? `<button class="mini gold">All · ${$$(price * qty)}</button>` : ''}
         </div>`;
       const btns = row.querySelectorAll('button');
       btns[0].onclick = () => { Game.sellItem(id, 1); updateHud(); renderSheet(); };
@@ -388,7 +425,7 @@ const UI = (() => {
       card.innerHTML = `
         <div class="order-items">${items}</div>
         <div class="order-foot">
-          <div class="order-reward">+${o.coins.toLocaleString()} 🪙 · +${o.xp} XP</div>
+          <div class="order-reward">+${$$(o.coins)} · +${o.xp} XP</div>
           <div style="display:flex;gap:6px">
             <button class="mini" style="background:linear-gradient(180deg,#bcaaa4,#8d6e63)">Skip</button>
             <button class="mini gold" ${can ? '' : 'disabled'}>Deliver 🚚</button>
@@ -410,13 +447,32 @@ const UI = (() => {
     $('sheet-title').textContent = `${def.emoji} ${def.name}`;
     setTabs(null);
 
-    if (def.capacity) return renderHousing(body, index, b, def);
-    if (b.queue) return renderProcessor(body, index, b, def);
+    if (def.capacity) renderHousing(body, index, b, def);
+    else if (b.queue) renderProcessor(body, index, b, def);
+    else {
+      const e = document.createElement('div');
+      e.className = 'empty-note';
+      e.textContent = def.desc;
+      body.appendChild(e);
+    }
 
-    const e = document.createElement('div');
-    e.className = 'empty-note';
-    e.textContent = def.desc;
-    body.appendChild(e);
+    // sell-back option (a lifeline when cash runs dry)
+    if (b.type !== 'well' || Game.buildingsOf('well').length > 1) {
+      const refund = Math.floor(def.cost / 2);
+      const sellRow = document.createElement('div');
+      sellRow.className = 'row-card';
+      sellRow.style.marginTop = '14px';
+      sellRow.innerHTML = `
+        <div class="emoji">🏷️</div>
+        <div class="info"><div class="name">Sell this ${def.name}</div><div class="sub">Get back ${$$(refund)} (50% of cost)${def.capacity ? ' · must be empty' : ''}</div></div>
+        <div class="actions"><button class="mini" style="background:linear-gradient(180deg,#ef8a6a,#c05a3a)">Sell</button></div>`;
+      sellRow.querySelector('button').onclick = () => {
+        confirmBox('🏷️', `Sell the ${def.name} for ${$$(refund)}?`, 'Sell it', () => {
+          if (Game.sellBuilding(index)) { closeSheet(); updateHud(); }
+        });
+      };
+      body.appendChild(sellRow);
+    }
   }
 
   function renderHousing(body, index, b, def) {
@@ -438,7 +494,7 @@ const UI = (() => {
       const n = document.createElement('div');
       n.className = 'empty-note';
       n.style.padding = '0 4px 10px';
-      n.textContent = '🌾 Feed Mill active: feeding uses your wheat & corn first, then coins.';
+      n.textContent = '🌾 Feed Mill active: feeding uses your wheat & corn first, then cash.';
       body.appendChild(n);
     }
 
@@ -453,21 +509,38 @@ const UI = (() => {
       const adef = D.ANIMALS[a.type];
       const fed = s.now < a.fedUntil;
       const cost = Game.feedCostFor(a);
-      const costLabel = cost.grain ? `1 ${D.ITEMS[cost.grain].emoji}` : `${cost.coins} 🪙`;
+      const costLabel = cost.grain ? `1 ${D.ITEMS[cost.grain].emoji}` : $$(cost.coins);
+      const vetCost = Math.ceil(adef.cost * D.VET_RATE);
+      const sellPrice = Math.floor(adef.cost * 0.6 * (a.sick ? 0.5 : 1));
+      const status = a.sick
+        ? '🤒 sick — needs the vet before producing again'
+        : fed
+          ? (a.prodProg >= 1 ? `${D.ITEMS[adef.product].emoji} ready!` : `making ${D.ITEMS[adef.product].emoji} · ${Math.round(a.prodProg * 100)}%`)
+          : '😋 hungry — feed to produce';
       const row = document.createElement('div');
       row.className = 'row-card';
       row.innerHTML = `
-        <div class="emoji">${adef.emoji}</div>
+        <div class="emoji">${adef.emoji}${a.sick ? '🤒' : ''}</div>
         <div class="info">
           <div class="name">${a.name} <span style="font-weight:700;color:#97876a">· ${adef.name}</span></div>
-          <div class="sub">${fed ? (a.prodProg >= 1 ? `${D.ITEMS[adef.product].emoji} ready!` : `making ${D.ITEMS[adef.product].emoji} · ${Math.round(a.prodProg * 100)}%`) : '😋 hungry — feed to produce'}</div>
+          <div class="sub">${status}</div>
           <div class="minibar ${a.prodProg >= 1 ? '' : 'blue'}"><div style="width:${Math.round(a.prodProg * 100)}%"></div></div>
-          <div class="sub" style="margin-top:4px">${a.happiness >= 80 ? '😍' : a.happiness >= 50 ? '🙂' : '😟'} happiness ${a.happiness}%</div>
+          <div class="sub" style="margin-top:4px">${a.sick ? '🤒' : a.happiness >= 80 ? '😍' : a.happiness >= 50 ? '🙂' : '😟'} condition ${a.happiness}%</div>
         </div>
         <div class="actions">
-          <button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>
+          ${a.sick ? `<button class="mini" style="background:linear-gradient(180deg,#7bb87a,#4a8a4a)">🩺 Vet ${$$(vetCost)}</button>` : `<button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>`}
+          <button class="mini" style="background:linear-gradient(180deg,#bcaaa4,#8d6e63)">Sell ${$$(sellPrice)}</button>
         </div>`;
-      row.querySelector('button').onclick = () => { if (Game.feedAnimal(i)) { SOUNDS.plant(); updateHud(); renderSheet(); } };
+      const btns = row.querySelectorAll('button');
+      btns[0].onclick = () => {
+        if (a.sick) { if (Game.vetAnimal(i)) { updateHud(); renderSheet(); } }
+        else if (Game.feedAnimal(i)) { SOUNDS.plant(); updateHud(); renderSheet(); }
+      };
+      btns[1].onclick = () => {
+        confirmBox('🏷️', `Sell ${a.name} the ${adef.name.toLowerCase()} for ${$$(sellPrice)}?`, 'Sell', () => {
+          if (Game.sellAnimal(i)) { updateHud(); renderSheet(); }
+        });
+      };
       body.appendChild(row);
     }
 
@@ -487,7 +560,7 @@ const UI = (() => {
         <div class="emoji">${a.emoji}</div>
         <div class="name">${a.name}</div>
         <div class="sub">${D.ITEMS[a.product].emoji} every ${a.prodTime}s</div>
-        <div class="price">${a.cost.toLocaleString()} 🪙</div>`;
+        <div class="price">${$$(a.cost)}</div>`;
       card.onclick = () => {
         if (Game.buyAnimal(id, index)) { updateHud(); renderSheet(); }
       };
@@ -546,7 +619,7 @@ const UI = (() => {
       row.innerHTML = `
         <div class="emoji">${out.emoji}</div>
         <div class="info">
-          <div class="name">${out.name} <span style="color:#8a6100">· ~${out.base} 🪙</span></div>
+          <div class="name">${out.name} <span style="color:#8a6100">· ~${$$(out.base)}</span></div>
           <div class="sub">${ins} · ${r.time}s</div>
         </div>
         <div class="actions"><button class="mini blue" ${can ? '' : 'disabled'}>Craft</button></div>`;
@@ -567,10 +640,11 @@ const UI = (() => {
     stats.innerHTML = `
       <div style="font-weight:900;font-size:15px;margin-bottom:6px">👑 ${s.farmName} — Year ${s.year} · ${diffDef.emoji} ${diffDef.name}</div>
       <div style="font-weight:800;font-size:13px;line-height:1.9">
-        💰 Farm value: <b>${Game.farmValue().toLocaleString()} 🪙</b> · lifetime earned: <b>${Math.floor(s.stats.earned).toLocaleString()}</b><br>
+        💰 Farm value: <b>${$$(Game.farmValue())}</b> · lifetime earned: <b>${$$(s.stats.earned)}</b><br>
         ⭐ Reputation: <b>level ${s.level}</b> (+${Math.round(D.repBonus(s.level) * 100)}% sell prices)<br>
-        🧺 Crops harvested: <b>${s.stats.harvested.toLocaleString()}</b> · ✨ fertilized: <b>${s.stats.fertilized}</b><br>
-        🐔 Animals: <b>${s.animals.length}</b> · 🏠 Buildings: <b>${s.buildings.length}</b><br>
+        🧺 Harvested: <b>${s.stats.harvested.toLocaleString()}</b> · 🥀 crops lost: <b>${s.stats.lost}</b><br>
+        ⛽ Fuel: <b>${s.fuel.toFixed(1)} gal</b> · ✨ fertilized: <b>${s.stats.fertilized}</b><br>
+        🐔 Animals: <b>${s.animals.length}</b> · 🏠 Buildings: <b>${s.buildings.filter(Boolean).length}</b><br>
         🚧 Land parcels: <b>${s.unlockedParcels.length}/${D.PARCELS.length}</b> · 📋 Orders done: <b>${s.stats.orders}</b>
       </div>`;
     body.appendChild(stats);
@@ -590,7 +664,7 @@ const UI = (() => {
       <div class="emoji">💡</div>
       <div class="info">
         <div class="name">How to play</div>
-        <div class="sub">Tap tiles to till, plant, water & harvest. Drag with a tool to work fast. Pinch to zoom, drag with Auto to pan. Watch the seasons — and beware storms, crows and frost!</div>
+        <div class="sub">Tap tiles to till, plant, water & harvest. Drag with a tool to work fast. Keep crops watered or they die; harvest before they rot; plant in the right season. Feed your animals or they get sick. Powered equipment needs fuel!</div>
       </div>`;
     body.appendChild(help);
 
@@ -614,15 +688,13 @@ const UI = (() => {
     buildType = type;
     closeSheet();
     const def = D.BUILDINGS[type];
-    // start ghost at camera center
-    const c = Renderer.cam;
-    const gx = Math.round(c.x / T - def.w / 2);
-    const gy = Math.round(c.y / T - def.h / 2);
-    Renderer.setGhost({ type, x: gx, y: gy });
+    // start ghost near the camera focus
+    const c = Renderer.screenToTile(Renderer.vw / 2, Renderer.vh / 2);
+    Renderer.setGhost({ type, x: Math.round(c.x - def.w / 2), y: Math.round(c.y - def.h / 2) });
     $('build-label').textContent = `${def.emoji} Place the ${def.name}`;
     $('buildbar').classList.remove('hidden');
     $('toolbar').classList.add('hidden');
-    toast('Tap the map to move it, then press ✓', undefined);
+    toast('Tap the map to move it, then press ✓');
   }
 
   function endBuild() {
@@ -697,14 +769,14 @@ const UI = (() => {
       }
     });
 
-    const up = e => {
+    const upHandler = e => {
       const wasTap = !moved && pointers.size === 1;
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinchDist = 0;
       if (wasTap) handleTap(e.clientX, e.clientY);
       if (pointers.size === 0) dragStart = null;
     };
-    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointerup', upHandler);
     canvas.addEventListener('pointercancel', e => { pointers.delete(e.pointerId); if (pointers.size === 0) dragStart = null; });
 
     // desktop niceties
@@ -716,21 +788,20 @@ const UI = (() => {
   }
 
   function tileFromScreen(sx, sy) {
-    const w = Renderer.screenToWorld(sx, sy);
-    return { x: Math.floor(w.x / T), y: Math.floor(w.y / T) };
+    const w = Renderer.screenToTile(sx, sy);
+    return { x: Math.floor(w.x), y: Math.floor(w.y) };
   }
 
   function moveGhost(sx, sy) {
     const def = D.BUILDINGS[buildType];
-    const w = Renderer.screenToWorld(sx, sy);
+    const w = Renderer.screenToTile(sx, sy);
     Renderer.setGhost({
       type: buildType,
-      x: Math.round(w.x / T - def.w / 2),
-      y: Math.round(w.y / T - def.h / 2),
+      x: Math.round(w.x - def.w / 2),
+      y: Math.round(w.y - def.h / 2),
     });
   }
 
-  let ghostPos = null;
   function handleTap(sx, sy) {
     if (buildType) { moveGhost(sx, sy); return; }
     const { x, y } = tileFromScreen(sx, sy);
@@ -746,8 +817,9 @@ const UI = (() => {
     } else {
       const n = Game.applyTool(tool, x, y, seed);
       if (n === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad');
-      if (n === 'broke') toast(`Fertilizer costs ${D.FERT_COST} coins per crop!`, 'bad');
-      if (!n || n === 'empty' || n === 'broke') tapFallback(x, y);
+      if (n === 'broke') toast(`Fertilizer costs ${$$(D.FERT_COST)} per crop!`, 'bad');
+      if (n === 'nofuel') toast('⛽ Out of fuel — hand-tilling one plot. Buy diesel in the Shop!', 'bad');
+      if (!n || typeof n === 'string') tapFallback(x, y);
     }
     updateHud();
   }
@@ -759,6 +831,7 @@ const UI = (() => {
     if (!t) return;
     if (t.obj && t.obj.t === 'b') {
       const b = Game.state.buildings[t.obj.i];
+      if (!b) return;
       if (b.type === 'well') Game.refillCan();
       else { openSheet('b:' + t.obj.i); SOUNDS.tap(); }
     } else if (!Game.isUnlocked(x, y)) {
@@ -780,7 +853,7 @@ const UI = (() => {
         break;
       case 'parcel': {
         const p = D.PARCELS[r.index];
-        confirmBox('🚧', `Buy this ${p.w}×${p.h} parcel of land for ${p.cost.toLocaleString()} coins?`, 'Buy land', () => {
+        confirmBox('🚧', `Buy this ${p.w}×${p.h} parcel of land for ${$$(p.cost)}?`, 'Buy land', () => {
           if (Game.buyParcel(r.index)) updateHud();
         });
         break;
@@ -789,8 +862,15 @@ const UI = (() => {
         const t = Game.tileAt(x, y);
         if (t && t.crop) {
           const def = D.CROPS[t.crop.id];
-          const left = Math.ceil((1 - t.crop.prog) * def.grow);
-          toast(`${D.ITEMS[t.crop.id].emoji} ${D.ITEMS[t.crop.id].name} · ~${left}s to go`);
+          const c = t.crop;
+          let status;
+          if (!Game.seasonOK(c.id)) status = '⚠️ wrong season — it\'s withering!';
+          else if ((c.wilt || 0) > 0.3) status = '🥀 wilting — water it fast!';
+          else {
+            const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
+            status = `~${Math.ceil((1 - c.prog) * growTime)}s to go`;
+          }
+          toast(`${D.ITEMS[c.id].emoji} ${D.ITEMS[c.id].name} · ${status}`);
         }
         break;
       }
@@ -805,10 +885,11 @@ const UI = (() => {
       if (Game.plant(x, y, seed)) SOUNDS.plant();
     } else {
       const r = Game.applyTool(tool, x, y, seed);
-      if (r === 'empty' && !paintAt.warned) {
+      if (typeof r === 'string' && !paintAt.warned) {
         paintAt.warned = true;
         setTimeout(() => paintAt.warned = false, 1500);
-        toast('Watering can is empty — tap the Well! 💧', 'bad');
+        if (r === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad');
+        if (r === 'nofuel') toast('⛽ Out of fuel — hand-tilling only. Buy diesel in the Shop!', 'bad');
       }
     }
     updateHud();
@@ -816,7 +897,6 @@ const UI = (() => {
 
   // ---------------- new farm setup ----------------
   function showSetup(onDone) {
-    const s = Game.state;
     $('setup').classList.remove('hidden');
     const cards = $('diff-cards');
     cards.innerHTML = '';
@@ -830,7 +910,7 @@ const UI = (() => {
           <span class="d-name">${d.name}</span><br>
           <span class="d-blurb">${d.blurb}</span>
         </span>
-        <span class="d-coins">${d.coins.toLocaleString()} 🪙</span>`;
+        <span class="d-coins">${$$(d.coins)}</span>`;
       card.onclick = () => {
         chosen = d.id;
         SOUNDS.tap();
@@ -866,7 +946,9 @@ const UI = (() => {
     const h = Math.floor(away.seconds / 3600);
     const m = Math.round((away.seconds % 3600) / 60);
     const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    confirmBox('🌙', `Welcome back! While you were away (${dur}):\n\n🌾 ${away.crops} crop${away.crops === 1 ? '' : 's'} finished growing\n📦 ${away.produce} animal product${away.produce === 1 ? '' : 's'} ready`, 'Let\'s farm!');
+    let msg = `Welcome back! While you were away (${dur}):\n\n🌾 ${away.crops} crop${away.crops === 1 ? '' : 's'} finished growing\n📦 ${away.produce} animal product${away.produce === 1 ? '' : 's'} ready`;
+    if (away.lost > 0) msg += `\n🥀 ${away.lost} crop${away.lost === 1 ? '' : 's'} were lost — a farm needs its farmer!`;
+    confirmBox('🌙', msg, 'Let\'s farm!');
     $('modal-no').style.display = 'none';
     const yes = $('modal-yes');
     const oldClick = yes.onclick;
@@ -882,7 +964,7 @@ const UI = (() => {
         SOUNDS.tap();
         const t = b.dataset.tool;
         if (t === 'plant') { plantTarget = null; openSheet('seeds'); }
-        if (t === 'fert' && tool !== 'fert') toast(`✨ Tap growing crops to fertilize (${D.FERT_COST} 🪙): faster growth + double-harvest chance!`);
+        if (t === 'fert' && tool !== 'fert') toast(`✨ Tap growing crops to fertilize (${$$(D.FERT_COST)}): faster growth + double-harvest chance!`);
         setTool(t);
       });
     });
@@ -899,7 +981,7 @@ const UI = (() => {
       const ghost = Renderer.getGhost();
       if (!ghost) return;
       if (Game.placeBuilding(ghost.type, ghost.x, ghost.y)) { endBuild(); updateHud(); }
-      else if (!Game.canPlaceBuilding(ghost.type, ghost.x, ghost.y)) toast('Needs clear, unlocked grass — move it!', 'bad');
+      else if (!Game.canPlaceBuilding(ghost.type, ghost.x, ghost.y)) toast('Needs clear, owned grass — move it!', 'bad');
     };
     $('build-cancel').onclick = () => { SOUNDS.tap(); endBuild(); };
 

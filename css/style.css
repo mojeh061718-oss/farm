@@ -65,8 +65,21 @@ button { font-family: inherit; border: none; cursor: pointer; color: inherit; ba
   white-space: nowrap;
 }
 
-#pill-coins { color: #8a6100; }
+#pill-coins { color: #2e6e33; }
 .picon { font-size: 16px; }
+.picon.dollar {
+  width: 20px; height: 20px;
+  background: linear-gradient(180deg, #66a05a, #3d7a42);
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900;
+  flex: none;
+}
+#pill-fuel { color: #6b4c2c; font-size: 13px; }
+.fuel-unit { font-size: 10px; opacity: .7; }
+#pill-fuel.fuel-low { color: #b03a2a; border-color: rgba(176, 58, 42, .5); animation: fuel-pulse 1.2s ease infinite; }
+@keyframes fuel-pulse { 50% { box-shadow: 0 3px 10px rgba(176,58,42,.45); } }
 
 .lvl-badge {
   background: linear-gradient(180deg, #ffd54f, #ffa000);
@@ -96,12 +109,17 @@ button { font-family: inherit; border: none; cursor: pointer; color: inherit; ba
 .daybar { width: 34px; height: 8px; background: #d7cbb4; border-radius: 99px; overflow: hidden; }
 #dayfill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffd54f, #ff8f00); }
 
-@media (max-width: 430px) {
-  #hud-top { gap: 5px; left: 6px; right: 6px; }
-  .pill { padding: 5px 9px; font-size: 13px; gap: 4px; }
-  .xpbar { width: 36px; }
-  .daybar { width: 24px; }
-  #pill-clock { font-size: 12px; }
+@media (max-width: 460px) {
+  #hud-top { gap: 4px; left: 6px; right: 6px; }
+  .pill { padding: 4px 8px; font-size: 12px; gap: 3px; }
+  .picon { font-size: 13px; }
+  .picon.dollar { width: 17px; height: 17px; font-size: 11px; }
+  .xpbar { width: 26px; }
+  .lvl-badge { width: 22px; height: 22px; font-size: 12px; }
+  .daybar { display: none; }
+  #pill-clock { font-size: 11px; }
+  .fuel-unit { display: none; }
+  #pill-fuel { font-size: 12px; }
 }
 
 /* ============ Goal chip ============ */
@@ -332,6 +350,7 @@ button { font-family: inherit; border: none; cursor: pointer; color: inherit; ba
 .item-card .price { font-size: 12px; font-weight: 900; color: #8a6100; }
 .item-card.locked { filter: grayscale(.9); opacity: .65; }
 .item-card.disabled { opacity: .5; }
+.item-card.off-season { border-color: #e0b4a8; background: #fdf6f2; }
 .item-card .lock-tag {
   position: absolute; top: 6px; right: 6px;
   background: #6d5c40; color: #fff;

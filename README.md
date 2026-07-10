@@ -1,19 +1,29 @@
 # 🌾 Harvest Empire
 
-A beautiful 2D farming-empire game that runs in any browser — no install, no build step, and
-**no artificial gates**: you pick your starting capital, and from minute one everything in the
-game is for sale. If you can afford it, it's yours. Money is the only ladder.
+A farming-empire simulation in a beautiful 45° isometric view, running in any browser — no
+install, no build step, and **no artificial gates**: you pick your starting capital in US
+dollars, and from minute one everything in the game is for sale. If you can afford it, it's
+yours. Money is the only ladder — and a farm you neglect will fail.
 
 ## ✨ What makes it tick
 
+- **A real 45° isometric farm** — depth-sorted buildings with walls, roofs and painted signs,
+  raised soil beds, wooden fences, hand-drawn animals, a pond, seasonal palettes, day/night and
+  a filmic vignette. No emoji sprites in the world — everything is drawn.
 - **Start with a stake, not a grind** — name your farm and choose your starting capital:
-  🌤️ *Cozy* (6,000 coins, gentle weather), 🌾 *Classic* (3,000), or ⛈️ *Tycoon* (1,500, harsher
+  🌤️ *Cozy* ($6,000, gentle weather), 🌾 *Classic* ($3,000), or ⛈️ *Tycoon* ($1,500, harsher
   weather, but +10% sell prices). No levels to wait for, no unlock walls — strategy decides
   what you can afford next.
+- **Real ways to fail** — dry crops wilt and die; ripe crops rot in the field if you don't
+  harvest; planting out of season wastes your seed money; neglected animals get sick and stop
+  producing until you pay a vet bill. Sell buildings or animals back (at a loss) to recover
+  from a cash crunch.
+- **Fuel economy** — the rototiller, tractor and harvest drones burn diesel, and the price per
+  gallon changes daily. An empty tank grounds your automation.
 - **Fast, satisfying farming** — 18 crops growing in 35s–150s, including **multi-harvest crops**
   (strawberries, tomatoes, peppers, grapes) that regrow after every pick. Smart "Auto" tap does
   the right thing; select a tool and **drag to paint** whole rows.
-- **Fertilizer** — ✨ 20 coins per crop: +25% growth speed and a 45% chance of a double harvest.
+- **Fertilizer** — ✨ $20 per crop: +25% growth speed and a 45% chance of a double harvest.
 - **Seasons & weather with teeth** — every season has its own crops and palette. Rain waters for
   free, heatwaves dry fields 3× faster, storms flatten unprotected crops, crows steal ripe
   harvests, winter frost kills anything that isn't winter-hardy. The HUD shows **tomorrow's
@@ -21,7 +31,7 @@ game is for sale. If you can afford it, it's yours. Money is the only ladder.
 - **Six animals** — chickens, ducks, cows, goats, sheep and pigs. Feed them (with coins, or free
   grain once you own a Feed Mill), keep them happy for faster production and double yields.
 - **A real production economy** — 12 buildings and 13 artisan recipes: bakery (bread → berry
-  cake), creamery (cheese, butter, yogurt), juice press, loom house (wool → quilts worth 1,500).
+  cake), creamery (cheese, butter, yogurt), juice press, loom house (wool → quilts worth $1,500).
   Raw goods are fine; processed goods build empires.
 - **Automation end-game** — sprinklers water every dawn, and the 🤖 **Harvest Drone**
   auto-harvests *and replants* a 5×5 field every morning. Fully automated plots are the goal.
@@ -29,7 +39,7 @@ game is for sale. If you can afford it, it's yours. Money is the only ladder.
   board pays a premium that scales with your success.
 - **Reputation, not gates** — XP levels are pure upside: each level adds +1% to every sale
   (up to +30%). Nothing is ever locked behind them.
-- **9 land parcels** — from 1,000 to 60,000 coins. Own the whole valley.
+- **9 land parcels** — from $1,000 to $60,000. Own the whole valley.
 - **Mobile-first** — touch controls (tap, drag-paint, pinch-zoom), autosave, offline progress
   with a welcome-back summary, day/night cycle, ambient butterflies and falling leaves.
 

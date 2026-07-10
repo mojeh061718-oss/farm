@@ -16,8 +16,7 @@
 
   // center camera on the starting farm
   const p0 = DATA.PARCELS[0];
-  Renderer.cam.x = (p0.x + p0.w / 2) * DATA.TILE;
-  Renderer.cam.y = (p0.y + p0.h / 2) * DATA.TILE;
+  Renderer.centerOn(p0.x + p0.w / 2, p0.y + p0.h / 2);
 
   let last = performance.now();
   function frame(now) {

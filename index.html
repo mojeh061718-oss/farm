@@ -17,7 +17,8 @@
 
 <!-- ===== Top HUD ===== -->
 <div id="hud-top">
-  <div class="pill" id="pill-coins"><span class="picon">🪙</span><span id="coins">0</span></div>
+  <div class="pill" id="pill-coins"><span class="picon dollar">$</span><span id="coins">0</span></div>
+  <div class="pill hidden" id="pill-fuel"><span class="picon">⛽</span><span id="fuel-amount">0.0</span><span class="fuel-unit">gal</span></div>
   <div class="pill" id="pill-level">
     <span class="lvl-badge" id="level">1</span>
     <div class="xpbar"><div id="xpfill"></div></div>
@@ -95,7 +96,7 @@
   <div id="setup-card">
     <div class="setup-logo">🌾</div>
     <h1>Harvest Empire</h1>
-    <p class="setup-tag">Turn a patch of dirt into a farming empire.<br>Everything is for sale from day one — if you can afford it, it's yours.</p>
+    <p class="setup-tag">Turn a patch of dirt into a farming empire.<br>Everything is for sale from day one — if you can afford it, it's yours. But mind the seasons, the weather and your animals: neglected farms fail.</p>
     <label class="setup-label" for="farm-name">Name your farm</label>
     <input id="farm-name" type="text" maxlength="24" placeholder="Sunny Hollow Farm" autocomplete="off">
     <label class="setup-label">Starting capital</label>
