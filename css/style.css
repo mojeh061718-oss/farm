@@ -267,31 +267,37 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
 .btn-badge.gold { background: linear-gradient(180deg, var(--gold-4), var(--gold-5)); color: var(--gold-ink); }
 
 /* ============ Toolbar ============ */
+/* full-width dock: fills the screen edge and the iOS home-indicator band,
+   so there is no dead strip under the tools; buttons flex evenly with gaps */
 #toolbar {
   position: absolute;
-  bottom: calc(10px + var(--sab));
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 0; left: 0; right: 0;
   display: flex;
-  gap: 5px;
-  background: linear-gradient(180deg, rgba(74,53,34,.92), rgba(46,32,19,.94));
-  padding: 6px;
-  border-radius: 22px;
+  justify-content: space-evenly;
+  gap: 6px;
+  background: linear-gradient(180deg, rgba(74,53,34,.92), rgba(46,32,19,.96));
+  padding: 8px 10px calc(8px + var(--sab));
+  border-radius: 20px 20px 0 0;
   box-shadow: var(--bevel-dark), var(--e2);
   z-index: 20;
-  max-width: calc(100vw - 12px);
 }
-@media (max-width: 430px) { /* 7 tools must fit a phone toolbar */
-  .tool-btn { width: 47px; height: 58px; }
-  #toolbar { gap: 4px; }
-}
-@media (max-width: 380px) {
-  .tool-btn { width: 44px; height: 56px; }
+@media (min-width: 700px) { /* tablets/desktop: centered pill, not a full bar */
+  #toolbar {
+    left: 50%; right: auto;
+    bottom: calc(10px + var(--sab));
+    transform: translateX(-50%);
+    border-radius: 22px;
+    padding: 6px 8px;
+  }
+  .tool-btn { flex: 0 0 56px; }
 }
 
 .tool-btn {
   position: relative;
-  width: 52px; height: 60px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 68px;
+  height: 62px;
   border-radius: 16px;
   background: rgba(255,255,255,.09);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -300,7 +306,7 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
 }
 .tool-btn > .ic { width: 25px; height: 25px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
 .tool-btn > .ic-emoji { font-size: 21px; line-height: 25px; text-align: center; }
-.tool-btn label { font-size: 0.75rem; font-weight: 800; pointer-events: none; opacity: .9; }
+.tool-btn label { font-size: 0.75rem; font-weight: 800; pointer-events: none; opacity: .9; white-space: nowrap; }
 .tool-btn.active {
   background: linear-gradient(180deg, #ffd54f, #ff9800);
   color: #4c2c00;
