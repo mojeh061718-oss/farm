@@ -5,6 +5,13 @@ const UI = (() => {
   const D = DATA;
   const $ = id => document.getElementById(id);
   const $$ = D.$; // money formatter
+  const I = window.Icons;
+  const REDUCED = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  const fmt = n => Math.round(n).toLocaleString();
+  // gold coin-chip price button (tabindex -1: the card/row is the tap target)
+  const chip = (cost, extra) => `<button class="buy${extra ? ' ' + extra : ''}" tabindex="-1">${I.icon('coin')}<span>${fmt(cost)}</span></button>`;
+  // idempotent innerHTML writer (renderSheet & updateHud rerun constantly)
+  function setIcon(el, html) { if (el._ih !== html) { el._ih = html; el.innerHTML = html; } }
 
   let tool = 'auto';
   let seed = 'turnip';          // currently selected seed for plant tool
@@ -13,47 +20,191 @@ const UI = (() => {
   let sheetTab = null;
   let lastPaint = null;         // last tile painted during drag
 
-  // ---------------- sound (tiny WebAudio synth) ----------------
-  let actx = null;
-  function beep(freq, dur, type, vol, delay) {
-    if (!Game.state || !Game.state.settings.sound) return;
+  /* ---------------- sound: three synth voices, one pentatonic scale ----------------
+     Graphics 2.0 Phase 3 (animation.md §6). Every pitched sound sits in
+     C-major pentatonic so overlapping actions harmonize instead of clashing.
+     Voices: PLUCK (UI/positive — triangle + quiet octave sine, ±15 cents),
+     THOCK (physical impacts — lowpassed noise burst + pitch-bent low triangle),
+     CHIME (rewards — staggered sine partials f/1.5f/2f with long tails).
+     Everything routes through one master gain → compressor (one mute point,
+     no clipping when drag-harvesting). Consecutive plants/harvests inside
+     800ms climb the scale (combo ladder, cap +5). */
+  let actx = null, master = null, noiseBuf = null;
+  function audioCtx() {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = actx.createDynamicsCompressor();
+      comp.threshold.value = -18;
+      comp.ratio.value = 8;
+      master = actx.createGain();
+      master.gain.value = 0.9;
+      master.connect(comp);
+      comp.connect(actx.destination);
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  const soundOn = () => Game.state && Game.state.settings.sound;
+
+  // C-major pentatonic: octave 4 = C4 D4 E4 G4 A4; deg walks up the scale
+  const PENTA = [261.63, 293.66, 329.63, 392.0, 440.0];
+  function pent(oct, deg) {
+    const o = oct + Math.floor(deg / 5);
+    return PENTA[((deg % 5) + 5) % 5] * Math.pow(2, o - 4);
+  }
+  // combo ladder: consecutive same-verb actions within 800ms step up (cap +5)
+  const combos = { plant: { at: 0, n: 0 }, harvest: { at: 0, n: 0 } };
+  function combo(verb) {
+    const c = combos[verb], now = performance.now();
+    c.n = now - c.at < 800 ? Math.min(c.n + 1, 5) : 0;
+    c.at = now;
+    return c.n;
+  }
+
+  function tone(f, dur, type, vol, delay, bend, cents) {
+    if (!soundOn()) return;
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      if (actx.state === 'suspended') actx.resume();
-      const t0 = actx.currentTime + (delay || 0);
-      const o = actx.createOscillator();
-      const g = actx.createGain();
+      const a = audioCtx();
+      const t0 = a.currentTime + (delay || 0);
+      const o = a.createOscillator();
+      const g = a.createGain();
       o.type = type || 'sine';
-      o.frequency.value = freq;
+      if (cents) f *= Math.pow(2, ((Math.random() * 2 - 1) * cents) / 1200);
+      o.frequency.setValueAtTime(f, t0);
+      if (bend) o.frequency.exponentialRampToValueAtTime(bend, t0 + dur);
       g.gain.setValueAtTime(vol || 0.08, t0);
       g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-      o.connect(g).connect(actx.destination);
+      o.connect(g).connect(master);
       o.start(t0);
       o.stop(t0 + dur + 0.02);
     } catch (e) {}
   }
-  const SOUNDS = {
-    tap:     () => beep(500, 0.06, 'square', 0.04),
-    till:    () => beep(160, 0.12, 'triangle', 0.12),
-    plant:   () => { beep(420, 0.08, 'sine', 0.08); beep(560, 0.08, 'sine', 0.07, 0.06); },
-    water:   () => { beep(300, 0.1, 'sine', 0.07); beep(360, 0.12, 'sine', 0.06, 0.05); },
-    harvest: () => { beep(660, 0.09, 'triangle', 0.09); beep(880, 0.1, 'triangle', 0.09, 0.07); },
-    coin:    () => { beep(990, 0.07, 'square', 0.05); beep(1320, 0.12, 'square', 0.05, 0.06); },
-    build:   () => { beep(220, 0.12, 'triangle', 0.11); beep(330, 0.14, 'triangle', 0.1, 0.1); },
-    error:   () => beep(140, 0.18, 'sawtooth', 0.07),
-    goal:    () => { beep(660, 0.1, 'triangle', 0.09); beep(830, 0.1, 'triangle', 0.09, 0.09); beep(990, 0.16, 'triangle', 0.09, 0.18); },
-    levelup: () => { [523, 659, 784, 1046].forEach((f, i) => beep(f, 0.16, 'triangle', 0.1, i * 0.11)); },
+  // filtered noise burst — body of the thock, rain, thunder
+  function noise(dur, vol, delay, fType, f0, f1, q) {
+    if (!soundOn()) return;
+    try {
+      const a = audioCtx();
+      const t0 = a.currentTime + (delay || 0);
+      const n = a.createBufferSource();
+      n.buffer = noiseBuf;
+      n.loop = dur > 0.45;
+      const flt = a.createBiquadFilter();
+      flt.type = fType || 'lowpass';
+      flt.frequency.setValueAtTime(f0 || 900, t0);
+      if (f1) flt.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+      if (q) flt.Q.value = q;
+      const g = a.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      n.connect(flt).connect(g).connect(master);
+      n.start(t0);
+      n.stop(t0 + dur + 0.05);
+    } catch (e) {}
+  }
+  const pluck = (f, vol, delay) => {
+    tone(f, 0.1, 'triangle', (vol || 1) * 0.14, delay, 0, 15);
+    tone(f * 2, 0.13, 'sine', (vol || 1) * 0.07, (delay || 0) + 0.03, 0, 15);
+  };
+  const thock = (vol, delay) => {
+    noise(0.09, (vol || 1) * 0.4, delay, 'lowpass', 900);
+    tone(120, 0.1, 'triangle', (vol || 1) * 0.3, delay, 70);
+  };
+  const chime = (f, vol, delay) => {
+    const v = vol || 1, d = delay || 0;
+    tone(f, 0.18, 'sine', 0.1 * v, d);
+    tone(f * 1.5, 0.26, 'sine', 0.06 * v, d + 0.05);
+    tone(f * 2, 0.34, 'sine', 0.04 * v, d + 0.1);
+  };
+  const wood = delay => { // hammer knock (fence builds itself)
+    noise(0.05, 0.22, delay, 'bandpass', 1700, 0, 2.5);
+    tone(pent(4, (Math.random() * 3) | 0), 0.05, 'triangle', 0.1, delay, 0, 20);
   };
 
+  const SOUNDS = {
+    tap:     () => pluck(pent(5, 2), 0.45),                       // E5
+    till:    () => thock(1),
+    plant:   () => { const c = combo('plant'); pluck(pent(5, 1 + c), 0.8); }, // D5 ↑ ladder
+    water:   () => {                                              // the pour, not a beep
+      noise(0.3, 0.13, 0, 'bandpass', 1600, 700, 1.4);
+      tone(700 + Math.random() * 200, 0.07, 'sine', 0.05, 0.12);
+      tone(750 + Math.random() * 200, 0.06, 'sine', 0.04, 0.22);
+    },
+    harvest: () => thock(1, 0.08),                                // impact lands with the pop (t=80ms)
+    chime:   () => { const c = combo('harvest'); chime(pent(5, 2 + c)); },    // flier arrival, E5 ↑ ladder
+    chime2:  () => { const c = combos.harvest.n; chime(pent(5, 2 + c) * 1.5, 0.6); }, // double: a fifth up
+    ripe:    () => chime(pent(5, 3), 0.4),                        // G5, soft — a crop just matured
+    coin:    () => { chime(pent(6, 0), 0.8); chime(pent(6, 2), 0.5, 0.06); }, // C6 + E6
+    build:   () => { thock(0.9); pluck(pent(4, 3), 0.8, 0.12); },
+    hammer:  () => wood(),
+    error:   () => tone(140, 0.18, 'sawtooth', 0.06),
+    goal:    () => [0, 2, 3].forEach((d, i) => chime(pent(5, d), 0.85, i * 0.09)),    // C5 E5 G5
+    levelup: () => [0, 2, 3, 5].forEach((d, i) => { pluck(pent(5, d), 1, i * 0.11); chime(pent(5, d), 0.5, i * 0.11 + 0.02); }),
+    thunder: () => noise(1.2, 0.28, 0, 'lowpass', 220, 90),
+    squawk:  () => { tone(880, 0.06, 'square', 0.05, 0, 640); tone(740, 0.07, 'square', 0.04, 0.07, 500); },
+  };
+
+  // light weather ambience: one looping noise voice, gain-crossfaded by weather
+  let ambSrc = null, ambGain = null, ambFilter = null;
+  function updateAmbience() {
+    if (!actx || !master) return;         // starts only after the first user-gesture sound
+    const w = Game.state ? Game.state.weather : 'sun';
+    const target = !soundOn() ? 0 : w === 'storm' ? 0.05 : w === 'rain' ? 0.032 : 0;
+    if (target > 0 && !ambSrc) {
+      try {
+        ambSrc = actx.createBufferSource();
+        ambSrc.buffer = noiseBuf;
+        ambSrc.loop = true;
+        ambFilter = actx.createBiquadFilter();
+        ambFilter.type = 'bandpass';
+        ambFilter.frequency.value = 1400;
+        ambFilter.Q.value = 0.6;
+        ambGain = actx.createGain();
+        ambGain.gain.value = 0;
+        ambSrc.connect(ambFilter).connect(ambGain).connect(master);
+        ambSrc.start();
+      } catch (e) { ambSrc = null; }
+    }
+    if (ambGain) {
+      try { ambGain.gain.setTargetAtTime(target, actx.currentTime, 0.8); } catch (e) {}
+    }
+  }
+
   // ---------------- toasts / modal ----------------
+  const toastLog = []; // ring buffer of the last 50 messages (read from Menu)
+
   function toast(msg, kind) {
+    toastLog.push({ msg, kind: kind || 'info', day: Game.state ? Game.state.day : 0, at: Date.now() });
+    if (toastLog.length > 50) toastLog.shift();
+
     const el = document.createElement('div');
     el.className = 'toast' + (kind ? ' ' + kind : '');
-    el.textContent = msg;
+    const plate = kind === 'good' ? 'check' : kind === 'bad' ? 'bang' : 'info';
+    el.innerHTML = `<span class="t-plate">${I.icon(plate)}</span><span class="t-msg"></span>`;
+    el.querySelector('.t-msg').textContent = msg;
+
+    const dismiss = () => {
+      if (el._dead) return;
+      el._dead = true;
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 320);
+    };
+    el.addEventListener('pointerdown', dismiss); // tap-to-dismiss
+    el._dismiss = dismiss;
+
     const box = $('toasts');
     box.appendChild(el);
-    while (box.children.length > 3) box.removeChild(box.firstChild);
-    setTimeout(() => el.remove(), 3100);
+    // stack limit 3: dismiss the oldest gracefully, compress the rest upward
+    const live = [...box.children].filter(t => !t._dead);
+    while (live.length > 3) { const o = live.shift(); if (o._dismiss) o._dismiss(); }
+    const alive = [...box.children].filter(t => !t._dead);
+    alive.forEach((t, i) => t.classList.toggle('old', i < alive.length - 1));
+
+    // reading-rate lifetime
+    setTimeout(dismiss, Math.max(3500, 2000 + 60 * msg.length));
     if (kind === 'bad') SOUNDS.error();
   }
 
@@ -66,16 +217,105 @@ const UI = (() => {
     $('modal-no').onclick = () => $('modal-backdrop').classList.add('hidden');
   }
 
+  // ---------------- motion FX (WAAPI + rAF; respects reduced motion) ----------------
+  let coinShown = null, coinTarget = null, coinRaf = null;
+
+  // eased tick-up on gains; instant on spends (spending must feel exact)
+  function setCoins(v) {
+    const el = $('coins');
+    if (v === coinTarget) return;
+    coinTarget = v;
+    if (coinRaf) { cancelAnimationFrame(coinRaf); coinRaf = null; }
+    if (coinShown === null || v <= coinShown || v - coinShown < 20 || REDUCED.matches) {
+      coinShown = v;
+      el.textContent = v.toLocaleString();
+      return;
+    }
+    const from = coinShown, t0 = performance.now(), dur = 600;
+    const step = now => {
+      const t = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - t, 3);
+      coinShown = Math.round(from + (v - from) * e);
+      el.textContent = coinShown.toLocaleString();
+      coinRaf = t < 1 ? requestAnimationFrame(step) : null;
+    };
+    coinRaf = requestAnimationFrame(step);
+  }
+
+  function pulseCoinsPill() {
+    const p = $('pill-coins');
+    p.classList.remove('pop');
+    void p.offsetWidth;
+    p.classList.add('pop');
+  }
+
+  // 3–5 coin clones arc from the purchase/sale point to the coins pill
+  function coinFlight(src) {
+    if (!src) { pulseCoinsPill(); return; }
+    if (REDUCED.matches) { pulseCoinsPill(); return; }
+    const r = src.getBoundingClientRect ? src.getBoundingClientRect() : src;
+    const dst = $('pill-coins').getBoundingClientRect();
+    const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
+    const x1 = dst.left + dst.width * 0.32, y1 = dst.top + dst.height / 2;
+    const n = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('div');
+      c.className = 'fx-coin';
+      c.innerHTML = I.icon('coin');
+      document.body.appendChild(c);
+      const mx = (x0 + x1) / 2 + (Math.random() * 90 - 45);
+      const my = Math.min(y0, y1) - 55 - Math.random() * 55;
+      const anim = c.animate([
+        { transform: `translate(${x0 - 10 + (Math.random() * 26 - 13)}px, ${y0 - 10}px) scale(.7)`, opacity: 1 },
+        { transform: `translate(${mx - 10}px, ${my - 10}px) scale(1.05)`, opacity: 1, offset: .55 },
+        { transform: `translate(${x1 - 10}px, ${y1 - 10}px) scale(.45)`, opacity: .9 },
+      ], { duration: 520, delay: i * 45, easing: 'cubic-bezier(.5,0,.8,.6)', fill: 'backwards' });
+      anim.onfinish = () => { c.remove(); pulseCoinsPill(); };
+    }
+  }
+
+  // harvest flier landed on the market button: badge squash-pop + chime
+  function fxArrive(gold) {
+    if (gold) SOUNDS.chime2(); else SOUNDS.chime();
+    const btn = $('btn-market');
+    if (btn && !REDUCED.matches) {
+      btn.animate([
+        { transform: 'scale(1)' },
+        { transform: 'scale(1.28)', offset: 0.35 },
+        { transform: 'scale(1)' },
+      ], { duration: 260, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+    }
+  }
+
+  // goal complete: check stamp → chip pulse → reward flies to wallet → next goal slides in
+  function celebrateGoal(chipEl) {
+    SOUNDS.goal();
+    if (REDUCED.matches) { pulseCoinsPill(); return; }
+    chipEl.classList.remove('celebrate');
+    void chipEl.offsetWidth;
+    chipEl.classList.add('celebrate');
+    const r = chipEl.getBoundingClientRect();
+    const stamp = document.createElement('div');
+    stamp.className = 'goal-stamp';
+    stamp.innerHTML = I.icon('check');
+    stamp.style.left = (r.right - 26) + 'px';
+    stamp.style.top = (r.top - 8) + 'px';
+    document.body.appendChild(stamp);
+    setTimeout(() => stamp.remove(), 850);
+    setTimeout(() => coinFlight(r), 320);
+    setTimeout(() => chipEl.classList.remove('celebrate'), 1000);
+  }
+
   // ---------------- HUD ----------------
   function updateHud() {
     const s = Game.state;
-    $('coins').textContent = s.coins.toLocaleString();
+    setCoins(s.coins);
     $('level').textContent = s.level;
     $('xpfill').style.width = Math.min(100, (s.xp / D.xpForLevel(s.level)) * 100) + '%';
-    $('season-emoji').textContent = D.SEASONS[s.season].emoji;
+    setIcon($('season-emoji'), I.season(s.season));
     $('day-label').textContent = 'Day ' + s.day;
-    $('weather-emoji').textContent = D.WEATHERS[s.weather].emoji;
-    $('forecast').textContent = '→' + D.WEATHERS[s.forecast].emoji;
+    setIcon($('weather-emoji'), I.weather(s.weather));
+    setIcon($('forecast'), '→' + I.weather(s.forecast));
     $('dayfill').style.width = (s.t * 100) + '%';
     $('water-fill').style.width = (s.can.water / D.CAN_TIERS[s.can.tier].cap * 100) + '%';
 
@@ -98,22 +338,31 @@ const UI = (() => {
     updateGoalChip();
   }
 
+  let lastGoalId = null;
   function updateGoalChip() {
     const g = Game.currentGoal();
-    const chip = $('goal-chip');
-    if (!g) { chip.classList.add('hidden'); return; }
-    chip.classList.remove('hidden');
+    const chipEl = $('goal-chip');
+    if (!g) { chipEl.classList.add('hidden'); lastGoalId = null; return; }
+    const wasVisible = !chipEl.classList.contains('hidden');
+    chipEl.classList.remove('hidden');
+    if (wasVisible && lastGoalId && g.id !== lastGoalId) celebrateGoal(chipEl);
+    lastGoalId = g.id;
     const [cur, need] = g.check(Game.state);
-    $('goal-icon').textContent = g.icon;
+    setIcon($('goal-icon'), I.fromEmoji(g.icon));
     $('goal-title').textContent = g.title;
     $('goal-progress').textContent = Math.min(cur, need) + ' / ' + need;
-    $('goal-reward').textContent = '+' + $$(g.reward);
+    setIcon($('goal-reward'), I.icon('coin') + '<span>+' + fmt(g.reward) + '</span>');
   }
 
   // ---------------- sheet framework ----------------
+  let sheetHideTimer = null;
+
   function openSheet(id, tab) {
     sheetOpen = id;
     sheetTab = tab || null;
+    if (sheetHideTimer) { clearTimeout(sheetHideTimer); sheetHideTimer = null; }
+    $('sheet').classList.remove('closing');
+    $('sheet-backdrop').classList.remove('closing');
     $('sheet').classList.remove('hidden');
     $('sheet-backdrop').classList.remove('hidden');
     renderSheet();
@@ -121,8 +370,26 @@ const UI = (() => {
 
   function closeSheet() {
     sheetOpen = null;
-    $('sheet').classList.add('hidden');
-    $('sheet-backdrop').classList.add('hidden');
+    const sh = $('sheet'), bd = $('sheet-backdrop');
+    if (sh.classList.contains('hidden') || sheetHideTimer) return;
+    sh.classList.add('closing');
+    bd.classList.add('closing');
+    sheetHideTimer = setTimeout(() => {
+      sheetHideTimer = null;
+      sh.classList.add('hidden');
+      bd.classList.add('hidden');
+      sh.classList.remove('closing');
+      bd.classList.remove('closing');
+    }, 225);
+  }
+
+  // sheet header: icon plate + title + one-line promise
+  function setSheetHeader(iconHtml, title, sub) {
+    const badge = $('sheet-badge');
+    setIcon(badge, iconHtml || '');
+    badge.classList.toggle('on', !!iconHtml);
+    $('sheet-title').textContent = title;
+    $('sheet-sub').textContent = sub || '';
   }
 
   function setTabs(tabs, active) {
@@ -133,7 +400,8 @@ const UI = (() => {
     for (const t of tabs) {
       const b = document.createElement('button');
       b.className = 'sheet-tab' + (t.id === active ? ' active' : '');
-      b.textContent = t.label;
+      b.innerHTML = (t.icon || '') + '<span></span>';
+      b.lastChild.textContent = t.label;
       b.onclick = () => { SOUNDS.tap(); sheetTab = t.id; renderSheet(); };
       bar.appendChild(b);
     }
@@ -148,18 +416,19 @@ const UI = (() => {
     else if (sheetOpen === 'market') renderMarket(body);
     else if (sheetOpen === 'orders') renderOrders(body);
     else if (sheetOpen === 'menu') renderMenu(body);
+    else if (sheetOpen === 'log') renderLog(body);
     else if (sheetOpen.startsWith('b:')) renderBuilding(body, parseInt(sheetOpen.slice(2), 10));
   }
 
   // ---------------- seeds sheet ----------------
   let plantTarget = null; // tile to plant immediately on pick
   function renderSeeds(body) {
-    $('sheet-title').textContent = '🌱 Choose a seed';
+    setSheetHeader(I.icon('sprout'), 'Choose a seed', 'Right season + steady water = happy crops');
     setTabs(null);
     const note = document.createElement('div');
     note.className = 'empty-note';
     note.style.padding = '0 6px 10px';
-    note.textContent = 'Crops need the right season and steady water — dry crops wilt and die, ripe ones rot if left standing.';
+    note.textContent = 'Dry crops wilt and die; ripe ones rot if left standing.';
     body.appendChild(note);
 
     const grid = document.createElement('div');
@@ -169,14 +438,16 @@ const UI = (() => {
       const item = D.ITEMS[id];
       const off = !Game.seasonOK(id);
       const card = document.createElement('div');
-      card.className = 'item-card' + (off ? ' off-season' : '');
+      card.className = 'item-card' + (off ? ' off-season' : '') + (seed === id ? ' selected' : '');
       card.innerHTML = `
-        <span class="season-tag">${c.seasons.map(i => D.SEASONS[i].emoji).join('')}</span>
-        ${off ? '<span class="lock-tag" style="background:#b03a2a">⚠️ off-season</span>' : (c.regrow ? '<span class="lock-tag" style="background:#3f8a42">♻️ regrows</span>' : '')}
-        <div class="emoji">${item.emoji}</div>
+        <span class="season-tag">${c.seasons.map(i => I.season(i)).join('')}</span>
+        ${off ? '<span class="lock-tag warn">off-season</span>'
+          : seed === id ? `<span class="owned-tick">${I.icon('check')}</span>`
+          : c.regrow ? '<span class="lock-tag regrow">regrows</span>' : ''}
+        <span class="plate">${I.item(id)}</span>
         <div class="name">${item.name}</div>
         <div class="sub">${c.grow}s${c.regrow ? ' · then ' + c.regrow + 's' : ''} · sells ~${$$(item.base)}</div>
-        <div class="price">${$$(c.seed)}</div>`;
+        ${chip(c.seed, off ? 'muted' : '')}`;
       card.onclick = () => {
         if (off) {
           toast(`⚠️ ${item.name} grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')} — planting now wastes the seed money!`, 'bad');
@@ -198,13 +469,13 @@ const UI = (() => {
 
   // ---------------- shop ----------------
   function renderShop(body) {
-    $('sheet-title').textContent = '🏪 Shop';
+    setSheetHeader(I.icon('shop'), 'Shop', "Everything's for sale from day one");
     const tabs = [
-      { id: 'build', label: '🏠 Buildings' },
-      { id: 'animals', label: '🐔 Animals' },
-      { id: 'tools', label: '🚜 Equipment' },
-      { id: 'supplies', label: '⛽ Supplies' },
-      { id: 'land', label: '🚧 Land' },
+      { id: 'build', label: 'Buildings', icon: I.icon('house') },
+      { id: 'animals', label: 'Animals', icon: I.icon('hen') },
+      { id: 'tools', label: 'Equipment', icon: I.icon('tractor') },
+      { id: 'supplies', label: 'Supplies', icon: I.icon('fuel') },
+      { id: 'land', label: 'Land', icon: I.icon('sign') },
     ];
     sheetTab = sheetTab || 'build';
     setTabs(tabs, sheetTab);
@@ -217,14 +488,16 @@ const UI = (() => {
       for (const [id, b] of entries) {
         const broke = s.coins < b.cost;
         const card = document.createElement('div');
-        card.className = 'item-card' + (broke ? ' disabled' : '');
+        // art stays full-color when broke; only the price chip mutes (+ save-up bar)
+        card.className = 'item-card' + (broke ? ' broke' : '');
         card.innerHTML = `
-          <div class="emoji">${b.emoji}</div>
+          <span class="plate">${I.building(id)}</span>
           <div class="name">${b.name}</div>
           <div class="sub">${b.desc}</div>
-          <div class="price">${$$(b.cost)}</div>`;
+          ${chip(b.cost)}
+          ${broke ? `<span class="saveup"><i style="width:${Math.min(100, s.coins / b.cost * 100).toFixed(1)}%"></i></span>` : ''}`;
         card.onclick = () => {
-          if (s.coins < b.cost) { toast(`Save up ${$$(b.cost)} for the ${b.name}!`, 'bad'); return; }
+          if (s.coins < b.cost) { toast(`Save up ${$$(b.cost - s.coins)} more for the ${b.name}!`, 'bad'); return; }
           SOUNDS.tap();
           startBuild(id);
         };
@@ -240,12 +513,12 @@ const UI = (() => {
         const row = document.createElement('div');
         row.className = 'row-card';
         row.innerHTML = `
-          <div class="emoji">${a.emoji}</div>
+          <div class="emoji">${I.animal(id, 'lg')}</div>
           <div class="info">
             <div class="name">${a.name}</div>
             <div class="sub">Makes ${D.ITEMS[a.product].emoji} ${D.ITEMS[a.product].name} (~${$$(D.ITEMS[a.product].base)}) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
           </div>
-          <div class="actions"><button class="mini gold">${$$(a.cost)}</button></div>`;
+          <div class="actions"><button class="mini gold">${I.icon('coin')}${fmt(a.cost)}</button></div>`;
         row.querySelector('button').onclick = () => {
           if (!homes.length) { toast(`You need a ${D.BUILDINGS[a.home].name} with free space!`, 'bad'); return; }
           if (Game.buyAnimal(id, homes[0].i)) { updateHud(); renderSheet(); }
@@ -255,9 +528,9 @@ const UI = (() => {
     }
 
     if (sheetTab === 'tools') {
-      body.appendChild(toolRow('🚜', 'Tilling', D.TILL_TIERS, s.till.tier,
+      body.appendChild(toolRow(I.icon('tractor'), 'Tilling', D.TILL_TIERS, s.till.tier,
         t => `Tills ${t.area}×${t.area} at once${t.fuel ? ` · burns ${t.fuel} gal/tile` : ' · no fuel needed'}`, () => Game.buyTillTier()));
-      body.appendChild(toolRow('💧', 'Watering', D.CAN_TIERS, s.can.tier,
+      body.appendChild(toolRow(I.icon('drop'), 'Watering', D.CAN_TIERS, s.can.tier,
         t => `Holds ${t.cap} water · waters ${t.area}×${t.area}`, () => Game.buyCanTier()));
     }
 
@@ -266,7 +539,7 @@ const UI = (() => {
       const fuelRow = document.createElement('div');
       fuelRow.className = 'row-card';
       fuelRow.innerHTML = `
-        <div class="emoji">⛽</div>
+        <div class="emoji">${I.icon('fuel')}</div>
         <div class="info">
           <div class="name">Diesel · $${price.toFixed(2)}/gal today</div>
           <div class="sub">Runs the rototiller, tractor and drones. You have ${s.fuel.toFixed(1)} gal. Prices change daily!</div>
@@ -283,10 +556,10 @@ const UI = (() => {
       const fert = document.createElement('div');
       fert.className = 'row-card';
       fert.innerHTML = `
-        <div class="emoji">✨</div>
+        <div class="emoji">${I.icon('sparkle')}</div>
         <div class="info">
           <div class="name">Fertilizer · ${$$(D.FERT_COST)} per use</div>
-          <div class="sub">Use the ✨ tool on growing crops: +25% growth speed and a 45% chance of a double harvest.</div>
+          <div class="sub">Use the Fert tool on growing crops: +25% growth speed and a 45% chance of a double harvest.</div>
         </div>`;
       body.appendChild(fert);
     }
@@ -300,12 +573,12 @@ const UI = (() => {
         const row = document.createElement('div');
         row.className = 'row-card';
         row.innerHTML = `
-          <div class="emoji">🚧</div>
+          <div class="emoji">${I.icon('sign')}</div>
           <div class="info">
             <div class="name">Land parcel · ${p.w}×${p.h} tiles</div>
             <div class="sub">${broke ? 'Keep saving — every tile is an opportunity!' : 'Ready to farm!'}</div>
           </div>
-          <div class="actions"><button class="mini gold">${$$(p.cost)}</button></div>`;
+          <div class="actions"><button class="mini gold" ${broke ? 'disabled' : ''}>${I.icon('coin')}${fmt(p.cost)}</button></div>`;
         row.querySelector('button').onclick = () => {
           if (Game.buyParcel(i)) { updateHud(); renderSheet(); }
         };
@@ -315,30 +588,30 @@ const UI = (() => {
     }
   }
 
-  function toolRow(icon, name, tiers, cur, describe, buy) {
+  function toolRow(iconHtml, name, tiers, cur, describe, buy) {
     const next = tiers[cur + 1];
     const row = document.createElement('div');
     row.className = 'row-card';
     if (!next) {
       row.innerHTML = `
-        <div class="emoji">${icon}</div>
+        <div class="emoji">${iconHtml}</div>
         <div class="info"><div class="name">${tiers[cur].name}</div><div class="sub">${describe(tiers[cur])} · fully upgraded!</div></div>`;
       return row;
     }
     row.innerHTML = `
-      <div class="emoji">${icon}</div>
+      <div class="emoji">${iconHtml}</div>
       <div class="info">
         <div class="name">${name}: ${tiers[cur].name} → ${next.name}</div>
         <div class="sub">${describe(next)}</div>
       </div>
-      <div class="actions"><button class="mini gold">${$$(next.cost)}</button></div>`;
+      <div class="actions"><button class="mini gold">${I.icon('coin')}${fmt(next.cost)}</button></div>`;
     row.querySelector('button').onclick = () => { if (buy()) { updateHud(); renderSheet(); } };
     return row;
   }
 
   // ---------------- market ----------------
   function renderMarket(body) {
-    $('sheet-title').textContent = '⚖️ Market';
+    setSheetHeader(I.icon('scales'), 'Market', 'Prices move daily — sell high!');
     setTabs(null);
     const s = Game.state;
     const items = Object.entries(s.inventory).filter(([, q]) => q > 0);
@@ -346,13 +619,13 @@ const UI = (() => {
     const hot = s.market.hot;
     const note = document.createElement('div');
     note.className = 'order-card';
-    note.innerHTML = `<div style="font-weight:800;font-size:13px">🔥 Today's hot item: ${D.ITEMS[hot].emoji} <b>${D.ITEMS[hot].name}</b> sells for <b>+50%</b>! Prices change daily.</div>`;
+    note.innerHTML = `<div style="font-weight:800;font-size:0.8125rem">${I.icon('flame')} Today's hot item: ${I.item(hot)} <b>${D.ITEMS[hot].name}</b> sells for <b>+50%</b>! Prices change daily.</div>`;
     body.appendChild(note);
 
     if (!items.length) {
       const e = document.createElement('div');
       e.className = 'empty-note';
-      e.textContent = '📦 Your barn is empty — harvest crops or collect from animals!';
+      e.innerHTML = `<div class="empty-art">${I.icon('crate')}</div>Your barn is empty — harvest crops or collect from animals!`;
       body.appendChild(e);
       return;
     }
@@ -363,10 +636,12 @@ const UI = (() => {
     const sellAll = document.createElement('button');
     sellAll.className = 'chunky gold';
     sellAll.style.cssText = 'width:100%;margin-bottom:12px';
-    sellAll.textContent = `Sell everything · +${$$(total)}`;
+    sellAll.innerHTML = `${I.icon('coin')} Sell everything · +${$$(total)}`;
     sellAll.onclick = () => {
+      const rect = sellAll.getBoundingClientRect();
       confirmBox('⚖️', `Sell your entire inventory for ${$$(total)}?`, 'Sell all', () => {
         for (const [id, qty] of items) Game.sellItem(id, qty);
+        coinFlight(rect);
         updateHud(); renderSheet();
       });
     };
@@ -380,7 +655,7 @@ const UI = (() => {
       const row = document.createElement('div');
       row.className = 'row-card';
       row.innerHTML = `
-        <div class="emoji">${item.emoji}${hot === id ? '🔥' : ''}</div>
+        <div class="emoji">${I.item(id, 'lg')}${hot === id ? `<span class="hot-badge">${I.icon('flame')}</span>` : ''}</div>
         <div class="info">
           <div class="name">${item.name} × ${qty}</div>
           <div class="sub">${$$(price)} each · ${dir}</div>
@@ -390,27 +665,27 @@ const UI = (() => {
           ${qty > 1 ? `<button class="mini gold">All · ${$$(price * qty)}</button>` : ''}
         </div>`;
       const btns = row.querySelectorAll('button');
-      btns[0].onclick = () => { Game.sellItem(id, 1); updateHud(); renderSheet(); };
-      if (btns[1]) btns[1].onclick = () => { Game.sellItem(id, qty); updateHud(); renderSheet(); };
+      btns[0].onclick = e => { const r = e.currentTarget.getBoundingClientRect(); Game.sellItem(id, 1); coinFlight(r); updateHud(); renderSheet(); };
+      if (btns[1]) btns[1].onclick = e => { const r = e.currentTarget.getBoundingClientRect(); Game.sellItem(id, qty); coinFlight(r); updateHud(); renderSheet(); };
       body.appendChild(row);
     }
   }
 
   // ---------------- orders ----------------
   function renderOrders(body) {
-    $('sheet-title').textContent = '📋 Orders';
+    setSheetHeader(I.icon('clipboard'), 'Orders', 'Townsfolk pay a premium for deliveries');
     setTabs(null);
     const s = Game.state;
     const intro = document.createElement('div');
     intro.className = 'empty-note';
     intro.style.padding = '4px 10px 14px';
-    intro.textContent = 'Townsfolk pay a premium for deliveries. Fill orders to grow your empire!';
+    intro.textContent = 'Fill orders to grow your empire!';
     body.appendChild(intro);
 
     if (!s.orders.length) {
       const e = document.createElement('div');
       e.className = 'empty-note';
-      e.textContent = '⏳ New orders arriving soon…';
+      e.innerHTML = `<div class="empty-art">${I.icon('clipboard')}</div>New orders arriving soon…`;
       body.appendChild(e);
     }
 
@@ -419,7 +694,7 @@ const UI = (() => {
       card.className = 'order-card';
       const items = Object.entries(o.reqs).map(([id, qty]) => {
         const have = s.inventory[id] || 0;
-        return `<div class="order-item ${have >= qty ? 'ok' : ''}">${D.ITEMS[id].emoji} ${Math.min(have, qty)}/${qty}</div>`;
+        return `<div class="order-item ${have >= qty ? 'ok' : ''}">${I.item(id)} ${Math.min(have, qty)}/${qty}</div>`;
       }).join('');
       const can = Game.canFulfill(o);
       card.innerHTML = `
@@ -427,13 +702,16 @@ const UI = (() => {
         <div class="order-foot">
           <div class="order-reward">+${$$(o.coins)} · +${o.xp} XP</div>
           <div style="display:flex;gap:6px">
-            <button class="mini" style="background:linear-gradient(180deg,#bcaaa4,#8d6e63)">Skip</button>
+            <button class="mini quiet">Skip</button>
             <button class="mini gold" ${can ? '' : 'disabled'}>Deliver 🚚</button>
           </div>
         </div>`;
       const btns = card.querySelectorAll('button');
       btns[0].onclick = () => confirmBox('🗑️', 'Skip this order? A new one will arrive soon.', 'Skip', () => { Game.skipOrder(o.id); renderSheet(); });
-      btns[1].onclick = () => { if (Game.fulfillOrder(o.id)) { updateHud(); renderSheet(); } };
+      btns[1].onclick = e => {
+        const r = e.currentTarget.getBoundingClientRect();
+        if (Game.fulfillOrder(o.id)) { coinFlight(r); updateHud(); renderSheet(); }
+      };
       body.appendChild(card);
     }
   }
@@ -444,7 +722,7 @@ const UI = (() => {
     const b = s.buildings[index];
     if (!b) { closeSheet(); return; }
     const def = D.BUILDINGS[b.type];
-    $('sheet-title').textContent = `${def.emoji} ${def.name}`;
+    setSheetHeader(I.building(b.type), def.name, def.capacity ? `Home for up to ${def.capacity} animals` : '');
     setTabs(null);
 
     if (def.capacity) renderHousing(body, index, b, def);
@@ -463,12 +741,13 @@ const UI = (() => {
       sellRow.className = 'row-card';
       sellRow.style.marginTop = '14px';
       sellRow.innerHTML = `
-        <div class="emoji">🏷️</div>
+        <div class="emoji">${I.icon('tag')}</div>
         <div class="info"><div class="name">Sell this ${def.name}</div><div class="sub">Get back ${$$(refund)} (50% of cost)${def.capacity ? ' · must be empty' : ''}</div></div>
-        <div class="actions"><button class="mini" style="background:linear-gradient(180deg,#ef8a6a,#c05a3a)">Sell</button></div>`;
-      sellRow.querySelector('button').onclick = () => {
+        <div class="actions"><button class="mini danger">Sell</button></div>`;
+      sellRow.querySelector('button').onclick = e => {
+        const r = e.currentTarget.getBoundingClientRect();
         confirmBox('🏷️', `Sell the ${def.name} for ${$$(refund)}?`, 'Sell it', () => {
-          if (Game.sellBuilding(index)) { closeSheet(); updateHud(); }
+          if (Game.sellBuilding(index)) { coinFlight(r); closeSheet(); updateHud(); }
         });
       };
       body.appendChild(sellRow);
@@ -484,7 +763,7 @@ const UI = (() => {
     top.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
     top.innerHTML = `
       <button class="chunky green" style="flex:1">🌾 Feed all</button>
-      <button class="chunky gold" style="flex:1" ${ready ? '' : 'disabled'}>📦 Collect${ready ? ' (' + ready + ')' : ''}</button>`;
+      <button class="chunky gold" style="flex:1" ${ready ? '' : 'disabled'}>${I.icon('crate')} Collect${ready ? ' (' + ready + ')' : ''}</button>`;
     const [feedBtn, collectBtn] = top.querySelectorAll('button');
     feedBtn.onclick = () => { Game.feedAll(index); updateHud(); renderSheet(); };
     collectBtn.onclick = () => { Game.collectBuilding(index); updateHud(); renderSheet(); };
@@ -520,25 +799,26 @@ const UI = (() => {
       const row = document.createElement('div');
       row.className = 'row-card';
       row.innerHTML = `
-        <div class="emoji">${adef.emoji}${a.sick ? '🤒' : ''}</div>
+        <div class="emoji">${I.animal(a.type, 'lg')}${a.sick ? '<span class="hot-badge">🤒</span>' : ''}</div>
         <div class="info">
-          <div class="name">${a.name} <span style="font-weight:700;color:#97876a">· ${adef.name}</span></div>
+          <div class="name">${a.name} <span class="name-soft">· ${adef.name}</span></div>
           <div class="sub">${status}</div>
           <div class="minibar ${a.prodProg >= 1 ? '' : 'blue'}"><div style="width:${Math.round(a.prodProg * 100)}%"></div></div>
           <div class="sub" style="margin-top:4px">${a.sick ? '🤒' : a.happiness >= 80 ? '😍' : a.happiness >= 50 ? '🙂' : '😟'} condition ${a.happiness}%</div>
         </div>
         <div class="actions">
-          ${a.sick ? `<button class="mini" style="background:linear-gradient(180deg,#7bb87a,#4a8a4a)">🩺 Vet ${$$(vetCost)}</button>` : `<button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>`}
-          <button class="mini" style="background:linear-gradient(180deg,#bcaaa4,#8d6e63)">Sell ${$$(sellPrice)}</button>
+          ${a.sick ? `<button class="mini">🩺 Vet ${$$(vetCost)}</button>` : `<button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>`}
+          <button class="mini quiet">Sell ${$$(sellPrice)}</button>
         </div>`;
       const btns = row.querySelectorAll('button');
       btns[0].onclick = () => {
         if (a.sick) { if (Game.vetAnimal(i)) { updateHud(); renderSheet(); } }
         else if (Game.feedAnimal(i)) { SOUNDS.plant(); updateHud(); renderSheet(); }
       };
-      btns[1].onclick = () => {
+      btns[1].onclick = e => {
+        const r = e.currentTarget.getBoundingClientRect();
         confirmBox('🏷️', `Sell ${a.name} the ${adef.name.toLowerCase()} for ${$$(sellPrice)}?`, 'Sell', () => {
-          if (Game.sellAnimal(i)) { updateHud(); renderSheet(); }
+          if (Game.sellAnimal(i)) { coinFlight(r); updateHud(); renderSheet(); }
         });
       };
       body.appendChild(row);
@@ -557,10 +837,10 @@ const UI = (() => {
       const card = document.createElement('div');
       card.className = 'item-card' + (full ? ' disabled' : '');
       card.innerHTML = `
-        <div class="emoji">${a.emoji}</div>
+        <span class="plate">${I.animal(id)}</span>
         <div class="name">${a.name}</div>
         <div class="sub">${D.ITEMS[a.product].emoji} every ${a.prodTime}s</div>
-        <div class="price">${$$(a.cost)}</div>`;
+        ${chip(a.cost, full ? 'muted' : '')}`;
       card.onclick = () => {
         if (Game.buyAnimal(id, index)) { updateHud(); renderSheet(); }
       };
@@ -577,7 +857,7 @@ const UI = (() => {
       const btn = document.createElement('button');
       btn.className = 'chunky gold';
       btn.style.cssText = 'width:100%;margin-bottom:12px';
-      btn.textContent = `📦 Collect ${done} finished good${done > 1 ? 's' : ''}`;
+      btn.innerHTML = `${I.icon('crate')} Collect ${done} finished good${done > 1 ? 's' : ''}`;
       btn.onclick = () => { Game.collectRecipes(index); updateHud(); renderSheet(); };
       body.appendChild(btn);
     }
@@ -595,7 +875,7 @@ const UI = (() => {
         const row = document.createElement('div');
         row.className = 'row-card';
         row.innerHTML = `
-          <div class="emoji">${item.emoji}</div>
+          <div class="emoji">${I.item(r.out, 'lg')}</div>
           <div class="info">
             <div class="name">${item.name}</div>
             <div class="sub">${left <= 0 ? '✅ Ready!' : Math.ceil(left) + 's left'}</div>
@@ -617,9 +897,9 @@ const UI = (() => {
       const row = document.createElement('div');
       row.className = 'row-card';
       row.innerHTML = `
-        <div class="emoji">${out.emoji}</div>
+        <div class="emoji">${I.item(r.out, 'lg')}</div>
         <div class="info">
-          <div class="name">${out.name} <span style="color:#8a6100">· ~${$$(out.base)}</span></div>
+          <div class="name">${out.name} <span class="name-price">· ~${$$(out.base)}</span></div>
           <div class="sub">${ins} · ${r.time}s</div>
         </div>
         <div class="actions"><button class="mini blue" ${can ? '' : 'disabled'}>Craft</button></div>`;
@@ -629,17 +909,46 @@ const UI = (() => {
   }
 
   // ---------------- menu ----------------
-  function renderMenu(body) {
-    $('sheet-title').textContent = '⚙️ Menu';
+  function applyTextScale() {
+    const big = Game.state && Game.state.settings && Game.state.settings.bigText;
+    document.documentElement.style.fontSize = big ? '18px' : '';
+  }
+
+  function renderLog(body) {
+    setSheetHeader(I.icon('clipboard'), 'Message log', 'The last ' + toastLog.length + ' farm messages');
     setTabs(null);
+    if (!toastLog.length) {
+      const e = document.createElement('div');
+      e.className = 'empty-note';
+      e.textContent = 'Nothing yet — get farming!';
+      body.appendChild(e);
+      return;
+    }
+    for (let i = toastLog.length - 1; i >= 0; i--) {
+      const t = toastLog[i];
+      const row = document.createElement('div');
+      row.className = 'row-card log-row';
+      const plate = t.kind === 'good' ? 'check' : t.kind === 'bad' ? 'bang' : 'info';
+      row.innerHTML = `
+        <span class="t-plate ${t.kind}">${I.icon(plate)}</span>
+        <div class="info"><div class="sub log-msg"></div></div>
+        <div class="log-day">Day ${t.day}</div>`;
+      row.querySelector('.log-msg').textContent = t.msg;
+      body.appendChild(row);
+    }
+  }
+
+  function renderMenu(body) {
     const s = Game.state;
+    setSheetHeader(I.icon('gear'), 'Menu', s.farmName);
+    setTabs(null);
     const diffDef = D.DIFFICULTIES.find(d => d.id === s.diff) || D.DIFFICULTIES[1];
 
     const stats = document.createElement('div');
     stats.className = 'order-card';
     stats.innerHTML = `
-      <div style="font-weight:900;font-size:15px;margin-bottom:6px">👑 ${s.farmName} — Year ${s.year} · ${diffDef.emoji} ${diffDef.name}</div>
-      <div style="font-weight:800;font-size:13px;line-height:1.9">
+      <div style="font-weight:900;font-size:0.9375rem;margin-bottom:6px">👑 ${s.farmName} — Year ${s.year} · ${diffDef.emoji} ${diffDef.name}</div>
+      <div style="font-weight:800;font-size:0.8125rem;line-height:1.9">
         💰 Farm value: <b>${$$(Game.farmValue())}</b> · lifetime earned: <b>${$$(s.stats.earned)}</b><br>
         ⭐ Reputation: <b>level ${s.level}</b> (+${Math.round(D.repBonus(s.level) * 100)}% sell prices)<br>
         🧺 Harvested: <b>${s.stats.harvested.toLocaleString()}</b> · 🥀 crops lost: <b>${s.stats.lost}</b><br>
@@ -743,6 +1052,31 @@ const UI = (() => {
     soundRow.querySelector('button').onclick = () => { s.settings.sound = !s.settings.sound; SOUNDS.tap(); renderSheet(); };
     body.appendChild(soundRow);
 
+    // Comfy Mode: large-text toggle (rem-based type scales the whole UI)
+    const bigRow = document.createElement('div');
+    bigRow.className = 'row-card';
+    bigRow.innerHTML = `
+      <div class="emoji">🔍</div>
+      <div class="info"><div class="name">Large text</div><div class="sub">Comfy Mode — bigger type across every panel</div></div>
+      <div class="actions"><button class="mini">${s.settings.bigText ? 'Turn off' : 'Turn on'}</button></div>`;
+    bigRow.querySelector('button').onclick = () => {
+      s.settings.bigText = !s.settings.bigText;
+      applyTextScale();
+      SOUNDS.tap();
+      renderSheet();
+    };
+    body.appendChild(bigRow);
+
+    // Message log — nothing a toast says is ever lost
+    const logRow = document.createElement('div');
+    logRow.className = 'row-card';
+    logRow.innerHTML = `
+      <div class="emoji">${I.icon('clipboard')}</div>
+      <div class="info"><div class="name">Message log</div><div class="sub">${toastLog.length ? toastLog.length + ' recent message' + (toastLog.length > 1 ? 's' : '') : 'Recent farm messages'}</div></div>
+      <div class="actions"><button class="mini">View</button></div>`;
+    logRow.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('log'); };
+    body.appendChild(logRow);
+
     const help = document.createElement('div');
     help.className = 'row-card';
     help.innerHTML = `
@@ -758,7 +1092,7 @@ const UI = (() => {
     reset.innerHTML = `
       <div class="emoji">🗑️</div>
       <div class="info"><div class="name">Start over</div><div class="sub">Erase this farm forever</div></div>
-      <div class="actions"><button class="mini" style="background:linear-gradient(180deg,#ef5350,#d32f2f)">Reset</button></div>`;
+      <div class="actions"><button class="mini danger">Reset</button></div>`;
     reset.querySelector('button').onclick = () => {
       confirmBox('⚠️', 'Really erase your farm and start over?\nThis cannot be undone!', 'Erase', () => {
         Game.resetGame();
@@ -776,7 +1110,7 @@ const UI = (() => {
     // start ghost near the camera focus
     const c = Renderer.screenToTile(Renderer.vw / 2, Renderer.vh / 2);
     Renderer.setGhost({ type, x: Math.round(c.x - def.w / 2), y: Math.round(c.y - def.h / 2) });
-    $('build-label').textContent = `${def.emoji} Place the ${def.name}`;
+    $('build-label').innerHTML = `${I.building(type)} <span>Place the ${def.name}</span>`;
     $('buildbar').classList.remove('hidden');
     $('toolbar').classList.add('hidden');
     toast('Tap the map to move it, then press ✓');
@@ -889,6 +1223,8 @@ const UI = (() => {
 
   function handleTap(sx, sy) {
     if (buildType) { moveGhost(sx, sy); return; }
+    const wpt = Renderer.screenToTile(sx, sy);
+    Renderer.addStartle(wpt.x, wpt.y);
     const { x, y } = tileFromScreen(sx, sy);
 
     if (tool === 'auto') {
@@ -1023,8 +1359,13 @@ const UI = (() => {
     $('levelup-unlocks').innerHTML =
       `Your farm's reputation is growing!<br><span class="unlock">⚖️ All goods now sell for +${bonus}%</span>`;
     $('levelup').classList.remove('hidden');
-    setTimeout(() => $('levelup').classList.add('hidden'), 2600);
-    $('levelup').onclick = () => $('levelup').classList.add('hidden');
+    // tap to dismiss — no auto-hide, and no stolen input: the splash lets
+    // pointer events through; the first tap anywhere also dismisses it
+    const dismiss = () => {
+      $('levelup').classList.add('hidden');
+      document.removeEventListener('pointerdown', dismiss, true);
+    };
+    document.addEventListener('pointerdown', dismiss, true);
   }
 
   function showAwaySummary(away) {
@@ -1043,6 +1384,7 @@ const UI = (() => {
   // ---------------- init ----------------
   function init(canvas) {
     bindInput(canvas);
+    applyTextScale(); // restore Comfy Mode large text
 
     document.querySelectorAll('.tool-btn').forEach(b => {
       b.addEventListener('click', () => {
@@ -1074,11 +1416,19 @@ const UI = (() => {
     Game.on('toast', toast);
     Game.on('sound', name => SOUNDS[name] && SOUNDS[name]());
     Game.on('fx', f => {
-      if (f.kind === 'float') Renderer.addFloat(f.x, f.y, f.text, f.color);
-      else Renderer.addBurst(f.x, f.y, f.color);
+      switch (f.kind) {
+        case 'float':     Renderer.addFloat(f.x, f.y, f.text, f.color); break;
+        case 'till':      Renderer.fxTill(f.x, f.y); break;
+        case 'plant':     Renderer.fxPlant(f.x, f.y, f.color); break;
+        case 'water':     Renderer.fxWater(f.x, f.y); break;
+        case 'harvest':   Renderer.fxHarvest(f.x, f.y, f.data); break;
+        case 'clear':     Renderer.fxClear(f.x, f.y); break;
+        case 'lightning': Renderer.fxLightning(f.x, f.y); break;
+        default:          Renderer.addBurst(f.x, f.y, f.color);
+      }
     });
     Game.on('levelup', showLevelUp);
-    Game.on('goal', updateGoalChip);
+    Game.on('goal', () => { updateGoalChip(); Renderer.addGlintBurst(); });
     Game.on('orders', () => { if (sheetOpen === 'orders') renderSheet(); });
     Game.on('season', () => { if (sheetOpen === 'seeds') renderSheet(); });
 
@@ -1091,10 +1441,11 @@ const UI = (() => {
     refreshAcc += dt;
     if (refreshAcc > 0.5) {
       refreshAcc = 0;
+      updateAmbience();
       updateHud();
       if (sheetOpen && (sheetOpen.startsWith('b:') || sheetOpen === 'orders')) renderSheet();
     }
   }
 
-  return { init, update, toast, updateHud, showAwaySummary, showSetup, get tool() { return tool; } };
+  return { init, update, toast, updateHud, showAwaySummary, showSetup, fxArrive, get tool() { return tool; } };
 })();
