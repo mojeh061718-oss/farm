@@ -175,11 +175,31 @@ const UI = (() => {
 
   // ---------------- toasts / modal ----------------
   const toastLog = []; // ring buffer of the last 50 messages (read from Menu)
+  const pendingToasts = []; // queued while a sheet is open (flushed on close)
+
+  const sheetShowing = () => !!sheetOpen && !$('sheet').classList.contains('hidden');
 
   function toast(msg, kind) {
     toastLog.push({ msg, kind: kind || 'info', day: Game.state ? Game.state.day : 0, at: Date.now() });
     if (toastLog.length > 50) toastLog.shift();
+    // sheets own the top of the screen: park non-urgent toasts until close
+    if (kind !== 'bad' && sheetShowing()) {
+      pendingToasts.push({ msg, kind });
+      if (pendingToasts.length > 4) pendingToasts.shift();
+      return;
+    }
+    presentToast(msg, kind);
+  }
 
+  function flushToasts() {
+    const queued = pendingToasts.splice(0);
+    queued.forEach((t, i) => setTimeout(() => {
+      if (sheetShowing()) { pendingToasts.push(t); return; } // a sheet reopened mid-flush
+      presentToast(t.msg, t.kind);
+    }, 120 + i * 280));
+  }
+
+  function presentToast(msg, kind) {
     const el = document.createElement('div');
     el.className = 'toast' + (kind ? ' ' + kind : '');
     const plate = kind === 'good' ? 'check' : kind === 'bad' ? 'bang' : 'info';
@@ -221,14 +241,19 @@ const UI = (() => {
   let coinShown = null, coinTarget = null, coinRaf = null;
 
   // eased tick-up on gains; instant on spends (spending must feel exact)
+  // (writes both the HUD pill and the sheet wallet footer)
+  function writeCoins(v) {
+    const s = v.toLocaleString();
+    $('coins').textContent = s;
+    $('wallet-coins').textContent = s;
+  }
   function setCoins(v) {
-    const el = $('coins');
     if (v === coinTarget) return;
     coinTarget = v;
     if (coinRaf) { cancelAnimationFrame(coinRaf); coinRaf = null; }
     if (coinShown === null || v <= coinShown || v - coinShown < 20 || REDUCED.matches) {
       coinShown = v;
-      el.textContent = v.toLocaleString();
+      writeCoins(v);
       return;
     }
     const from = coinShown, t0 = performance.now(), dur = 600;
@@ -236,25 +261,27 @@ const UI = (() => {
       const t = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - t, 3);
       coinShown = Math.round(from + (v - from) * e);
-      el.textContent = coinShown.toLocaleString();
+      writeCoins(coinShown);
       coinRaf = t < 1 ? requestAnimationFrame(step) : null;
     };
     coinRaf = requestAnimationFrame(step);
   }
 
   function pulseCoinsPill() {
-    const p = $('pill-coins');
+    // pulse whichever wallet the player is looking at (footer while a sheet is open)
+    const p = sheetShowing() ? $('wallet-coin-chip') : $('pill-coins');
     p.classList.remove('pop');
     void p.offsetWidth;
     p.classList.add('pop');
   }
 
-  // 3–5 coin clones arc from the purchase/sale point to the coins pill
+  // 3–5 coin clones arc from the purchase/sale point to the coins pill —
+  // or to the sheet's wallet footer while one is open (it's the visible wallet)
   function coinFlight(src) {
     if (!src) { pulseCoinsPill(); return; }
     if (REDUCED.matches) { pulseCoinsPill(); return; }
     const r = src.getBoundingClientRect ? src.getBoundingClientRect() : src;
-    const dst = $('pill-coins').getBoundingClientRect();
+    const dst = (sheetShowing() ? $('wallet-coin-chip') : $('pill-coins')).getBoundingClientRect();
     const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
     const x1 = dst.left + dst.width * 0.32, y1 = dst.top + dst.height / 2;
     const n = 3 + Math.floor(Math.random() * 3);
@@ -326,6 +353,9 @@ const UI = (() => {
       $('fuel-amount').textContent = s.fuel.toFixed(1);
       $('pill-fuel').classList.toggle('fuel-low', s.fuel < 1);
     }
+    // sheet wallet footer mirrors the wallet (fuel only when owned)
+    $('wallet-fuel').classList.toggle('hidden', !showFuel);
+    if (showFuel) $('wallet-fuel-amt').textContent = s.fuel.toFixed(1);
 
     const fulfillable = s.orders.filter(o => Game.canFulfill(o)).length;
     $('orders-badge').classList.toggle('hidden', fulfillable === 0);
@@ -381,6 +411,7 @@ const UI = (() => {
       sh.classList.remove('closing');
       bd.classList.remove('closing');
     }, 225);
+    flushToasts(); // messages parked while the sheet was up
   }
 
   // sheet header: icon plate + title + one-line promise
@@ -390,6 +421,13 @@ const UI = (() => {
     badge.classList.toggle('on', !!iconHtml);
     $('sheet-title').textContent = title;
     $('sheet-sub').textContent = sub || '';
+  }
+
+  // right-edge fade on the tab bar while more tabs hide off-screen
+  function updateTabFade() {
+    const bar = $('sheet-tabs');
+    const more = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
+    bar.classList.toggle('fade-r', more);
   }
 
   function setTabs(tabs, active) {
@@ -405,6 +443,7 @@ const UI = (() => {
       b.onclick = () => { SOUNDS.tap(); sheetTab = t.id; renderSheet(); };
       bar.appendChild(b);
     }
+    requestAnimationFrame(updateTabFade); // after layout
   }
 
   function renderSheet() {
@@ -525,7 +564,7 @@ const UI = (() => {
           <div class="emoji">${I.animal(id, 'lg')}</div>
           <div class="info">
             <div class="name">${a.name}</div>
-            <div class="sub">Makes ${D.ITEMS[a.product].emoji} ${D.ITEMS[a.product].name} (~${$$(D.ITEMS[a.product].base)}) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
+            <div class="sub">Makes ${I.item(a.product)} ${D.ITEMS[a.product].name} (~${$$(D.ITEMS[a.product].base)}) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
           </div>
           <div class="actions"><button class="mini gold">${I.icon('coin')}${fmt(a.cost)}</button></div>`;
         row.querySelector('button').onclick = () => {
@@ -766,8 +805,8 @@ const UI = (() => {
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
     actions.innerHTML = `
-      <button class="chunky green" style="flex:1" ${ripe.length ? '' : 'disabled'}>🧺 Harvest all ripe${ripe.length ? ' (' + ripe.length + ')' : ''}</button>
-      <button class="chunky red" style="flex:1">⛏️ Dig up all at-risk (${list.length})</button>`;
+      <button class="chunky green" style="flex:1" ${ripe.length ? '' : 'disabled'}>${I.icon('basket')} Harvest all ripe${ripe.length ? ' (' + ripe.length + ')' : ''}</button>
+      <button class="chunky red" style="flex:1">${I.icon('shovel')} Dig up all at-risk (${list.length})</button>`;
     const [harvBtn, digBtn] = actions.querySelectorAll('button');
     harvBtn.onclick = () => { Game.harvestAtRisk(); updateHud(); renderSheet(); };
     digBtn.onclick = () => confirmBox('⛏️', `Dig up all ${list.length} at-risk crops for a 50% seed refund?`, 'Dig them up', () => {
@@ -853,7 +892,7 @@ const UI = (() => {
     const top = document.createElement('div');
     top.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
     top.innerHTML = `
-      <button class="chunky green" style="flex:1">🌾 Feed all</button>
+      <button class="chunky green" style="flex:1">${I.item('wheat')} Feed all</button>
       <button class="chunky gold" style="flex:1" ${ready ? '' : 'disabled'}>${I.icon('crate')} Collect${ready ? ' (' + ready + ')' : ''}</button>`;
     const [feedBtn, collectBtn] = top.querySelectorAll('button');
     feedBtn.onclick = () => { Game.feedAll(index); updateHud(); renderSheet(); };
@@ -865,7 +904,7 @@ const UI = (() => {
       n.className = 'empty-note';
       n.style.padding = '0 4px 10px';
       n.id = 'feed-credit-note';
-      n.textContent = `🌾 Feed credits: ${s.feedCredits || 0} — feeding uses 1 credit before cash. Grind wheat & corn at the Feed Mill (1 grain → 3 feeds).`;
+      n.innerHTML = `${I.item('wheat')} Feed credits: ${s.feedCredits || 0} — feeding uses 1 credit before cash. Grind wheat &amp; corn at the Feed Mill (1 grain → 3 feeds).`;
       body.appendChild(n);
     }
 
@@ -880,13 +919,13 @@ const UI = (() => {
       const adef = D.ANIMALS[a.type];
       const fed = s.now < a.fedUntil;
       const cost = Game.feedCostFor(a);
-      const costLabel = cost.credits ? '1 feed 🌾' : $$(cost.coins);
+      const costLabel = cost.credits ? `1 feed ${I.item('wheat')}` : $$(cost.coins);
       const vetCost = Math.ceil(adef.cost * D.VET_RATE);
       const sellPrice = Math.floor(adef.cost * 0.6 * (a.sick ? 0.5 : 1));
       const status = a.sick
         ? '🤒 sick — needs the vet before producing again'
         : fed
-          ? (a.prodProg >= 1 ? `${D.ITEMS[adef.product].emoji} ready!` : `making ${D.ITEMS[adef.product].emoji} · ${Math.round(a.prodProg * 100)}%`)
+          ? (a.prodProg >= 1 ? `${I.item(adef.product)} ready!` : `making ${I.item(adef.product)} · ${Math.round(a.prodProg * 100)}%`)
           : '😋 hungry — feed to produce';
       const row = document.createElement('div');
       row.className = 'row-card';
@@ -931,7 +970,7 @@ const UI = (() => {
       card.innerHTML = `
         <span class="plate">${I.animal(id)}</span>
         <div class="name">${a.name}</div>
-        <div class="sub">${D.ITEMS[a.product].emoji} every ${a.prodTime}s</div>
+        <div class="sub">${I.item(a.product)} every ${a.prodTime}s</div>
         ${chip(a.cost, full ? 'muted' : '')}`;
       card.onclick = () => {
         if (Game.buyAnimal(id, index)) { updateHud(); renderSheet(); }
@@ -1003,7 +1042,7 @@ const UI = (() => {
     for (const [id, r] of Object.entries(D.RECIPES)) {
       if (r.building !== b.type) continue;
       const out = D.ITEMS[r.out];
-      const ins = Object.entries(r.in).map(([i, q]) => `${q} ${D.ITEMS[i].emoji}`).join(' + ');
+      const ins = Object.entries(r.in).map(([i, q]) => `${q} ${I.item(i)}`).join(' + ');
       const can = Game.canCraft(id) && b.queue.length < 3;
       const row = document.createElement('div');
       row.className = 'row-card';
@@ -1024,7 +1063,7 @@ const UI = (() => {
     const s = Game.state;
     const credits = document.createElement('div');
     credits.className = 'order-card';
-    credits.innerHTML = `<div style="font-weight:800;font-size:0.8125rem" id="feed-credits">🌾 Feed credits: <b>${s.feedCredits || 0}</b> — feeding an animal spends 1 credit before dipping into cash.</div>`;
+    credits.innerHTML = `<div style="font-weight:800;font-size:0.8125rem" id="feed-credits">${I.item('wheat')} Feed credits: <b>${s.feedCredits || 0}</b> — feeding an animal spends 1 credit before dipping into cash.</div>`;
     body.appendChild(credits);
 
     for (const grain of ['wheat', 'corn']) {
@@ -1574,6 +1613,7 @@ const UI = (() => {
     $('btn-menu').onclick = () => { SOUNDS.tap(); openSheet('menu'); };
     $('sheet-close').onclick = () => { SOUNDS.tap(); closeSheet(); };
     $('sheet-backdrop').onclick = closeSheet;
+    $('sheet-tabs').addEventListener('scroll', updateTabFade, { passive: true });
     $('goal-chip').onclick = () => updateGoalChip();
 
     $('build-ok').onclick = () => {

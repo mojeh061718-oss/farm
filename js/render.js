@@ -671,7 +671,7 @@ const Renderer = (() => {
       const key = kind + '|' + variant + '|' + season + '|' + lod;
       let e = cache.get(key);
       if (!e) {
-        const sc = lod ? 1.5 : 1; // 1.5 ≈ dpr2 × z0.75: most blits land 1:1
+        const sc = lod ? 2 : 1; // 2 ≈ dpr2 × z1: bakes stay crisp into close zoom
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.ceil(w * sc));
         c.height = Math.max(1, Math.ceil(h * sc));
@@ -1231,6 +1231,125 @@ const Renderer = (() => {
     }
   }
 
+  /* ---- lane ↔ building avoidance: lanes must never draw beneath a building.
+     Straight segments are kept; any segment that would cross a footprint is
+     re-routed with a tiny A* over the tile grid, then string-pulled back to a
+     few waypoints. The lane's own target building is exempt (it ends at its
+     door). All deterministic — same farm, same lanes. */
+  const LANE_MARGIN = 0.32; // keeps blob spread + wobble clear of the walls
+
+  function laneBlockRects(state, skip) {
+    const rects = [];
+    for (const b of state.buildings) {
+      if (!b) continue;
+      const def = D.BUILDINGS[b.type];
+      // the lane's own target keeps its body blocked but a slim south margin,
+      // so the lane can end at its door without cutting under the walls
+      const sm = b === skip ? 0.12 : LANE_MARGIN;
+      rects.push({ x0: b.x - LANE_MARGIN, y0: b.y - LANE_MARGIN, x1: b.x + def.w + LANE_MARGIN, y1: b.y + def.h + sm });
+    }
+    return rects;
+  }
+  const laneHit = (rects, x, y) => {
+    for (const r of rects) if (x > r.x0 && x < r.x1 && y > r.y0 && y < r.y1) return true;
+    return false;
+  };
+  function segClear(rects, a, b) {
+    const n = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.15));
+    for (let i = 0; i <= n; i++) {
+      if (laneHit(rects, lerp(a.x, b.x, i / n), lerp(a.y, b.y, i / n))) return false;
+    }
+    return true;
+  }
+  // nearest clear point for an endpoint that got built over
+  function openPoint(rects, p) {
+    if (!laneHit(rects, p.x, p.y)) return p;
+    let best = null, bd = 1e9;
+    for (let y = 0; y < D.WORLD_H; y++)
+      for (let x = 0; x < D.WORLD_W; x++) {
+        const cx = x + 0.5, cy = y + 0.5;
+        if (laneHit(rects, cx, cy)) continue;
+        const d = (cx - p.x) * (cx - p.x) + (cy - p.y) * (cy - p.y);
+        if (d < bd) { bd = d; best = { x: cx, y: cy }; }
+      }
+    return best || p;
+  }
+  // A* over tile centers (8-dir, no corner cutting) → string-pulled waypoints
+  function gridRoute(rects, A, B) {
+    const W = D.WORLD_W, H = D.WORLD_H, N = W * H;
+    const bl = new Uint8Array(N);
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++)
+        if (laneHit(rects, x + 0.5, y + 0.5)) bl[y * W + x] = 1;
+    const clampT = (v, m) => Math.min(m - 1, Math.max(0, Math.floor(v)));
+    const s = clampT(A.y, H) * W + clampT(A.x, W);
+    const g0 = clampT(B.y, H) * W + clampT(B.x, W);
+    bl[s] = 0; bl[g0] = 0;
+    const gs = new Float32Array(N).fill(Infinity);
+    const came = new Int32Array(N).fill(-1);
+    const open = [s];
+    gs[s] = 0;
+    const hx = i => {
+      const dx = Math.abs((i % W) - (g0 % W)), dy = Math.abs(((i / W) | 0) - ((g0 / W) | 0));
+      return Math.max(dx, dy) + 0.414 * Math.min(dx, dy);
+    };
+    let found = false;
+    while (open.length) {
+      let bi = 0;
+      for (let i = 1; i < open.length; i++) if (gs[open[i]] + hx(open[i]) < gs[open[bi]] + hx(open[bi])) bi = i;
+      const cur = open.splice(bi, 1)[0];
+      if (cur === g0) { found = true; break; }
+      const cx = cur % W, cy = (cur / W) | 0;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const ni = ny * W + nx;
+          if (bl[ni]) continue;
+          if (dx && dy && (bl[cy * W + nx] || bl[ny * W + cx])) continue; // no corner cuts
+          const ng = gs[cur] + (dx && dy ? 1.414 : 1);
+          if (ng < gs[ni] - 1e-6) {
+            gs[ni] = ng;
+            came[ni] = cur;
+            if (!open.includes(ni)) open.push(ni);
+          }
+        }
+    }
+    if (!found) return null;
+    const centers = [];
+    for (let i = g0; i !== -1; i = came[i]) centers.unshift({ x: (i % W) + 0.5, y: ((i / W) | 0) + 0.5 });
+    // string-pull [A, …centers…, B] down to the few corners that matter
+    const list = [A, ...centers, B];
+    const out = [];
+    let i = 0;
+    while (i < list.length - 1) {
+      let j = list.length - 1;
+      while (j > i + 1 && !segClear(rects, list[i], list[j])) j--;
+      out.push(list[j]);
+      i = j;
+    }
+    return out; // ends with B
+  }
+  // rebuild a lane so no segment crosses a building footprint
+  function routeLane(state, pts, skip) {
+    const rects = laneBlockRects(state, skip);
+    if (!rects.length) return pts;
+    // drop authored waypoints that got built over; rescue endpoints
+    const way = pts.filter((p, i) => i === 0 || i === pts.length - 1 || !laneHit(rects, p.x, p.y));
+    way[0] = openPoint(rects, way[0]);
+    way[way.length - 1] = openPoint(rects, way[way.length - 1]);
+    const out = [way[0]];
+    for (let i = 0; i < way.length - 1; i++) {
+      const a = out[out.length - 1], b = way[i + 1];
+      if (segClear(rects, a, b)) { out.push(b); continue; }
+      const detour = gridRoute(rects, a, b);
+      if (detour) out.push(...detour);
+      else out.push(b); // pathological farm: keep the old behavior
+    }
+    return out;
+  }
+
   function computePaths(state) {
     paths.blobs.length = 0;
     paths.ruts.length = 0;
@@ -1238,7 +1357,7 @@ const Renderer = (() => {
     paths.sig = pathSig(state);
     const F = { x: 10, y: 8.4 }; // home-field hub (parcel 0 center)
     const lanes = [];
-    lanes.push([{ x: 11.2, y: 14.8 }, { x: 10.6, y: 12.8 }, { x: 10.15, y: 11 }, F]); // main lane
+    lanes.push(routeLane(state, [{ x: 11.2, y: 14.8 }, { x: 10.6, y: 12.8 }, { x: 10.15, y: 11 }, F], null)); // main lane
     // field → each production building's door (nearest 8 keeps it uncluttered)
     const targets = [];
     for (const b of state.buildings) {
@@ -1246,7 +1365,7 @@ const Renderer = (() => {
       const def = D.BUILDINGS[b.type];
       if (def.w < 2 && b.type !== 'well') continue;
       const door = { x: b.x + def.w / 2 - 0.12, y: b.y + def.h + 0.22 };
-      targets.push({ door, d: Math.hypot(door.x - F.x, door.y - F.y) });
+      targets.push({ b, door, d: Math.hypot(door.x - F.x, door.y - F.y) });
     }
     targets.sort((a, b) => a.d - b.d);
     for (const t of targets.slice(0, 8)) {
@@ -1254,7 +1373,7 @@ const Renderer = (() => {
         x: (F.x + t.door.x) / 2 + (t.door.y - F.y) * 0.12,
         y: (F.y + t.door.y) / 2 - (t.door.x - F.x) * 0.12,
       };
-      lanes.push([F, mid, t.door]);
+      lanes.push(routeLane(state, [F, mid, t.door], t.b));
     }
     for (const lane of lanes) {
       addLane(lane);
@@ -2659,6 +2778,21 @@ const Renderer = (() => {
       g.textBaseline = 'middle';
       g.fillText(def.sign, sp.x, sp.y + 8.4);
     }
+    // mill: wooden mast above the roofline carrying the wind fan (the rotor
+    // itself is animated in drawBarnLike; here we bake what doesn't move)
+    if (V.rotor) {
+      const apx = up(proj((x0 + x1) / 2, (y0 + y1) / 2), baseH + roofH);
+      g.strokeStyle = '#4a3a28';
+      g.lineWidth = 2.8;
+      g.beginPath(); g.moveTo(apx.x, apx.y + 3); g.lineTo(apx.x, apx.y - 15); g.stroke();
+      if (lod) { // diagonal struts bracing the mast against the roof
+        g.lineWidth = 1.4;
+        g.beginPath();
+        g.moveTo(apx.x - 4.5, apx.y + 2); g.lineTo(apx.x, apx.y - 8);
+        g.moveTo(apx.x + 4.5, apx.y + 2); g.lineTo(apx.x, apx.y - 8);
+        g.stroke();
+      }
+    }
     // mill: attached grain silo on the E corner (silhouette identity)
     if (V.rotor && lod) {
       const sc2 = E;
@@ -3204,32 +3338,42 @@ const Renderer = (() => {
       poly([wallPoint(S, E, w0 + 0.015, wv + 1.3), wallPoint(S, E, w1 - 0.015, wv + 1.3), wallPoint(S, E, w1 - 0.015, wv + wh2 - 1.3), wallPoint(S, E, w0 + 0.015, wv + wh2 - 1.3)]);
       ctx.fill();
     }
-    if (V.rotor) { // mill rotor: grinds while the farm's animals are fed, idles in the wind
+    if (V.rotor) { // mill wind fan: a proper 4-sail rotor on the baked mast above
       const apex = up(proj(b.x + def.w / 2, b.y + def.h / 2), baseH + V.roofH);
-      const hub = { x: apex.x, y: apex.y - 6 };
-      ctx.strokeStyle = '#4a3a28';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(apex.x, apex.y + 2); ctx.lineTo(hub.x, hub.y); ctx.stroke();
+      const hub = { x: apex.x, y: apex.y - 15 }; // top of the baked mast
       const milling = state.animals.some(a2 => !a2.sick && state.now < a2.fedUntil);
       let ph = rotorPhase.get(b) || 0;
-      ph += fdt * (milling ? 2.6 : 0.4);
+      ph += fdt * (milling ? 2.2 : 0.35);
       rotorPhase.set(b, ph);
-      const a0 = ph;
+      // sails spin in a near-vertical plane (front-facing fan, slight iso squash)
+      const KY = 0.92;
       ctx.strokeStyle = '#5c4a32';
-      ctx.lineWidth = 1.8;
-      ctx.fillStyle = 'rgba(238,230,208,.85)';
+      ctx.fillStyle = 'rgba(240,232,210,.92)';
       for (let i = 0; i < 4; i++) {
-        const a = a0 + (i / 4) * Math.PI * 2;
-        const bx = hub.x + Math.cos(a) * 17, by = hub.y + Math.sin(a) * 10;
-        ctx.beginPath(); ctx.moveTo(hub.x, hub.y); ctx.lineTo(bx, by); ctx.stroke();
-        ctx.save();
-        ctx.translate(hub.x + Math.cos(a) * 9, hub.y + Math.sin(a) * 5.3);
-        ctx.rotate(Math.atan2(by - hub.y, bx - hub.x));
-        ctx.fillRect(0, -2.4, 9, 4.8);
-        ctx.restore();
+        const a = ph + (i / 4) * Math.PI * 2;
+        const dx = Math.cos(a), dy = Math.sin(a) * KY;      // along the spoke
+        const px = -Math.sin(a) * 0.94, py = Math.cos(a) * KY * 0.94; // perpendicular
+        // spoke
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(hub.x, hub.y);
+        ctx.lineTo(hub.x + dx * 14.5, hub.y + dy * 14.5);
+        ctx.stroke();
+        // canvas sail on one side of the spoke (classic windmill lattice sail)
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(hub.x + dx * 4.5, hub.y + dy * 4.5);
+        ctx.lineTo(hub.x + dx * 13.8, hub.y + dy * 13.8);
+        ctx.lineTo(hub.x + dx * 13.8 + px * 4.6, hub.y + dy * 13.8 + py * 4.6);
+        ctx.lineTo(hub.x + dx * 5.5 + px * 3.6, hub.y + dy * 5.5 + py * 3.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
       }
       ctx.fillStyle = '#3c342a';
-      ctx.beginPath(); ctx.arc(hub.x, hub.y, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(hub.x, hub.y, 2.2, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8a7458';
+      ctx.beginPath(); ctx.arc(hub.x - 0.5, hub.y - 0.5, 0.8, 0, Math.PI * 2); ctx.fill();
     }
     drawProps(state, b, def, V);
   }
@@ -3919,6 +4063,98 @@ const Renderer = (() => {
       ctx.beginPath(); ctx.arc(p.x + 10, p.y - 20, 4.5, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = '#c2611a';
       ctx.beginPath(); ctx.arc(p.x + 10, p.y - 20, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  /* ---------------- dawn delivery cart (animation.md §3.4) ----------------
+     Pure renderer theater: when state.t crosses ~0.03 a two-frame cart rolls
+     west→east along the south road edge over ~8s, pauses a beat at the main
+     lane's mouth, and exits. If any order was fulfilled since the previous
+     dawn it carries crates. Zero game-state writes. */
+  let cart = null, cartPrevT = null, cartOrdersPrev = -1;
+  const CART_Y = 14.55, CART_SPEED = 3.2;
+
+  function updateCart(state, dt) {
+    const t = state.t;
+    if (cartOrdersPrev < 0 && state.stats) cartOrdersPrev = state.stats.orders || 0;
+    if (cartPrevT !== null && cartPrevT < 0.03 && t >= 0.03 && t - cartPrevT < 0.5) {
+      const orders = state.stats ? state.stats.orders || 0 : 0;
+      cart = { x: -2.5, crates: orders > cartOrdersPrev, paused: false, pausing: 0 };
+      cartOrdersPrev = orders;
+    }
+    cartPrevT = t;
+    if (!cart) return;
+    if (cart.pausing > 0) {
+      cart.pausing -= dt;
+    } else {
+      cart.x += dt * CART_SPEED;
+      if (!cart.paused && cart.x >= 11.2) { // a beat at the farm gate
+        cart.paused = true;
+        cart.pausing = 1;
+        const p = proj(cart.x, CART_Y);
+        burstDust(p.x - 6, p.y - 4, 4, 5);
+      }
+      if (cart.x > D.WORLD_W + 2.5) cart = null;
+    }
+  }
+
+  function drawCart(state) {
+    if (!cart) return;
+    const p = proj(cart.x, CART_Y);
+    const moving = cart.pausing <= 0;
+    const bob = moving ? Math.sin(time * 15) * 0.7 : 0;
+    shadow(p.x, p.y + 2, 19, 6);
+    // wheels first (behind the bed), two-frame spoke flip while rolling
+    const spin = moving ? (Math.floor(time * 8) % 2) : 0;
+    for (const wx of [-7.5, 7.5]) {
+      ctx.fillStyle = '#3b3229';
+      ctx.beginPath(); ctx.arc(p.x + wx, p.y - 3.4, 4.3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#181310';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(p.x + wx, p.y - 3.4, 4.3, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#c9b489';
+      ctx.lineWidth = 1.1;
+      const a = spin ? Math.PI / 4 : 0;
+      ctx.beginPath();
+      ctx.moveTo(p.x + wx - Math.cos(a) * 3.1, p.y - 3.4 - Math.sin(a) * 3.1);
+      ctx.lineTo(p.x + wx + Math.cos(a) * 3.1, p.y - 3.4 + Math.sin(a) * 3.1);
+      ctx.moveTo(p.x + wx + Math.sin(a) * 3.1, p.y - 3.4 - Math.cos(a) * 3.1);
+      ctx.lineTo(p.x + wx - Math.sin(a) * 3.1, p.y - 3.4 + Math.cos(a) * 3.1);
+      ctx.stroke();
+    }
+    // cargo bed
+    const by = p.y - 10.5 + bob;
+    ctx.fillStyle = '#8a6440';
+    rr(p.x - 12.5, by, 25, 8.5, 2);
+    ctx.fill();
+    ctx.strokeStyle = '#5b3e25';
+    ctx.lineWidth = 1.3;
+    rr(p.x - 12.5, by, 25, 8.5, 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(91,62,37,.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(p.x - 11, by + 4.2); ctx.lineTo(p.x + 11, by + 4.2); ctx.stroke();
+    // hitch bobbing ahead of the cart (it travels east)
+    ctx.strokeStyle = '#5b3e25';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(p.x + 12.5, by + 6);
+    ctx.lineTo(p.x + 20, by + 8 + bob * 1.6);
+    ctx.stroke();
+    // crates when yesterday's orders shipped
+    if (cart.crates) {
+      for (const [cx2, cy2, s2] of [[-6.5, -7.5, 7], [1.5, -6.5, 6]]) {
+        ctx.fillStyle = '#c9974f';
+        rr(p.x + cx2, by + cy2, s2, s2, 1.2);
+        ctx.fill();
+        ctx.strokeStyle = '#6d4c2e';
+        ctx.lineWidth = 1.1;
+        rr(p.x + cx2, by + cy2, s2, s2, 1.2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.x + cx2, by + cy2 + s2 / 2); ctx.lineTo(p.x + cx2 + s2, by + cy2 + s2 / 2);
+        ctx.stroke();
+      }
     }
   }
 
@@ -4749,6 +4985,8 @@ const Renderer = (() => {
       }
     }
 
+    updateCart(state, dt);               // dawn delivery cart along the south road
+    drawCart(state);
     drawJuice(dt);                       // harvest ghosts + hoe wedges
     drawSoldFx(dt);
     drawFireflies(state);
