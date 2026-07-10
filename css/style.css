@@ -167,6 +167,13 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
   .daybar { display: none; }
   .fuel-unit { display: none; }
 }
+/* very narrow phones (iPhone SE): four pills must still fit on one line */
+@media (max-width: 374px) {
+  #hud-top { gap: 3px; }
+  .pill { padding: 4px 6px 4px 5px; }
+  .xpbar { width: 18px; }
+  #forecast { display: none; } /* today's weather stays; tomorrow's hint yields */
+}
 
 /* ============ Goal chip ============ */
 #goal-chip {
@@ -517,6 +524,11 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
   padding: 2px 6px;
   border-radius: 99px;
   z-index: 1;
+  /* never wrap into a second line over the item art */
+  max-width: calc(100% - 12px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .item-card .lock-tag.warn { background: #b03a2a; }
 .item-card .lock-tag.amber { background: #c07f13; }
@@ -656,6 +668,11 @@ button.mini:disabled {
   background: #fff;
   color: var(--ink);
 }
+/* text fields must escape the global user-select:none or iOS can't paste/select */
+.restore-input, #farm-name {
+  user-select: text;
+  -webkit-user-select: text;
+}
 
 .section-label {
   font-size: 0.75rem; font-weight: 900;
@@ -700,6 +717,11 @@ button.mini:disabled {
 .order-top:empty { display: none; }
 .order-timer { font-weight: 800; font-size: 0.75rem; color: #8a6440; font-variant-numeric: tabular-nums; }
 .order-timer.late { color: #b03a2a; }
+/* settled orders keep a muted stub so live cards' buttons never jump mid-view */
+.order-card.done { opacity: .62; filter: saturate(.55); }
+/* market rows that sold out this session hold their place (and geometry) */
+.row-card.soldout { opacity: .62; filter: saturate(.55); }
+
 .rush-tag {
   background: linear-gradient(180deg, #f2934e, #e8712c);
   color: #fff; font-weight: 900; font-size: 0.6875rem;
