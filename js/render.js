@@ -156,11 +156,12 @@ const Renderer = (() => {
   };
   function computeSun(state) {
     const t = state.t;
+    // compressed evening: dusk starts late, full night is a short interlude
     let dark = 0, dusk = 0;
-    if (t >= 0.70 && t < 0.78) dusk = (t - 0.70) / 0.08;
-    if (t >= 0.78 && t < 0.86) { dark = (t - 0.78) / 0.08; dusk = 1 - dark; }
-    else if (t >= 0.86 && t < 0.94) dark = 1;
-    else if (t >= 0.94) { dark = 1 - (t - 0.94) / 0.06; dusk = 1 - dark; }
+    if (t >= 0.80 && t < 0.87) dusk = (t - 0.80) / 0.07;
+    if (t >= 0.87 && t < 0.92) { dark = (t - 0.87) / 0.05; dusk = 1 - dark; }
+    else if (t >= 0.92 && t < 0.965) dark = 1;
+    else if (t >= 0.965) { dark = 1 - (t - 0.965) / 0.035; dusk = 1 - dark; }
     const dayT = Math.max(0, Math.min(1, t / 0.76));      // 0 sunrise .. 1 sunset
     const a = (dayT - 0.5) * Math.PI * 0.95;              // sun arc
     const elev = Math.max(0, Math.cos(a)) * (1 - dark);   // 0 night .. 1 noon
@@ -4281,16 +4282,16 @@ const Renderer = (() => {
     lmx.globalCompositeOperation = 'source-over';
     lmx.globalAlpha = 1;
     if (dark > 0.98) { // deep night: near-uniform ambient — solid fill is far cheaper
-      lmx.fillStyle = 'rgb(72,78,140)';
+      lmx.fillStyle = 'rgb(122,130,182)'; // moonlit, not pitch — the farm stays readable
       lmx.fillRect(0, 0, lm.width, lm.height);
     } else {
       const key = Math.round(dusk * 24) + ':' + Math.round(dark * 24) + ':' + lm.height;
       if (key !== ambKey) { // ambient gradient rebuilt only when the light changes
         ambKey = key;
         ambGrad = lmx.createLinearGradient(0, 0, 0, lm.height);
-        const top = mix3(AMB_DAY, [255, 196, 120], [90, 96, 158], dusk, dark);
-        const mid = mix3(AMB_DAY, [250, 176, 138], [70, 76, 138], dusk, dark);
-        const bot = mix3(AMB_DAY, [206, 152, 188], [58, 64, 124], dusk, dark);
+        const top = mix3(AMB_DAY, [255, 196, 120], [138, 146, 196], dusk, dark);
+        const mid = mix3(AMB_DAY, [250, 176, 138], [120, 128, 180], dusk, dark);
+        const bot = mix3(AMB_DAY, [206, 152, 188], [106, 114, 168], dusk, dark);
         ambGrad.addColorStop(0, `rgb(${top[0] | 0},${top[1] | 0},${top[2] | 0})`);
         ambGrad.addColorStop(0.5, `rgb(${mid[0] | 0},${mid[1] | 0},${mid[2] | 0})`);
         ambGrad.addColorStop(1, `rgb(${bot[0] | 0},${bot[1] | 0},${bot[2] | 0})`);
