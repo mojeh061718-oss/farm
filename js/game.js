@@ -916,9 +916,10 @@ const Game = (() => {
     state._flags.crowDone = false;
     state._flags.frostDone = false;
 
-    // sprinklers water every dawn, then drones harvest & replant
-    for (const b of state.buildings) if (b && b.type === 'sprinkler') sprinkle(b);
+    // drones harvest & replant first, THEN sprinklers water — so freshly
+    // replanted crops don't spend their first day dry
     runDrones();
+    for (const b of state.buildings) if (b && b.type === 'sprinkler') sprinkle(b);
 
     // hungry animals lose happiness; at rock bottom they fall sick
     for (const a of state.animals) {
