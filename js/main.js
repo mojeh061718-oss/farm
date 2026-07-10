@@ -10,8 +10,15 @@
 
   if (loadResult.fresh) {
     UI.showSetup(); // choose farm name & starting capital
+  } else if (loadResult.recovered) {
+    UI.toast('🛡️ Your save was damaged — restored from a safety snapshot!', 'good');
   } else if (loadResult.away && (loadResult.away.crops > 0 || loadResult.away.produce > 0)) {
     UI.showAwaySummary(loadResult.away);
+  }
+
+  // ask the browser to protect our storage from eviction
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().catch(() => {});
   }
 
   // center camera on the starting farm

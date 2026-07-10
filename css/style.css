@@ -400,6 +400,19 @@ button { font-family: inherit; border: none; cursor: pointer; color: inherit; ba
 .price-up { color: #2e7d32; }
 .price-down { color: #c62828; }
 
+.restore-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 2px solid #e0d3b3;
+  font-family: monospace;
+  font-size: 11px;
+  resize: none;
+  background: #fff;
+  color: var(--ink);
+}
+
 .section-label {
   font-size: 12px; font-weight: 900;
   color: #97876a;
