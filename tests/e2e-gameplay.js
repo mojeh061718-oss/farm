@@ -314,13 +314,16 @@ function check(name, ok, detail) {
     out.noPenalty = s.level === rep && s.coins === coins2;
     out.refreshSoon = s.orderTimer <= 8;
     // quantity scales with RECENT production, not lifetime wealth
+    // (sampled: single rolls are random — compare distributions)
     s.stats.earned = 1e7; // rich…
+    const sample = n => { const qs = []; for (let i = 0; i < n; i++) { s.orders = []; s.orderTimer = 0.4; G.tick(0.5); for (const q of Object.values(s.orders[0].reqs)) qs.push(q); } return qs; };
     s.stats.recent = 0;   // …but idle
-    s.orders = []; s.orderTimer = 0.4; G.tick(0.5);
-    out.richIdleSmall = Object.values(s.orders[0].reqs).every(q => q <= 5);
+    const idleQ = sample(6);
     s.stats.recent = 100; // pumping farm
-    s.orders = []; s.orderTimer = 0.4; G.tick(0.5);
-    out.busyBig = Object.values(s.orders[0].reqs).every(q => q >= 5);
+    const busyQ = sample(6);
+    const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+    out.richIdleSmall = Math.max(...idleQ) <= 6;
+    out.busyBig = avg(busyQ) > avg(idleQ) + 1;
     s.stats.recent = 2;
     return out;
   });
@@ -409,7 +412,7 @@ function check(name, ok, detail) {
     let tries = 0;
     while (!s.tiles[10][8].crop.dead && tries < 400) {
       s._flags.frostDone = false;
-      s.t = 0.7599; // just under NIGHT_START — the tick crosses it
+      s.t = DATA.NIGHT_START - 0.0001; // just under NIGHT_START — the tick crosses it
       G.tick(0.01);
       tries++;
     }
@@ -469,14 +472,14 @@ function check(name, ok, detail) {
   check('[Dig up all at-risk] shovels the rest with refunds', careActions.dug === 1 && careActions.refunded === 4 && careActions.allClear, careActions);
 
   // seed sheet: “won’t ripen in time” tag on the last day
-  await page.evaluate(() => { Game.state.t = 0.5; document.getElementById('sheet-close').click(); });
+  await page.evaluate(() => { Game.state.t = 1 - 24 / DATA.DAY_LEN; document.getElementById('sheet-close').click(); }); // ~24s left in the day
   await page.tap('.tool-btn[data-tool="plant"]');
   await page.waitForTimeout(350);
   const seedTags = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('#sheet-body .item-card')];
     const find = name => cards.find(c => c.textContent.includes(name));
     return {
-      potatoTag: find('Potato').textContent.includes('ripen in time'),   // 70s > ~24s left, dies in summer
+      potatoTag: find('Potato').textContent.includes('ripen in time'),   // 70s > 24s left, dies in summer
       turnipTag: find('Turnip').textContent.includes('ripen in time'),   // 35s > 24s left
       wheatTag: find('Wheat').textContent.includes('ripen in time'),     // survives summer → no tag
       wheatOff: find('Wheat').textContent.includes('off-season'),

@@ -6,9 +6,9 @@ const DATA = (() => {
   // ---- World / time ----
   const WORLD_W = 20;         // tiles
   const WORLD_H = 15;
-  const DAY_LEN = 48;         // real seconds per in-game day
+  const DAY_LEN = 84;         // real seconds per in-game day (slower, calmer cycle)
   const SEASON_DAYS = 6;      // days per season
-  const NIGHT_START = 0.76;   // fraction of day when night falls
+  const NIGHT_START = 0.87;   // fraction of day when night falls
   const WILT_DAYS = 1.5;      // days a bone-dry crop survives before dying
   const ROT_DAYS = 2;         // days a ripe crop lasts before rotting in the field
   const VET_RATE = 0.4;       // vet bill as a fraction of the animal's price
