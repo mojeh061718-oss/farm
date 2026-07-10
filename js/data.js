@@ -9,7 +9,6 @@ const DATA = (() => {
   const DAY_LEN = 48;         // real seconds per in-game day
   const SEASON_DAYS = 6;      // days per season
   const NIGHT_START = 0.76;   // fraction of day when night falls
-  const FERT_COST = 20;       // dollars per fertilizer application
   const WILT_DAYS = 1.5;      // days a bone-dry crop survives before dying
   const ROT_DAYS = 2;         // days a ripe crop lasts before rotting in the field
   const VET_RATE = 0.4;       // vet bill as a fraction of the animal's price
@@ -45,7 +44,7 @@ const DATA = (() => {
   const DIFFICULTIES = [
     { id: 'cozy',    name: 'Cozy',    emoji: '🌤️', coins: 6000, eventMult: 0.5, sellBonus: 1,   blurb: 'A big nest egg and gentle weather. Relax and build.' },
     { id: 'classic', name: 'Classic', emoji: '🌾', coins: 3000, eventMult: 1,   sellBonus: 1,   blurb: 'A solid grubstake. Weather and crows play fair… mostly.' },
-    { id: 'tycoon',  name: 'Tycoon',  emoji: '⛈️', coins: 1500, eventMult: 1.4, sellBonus: 1.1, blurb: 'Thin wallet, harsh skies — but goods sell for +10%.' },
+    { id: 'tycoon',  name: 'Tycoon',  emoji: '⛈️', coins: 1500, eventMult: 1.4, sellBonus: 1.05, blurb: 'Thin wallet, harsh skies — but goods sell for +5%.' },
   ];
 
   // ---- Fuel (powers the tiller, tractor and drones) ----
@@ -55,7 +54,7 @@ const DATA = (() => {
   const ITEMS = {
     // crops
     turnip:     { name: 'Turnip',      emoji: '🥬', base: 17 },
-    wheat:      { name: 'Wheat',       emoji: '🌾', base: 13 },
+    wheat:      { name: 'Wheat',       emoji: '🌾', base: 16 },
     carrot:     { name: 'Carrot',      emoji: '🥕', base: 27 },
     potato:     { name: 'Potato',      emoji: '🥔', base: 40 },
     rice:       { name: 'Rice',        emoji: '🍚', base: 54 },
@@ -79,6 +78,7 @@ const DATA = (() => {
     goat_milk:  { name: 'Goat Milk',   emoji: '🍶', base: 98 },
     wool:       { name: 'Wool',        emoji: '🧶', base: 150 },
     truffle:    { name: 'Truffle',     emoji: '🍄', base: 265 },
+    truffle_oil:{ name: 'Truffle Oil', emoji: '🫒', base: 620 },
     // artisan goods
     bread:      { name: 'Bread',       emoji: '🍞', base: 110 },
     cookies:    { name: 'Cookies',     emoji: '🍪', base: 240 },
@@ -100,14 +100,14 @@ const DATA = (() => {
   // regrow: seconds to regrow after each harvest (multi-harvest crops).
   const CROPS = {
     turnip:     { seed: 8,  grow: 35,  seasons: [0],       xp: 4,  tpl: 'root',    color: '#e6ccf2', leaf: '#54a13e' },
-    wheat:      { seed: 6,  grow: 45,  seasons: [0, 1, 2], xp: 4,  tpl: 'grain',   color: '#eab93c', leaf: '#93bc47', grain: true },
+    wheat:      { seed: 6,  grow: 40,  seasons: [0, 1, 2], xp: 4,  tpl: 'grain',   color: '#eab93c', leaf: '#93bc47', grain: true },
     carrot:     { seed: 12, grow: 50,  seasons: [0, 2],    xp: 6,  tpl: 'root',    color: '#f27916', leaf: '#66a534' },
     potato:     { seed: 18, grow: 70,  seasons: [0, 2],    xp: 8,  tpl: 'root',    color: '#c69361', leaf: '#549128' },
     rice:       { seed: 24, grow: 65,  seasons: [0, 1],    xp: 8,  tpl: 'grain',   color: '#f4eed4', leaf: '#3eb2a0', grain: true },
     garlic:     { seed: 30, grow: 85,  seasons: [0, 3],    xp: 10, tpl: 'root',    color: '#f4f0e2', leaf: '#66a534' },
     strawberry: { seed: 42, grow: 85,  seasons: [0],       xp: 9,  tpl: 'bush',    color: '#e83a42', leaf: '#39a344', regrow: 40 },
     tomato:     { seed: 48, grow: 95,  seasons: [1],       xp: 10, tpl: 'bush',    color: '#ee4230', leaf: '#2e8a35', regrow: 45 },
-    pepper:     { seed: 55, grow: 105, seasons: [1],       xp: 11, tpl: 'bush',    color: '#f66430', leaf: '#3c821c', regrow: 50 },
+    pepper:     { seed: 55, grow: 105, seasons: [1],       xp: 11, tpl: 'bush',    color: '#f66430', leaf: '#3c821c', regrow: 45 },
     corn:       { seed: 45, grow: 120, seasons: [1, 2],    xp: 16, tpl: 'grain',   color: '#f8d22a', leaf: '#549128', tall: true, grain: true },
     melon:      { seed: 70, grow: 140, seasons: [1],       xp: 22, tpl: 'vine',    color: '#54b85c', leaf: '#3c821c', stripe: '#2c6e30' },
     sunflower:  { seed: 60, grow: 130, seasons: [1],       xp: 18, tpl: 'flower',  color: '#ffc93a', leaf: '#549128' },
@@ -123,10 +123,10 @@ const DATA = (() => {
   const ANIMALS = {
     chicken: { name: 'Chicken', emoji: '🐔', cost: 150,  home: 'coop', product: 'egg',       prodTime: 90,  feedCost: 5 },
     duck:    { name: 'Duck',    emoji: '🦆', cost: 420,  home: 'coop', product: 'duck_egg',  prodTime: 130, feedCost: 8 },
-    cow:     { name: 'Cow',     emoji: '🐄', cost: 850,  home: 'barn', product: 'milk',      prodTime: 150, feedCost: 12 },
+    cow:     { name: 'Cow',     emoji: '🐄', cost: 850,  home: 'barn', product: 'milk',      prodTime: 100, feedCost: 12 },
     goat:    { name: 'Goat',    emoji: '🐐', cost: 1300, home: 'barn', product: 'goat_milk', prodTime: 190, feedCost: 14 },
     sheep:   { name: 'Sheep',   emoji: '🐑', cost: 1900, home: 'barn', product: 'wool',      prodTime: 240, feedCost: 16 },
-    pig:     { name: 'Pig',     emoji: '🐖', cost: 3200, home: 'barn', product: 'truffle',   prodTime: 300, feedCost: 22 },
+    pig:     { name: 'Pig',     emoji: '🐖', cost: 2400, home: 'barn', product: 'truffle',   prodTime: 300, feedCost: 22 },
   };
 
   const ANIMAL_NAMES = ['Clover', 'Biscuit', 'Daisy', 'Peanut', 'Maple', 'Waffles', 'Poppy', 'Marshmallow', 'Pickles', 'Sunny', 'Bubbles', 'Nugget', 'Cocoa', 'Buttons', 'Ginger', 'Olive', 'Pepper', 'Mochi', 'Toffee', 'Pumpernickel'];
@@ -139,13 +139,13 @@ const DATA = (() => {
     sprinkler:  { name: 'Sprinkler',    emoji: '🚿', w: 1, h: 1, cost: 600,   desc: 'Waters crops around it (3×3) every morning.' },
     coop:       { name: 'Coop',         emoji: '🐔', w: 2, h: 2, cost: 500,   desc: 'Houses up to 6 chickens & ducks.', capacity: 6, roof: '#a8432f', wall: '#b98a5c', sign: 'COOP' },
     barn:       { name: 'Barn',         emoji: '🐄', w: 2, h: 2, cost: 1500,  desc: 'Houses up to 6 cows, goats, sheep or pigs.', capacity: 6, roof: '#7a4a24', wall: '#9e3d2d', sign: 'BARN' },
-    mill:       { name: 'Feed Mill',    emoji: '🌾', w: 2, h: 2, cost: 2200,  desc: 'Feed animals with your wheat & corn instead of dollars.', roof: '#8d7a68', wall: '#a8977f', sign: 'MILL' },
+    mill:       { name: 'Feed Mill',    emoji: '🌾', w: 2, h: 2, cost: 2200,  desc: 'Grinds wheat & corn into animal feed — 1 grain becomes 3 feed credits.', roof: '#8d7a68', wall: '#a8977f', sign: 'MILL' },
     bakery:     { name: 'Bakery',       emoji: '🍞', w: 2, h: 2, cost: 3200,  desc: 'Bakes bread, cookies, pies and cakes.', roof: '#b8863b', wall: '#cbb391', sign: 'BAKERY' },
     creamery:   { name: 'Creamery',     emoji: '🧀', w: 2, h: 2, cost: 4800,  desc: 'Cheese, butter and yogurt from fresh milk.', roof: '#d9d2bd', wall: '#e8e0ca', sign: 'DAIRY' },
     press:      { name: 'Juice Press',  emoji: '🧃', w: 2, h: 2, cost: 5500,  desc: 'Presses fruit into premium juices.', roof: '#8fae62', wall: '#b3a06e', sign: 'PRESS' },
     loom:       { name: 'Loom House',   emoji: '🧵', w: 2, h: 2, cost: 6500,  desc: 'Weaves wool into fine cloth and quilts.', roof: '#7d6a9e', wall: '#b0a4c4', sign: 'LOOM' },
     drone:      { name: 'Harvest Drone',emoji: '🤖', w: 1, h: 1, cost: 7500,  desc: 'Auto-harvests AND replants a 5×5 area every morning. Burns 1 gal of fuel per run.' },
-    greenhouse: { name: 'Greenhouse',   emoji: '🪴', w: 2, h: 2, cost: 12000, desc: 'Grow any crop in any season, and frost never kills.', roof: '#9cc4d4' },
+    greenhouse: { name: 'Greenhouse',   emoji: '🪴', w: 2, h: 2, cost: 6000,  desc: 'Shelters a 6×6 zone around it: any crop grows there in any season, and frost never kills. Build several!', roof: '#9cc4d4' },
   };
 
   // ---- Recipes (processing buildings) ----
@@ -161,6 +161,7 @@ const DATA = (() => {
     grape_juice: { building: 'press',    in: { grapes: 2 },                                 time: 70,  out: 'grape_juice' },
     smoothie:    { building: 'press',    in: { strawberry: 3 },                             time: 60,  out: 'smoothie' },
     melon_juice: { building: 'press',    in: { melon: 2 },                                  time: 80,  out: 'melon_juice' },
+    truffle_oil: { building: 'press',    in: { truffle: 1 },                                time: 90,  out: 'truffle_oil' },
     cloth:       { building: 'loom',     in: { wool: 2 },                                   time: 100, out: 'cloth' },
     quilt:       { building: 'loom',     in: { cloth: 2 },                                  time: 150, out: 'quilt' },
   };
@@ -219,17 +220,26 @@ const DATA = (() => {
     return Math.round(30 * level * Math.pow(1.22, level));
   }
 
-  // reputation perk: +1% sell price per level, capped at +30%
+  // reputation perk: +1.5% sell price per level, capped at +30% (level 21)
   function repBonus(level) {
-    return Math.min(0.30, (level - 1) * 0.01);
+    return Math.min(0.30, (level - 1) * 0.015);
   }
+
+  // fertilizer scales with the seed: 30% of seed price, minimum $8
+  function fertCost(cropId) {
+    const c = CROPS[cropId];
+    return Math.max(8, Math.round((c ? c.seed : 0) * 0.30));
+  }
+
+  // processing buildings: extra parallel craft lanes (index = slot number)
+  const SLOT_COSTS = [0, 0, 2000, 6000];
 
   return {
     WORLD_W, WORLD_H, DAY_LEN, SEASON_DAYS, NIGHT_START,
-    FERT_COST, WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, $,
+    WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, $,
     SEASONS, WEATHERS, WEATHER_TABLE, DIFFICULTIES,
     ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, BUILDINGS, RECIPES,
-    CAN_TIERS, TILL_TIERS, PARCELS, GOALS,
-    xpForLevel, repBonus,
+    CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS,
+    xpForLevel, repBonus, fertCost,
   };
 })();

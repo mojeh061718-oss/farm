@@ -175,11 +175,31 @@ const UI = (() => {
 
   // ---------------- toasts / modal ----------------
   const toastLog = []; // ring buffer of the last 50 messages (read from Menu)
+  const pendingToasts = []; // queued while a sheet is open (flushed on close)
+
+  const sheetShowing = () => !!sheetOpen && !$('sheet').classList.contains('hidden');
 
   function toast(msg, kind) {
     toastLog.push({ msg, kind: kind || 'info', day: Game.state ? Game.state.day : 0, at: Date.now() });
     if (toastLog.length > 50) toastLog.shift();
+    // sheets own the top of the screen: park non-urgent toasts until close
+    if (kind !== 'bad' && sheetShowing()) {
+      pendingToasts.push({ msg, kind });
+      if (pendingToasts.length > 4) pendingToasts.shift();
+      return;
+    }
+    presentToast(msg, kind);
+  }
 
+  function flushToasts() {
+    const queued = pendingToasts.splice(0);
+    queued.forEach((t, i) => setTimeout(() => {
+      if (sheetShowing()) { pendingToasts.push(t); return; } // a sheet reopened mid-flush
+      presentToast(t.msg, t.kind);
+    }, 120 + i * 280));
+  }
+
+  function presentToast(msg, kind) {
     const el = document.createElement('div');
     el.className = 'toast' + (kind ? ' ' + kind : '');
     const plate = kind === 'good' ? 'check' : kind === 'bad' ? 'bang' : 'info';
@@ -221,14 +241,19 @@ const UI = (() => {
   let coinShown = null, coinTarget = null, coinRaf = null;
 
   // eased tick-up on gains; instant on spends (spending must feel exact)
+  // (writes both the HUD pill and the sheet wallet footer)
+  function writeCoins(v) {
+    const s = v.toLocaleString();
+    $('coins').textContent = s;
+    $('wallet-coins').textContent = s;
+  }
   function setCoins(v) {
-    const el = $('coins');
     if (v === coinTarget) return;
     coinTarget = v;
     if (coinRaf) { cancelAnimationFrame(coinRaf); coinRaf = null; }
     if (coinShown === null || v <= coinShown || v - coinShown < 20 || REDUCED.matches) {
       coinShown = v;
-      el.textContent = v.toLocaleString();
+      writeCoins(v);
       return;
     }
     const from = coinShown, t0 = performance.now(), dur = 600;
@@ -236,25 +261,27 @@ const UI = (() => {
       const t = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - t, 3);
       coinShown = Math.round(from + (v - from) * e);
-      el.textContent = coinShown.toLocaleString();
+      writeCoins(coinShown);
       coinRaf = t < 1 ? requestAnimationFrame(step) : null;
     };
     coinRaf = requestAnimationFrame(step);
   }
 
   function pulseCoinsPill() {
-    const p = $('pill-coins');
+    // pulse whichever wallet the player is looking at (footer while a sheet is open)
+    const p = sheetShowing() ? $('wallet-coin-chip') : $('pill-coins');
     p.classList.remove('pop');
     void p.offsetWidth;
     p.classList.add('pop');
   }
 
-  // 3–5 coin clones arc from the purchase/sale point to the coins pill
+  // 3–5 coin clones arc from the purchase/sale point to the coins pill —
+  // or to the sheet's wallet footer while one is open (it's the visible wallet)
   function coinFlight(src) {
     if (!src) { pulseCoinsPill(); return; }
     if (REDUCED.matches) { pulseCoinsPill(); return; }
     const r = src.getBoundingClientRect ? src.getBoundingClientRect() : src;
-    const dst = $('pill-coins').getBoundingClientRect();
+    const dst = (sheetShowing() ? $('wallet-coin-chip') : $('pill-coins')).getBoundingClientRect();
     const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
     const x1 = dst.left + dst.width * 0.32, y1 = dst.top + dst.height / 2;
     const n = 3 + Math.floor(Math.random() * 3);
@@ -313,7 +340,7 @@ const UI = (() => {
     $('level').textContent = s.level;
     $('xpfill').style.width = Math.min(100, (s.xp / D.xpForLevel(s.level)) * 100) + '%';
     setIcon($('season-emoji'), I.season(s.season));
-    $('day-label').textContent = 'Day ' + s.day;
+    $('day-label').textContent = 'D' + s.day + '/' + D.SEASON_DAYS; // season progress at a glance
     setIcon($('weather-emoji'), I.weather(s.weather));
     setIcon($('forecast'), '→' + I.weather(s.forecast));
     $('dayfill').style.width = (s.t * 100) + '%';
@@ -326,6 +353,9 @@ const UI = (() => {
       $('fuel-amount').textContent = s.fuel.toFixed(1);
       $('pill-fuel').classList.toggle('fuel-low', s.fuel < 1);
     }
+    // sheet wallet footer mirrors the wallet (fuel only when owned)
+    $('wallet-fuel').classList.toggle('hidden', !showFuel);
+    if (showFuel) $('wallet-fuel-amt').textContent = s.fuel.toFixed(1);
 
     const fulfillable = s.orders.filter(o => Game.canFulfill(o)).length;
     $('orders-badge').classList.toggle('hidden', fulfillable === 0);
@@ -381,6 +411,7 @@ const UI = (() => {
       sh.classList.remove('closing');
       bd.classList.remove('closing');
     }, 225);
+    flushToasts(); // messages parked while the sheet was up
   }
 
   // sheet header: icon plate + title + one-line promise
@@ -390,6 +421,13 @@ const UI = (() => {
     badge.classList.toggle('on', !!iconHtml);
     $('sheet-title').textContent = title;
     $('sheet-sub').textContent = sub || '';
+  }
+
+  // right-edge fade on the tab bar while more tabs hide off-screen
+  function updateTabFade() {
+    const bar = $('sheet-tabs');
+    const more = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
+    bar.classList.toggle('fade-r', more);
   }
 
   function setTabs(tabs, active) {
@@ -405,6 +443,7 @@ const UI = (() => {
       b.onclick = () => { SOUNDS.tap(); sheetTab = t.id; renderSheet(); };
       bar.appendChild(b);
     }
+    requestAnimationFrame(updateTabFade); // after layout
   }
 
   function renderSheet() {
@@ -417,6 +456,7 @@ const UI = (() => {
     else if (sheetOpen === 'orders') renderOrders(body);
     else if (sheetOpen === 'menu') renderMenu(body);
     else if (sheetOpen === 'log') renderLog(body);
+    else if (sheetOpen === 'care') renderCare(body);
     else if (sheetOpen.startsWith('b:')) renderBuilding(body, parseInt(sheetOpen.slice(2), 10));
   }
 
@@ -433,15 +473,23 @@ const UI = (() => {
 
     const grid = document.createElement('div');
     grid.className = 'card-grid';
+    const s = Game.state;
+    // seconds left in the current season (days remaining + the rest of today)
+    const seasonLeft = ((D.SEASON_DAYS - s.day) + (1 - s.t)) * D.DAY_LEN;
+    const nextSeason = (s.season + 1) % 4;
     const entries = Object.entries(D.CROPS).sort((a, b) => a[1].seed - b[1].seed);
     for (const [id, c] of entries) {
       const item = D.ITEMS[id];
       const off = !Game.seasonOK(id);
+      // naturally in season but too slow to ripen before a flip it can't survive
+      // (greenhouse-covered plots don't care about the flip, so skip those cases)
+      const wontRipen = c.seasons.includes(s.season) && !c.seasons.includes(nextSeason) && c.grow > seasonLeft;
       const card = document.createElement('div');
       card.className = 'item-card' + (off ? ' off-season' : '') + (seed === id ? ' selected' : '');
       card.innerHTML = `
         <span class="season-tag">${c.seasons.map(i => I.season(i)).join('')}</span>
         ${off ? '<span class="lock-tag warn">off-season</span>'
+          : wontRipen ? '<span class="lock-tag amber">⚠️ won’t ripen in time</span>'
           : seed === id ? `<span class="owned-tick">${I.icon('check')}</span>`
           : c.regrow ? '<span class="lock-tag regrow">regrows</span>' : ''}
         <span class="plate">${I.item(id)}</span>
@@ -516,7 +564,7 @@ const UI = (() => {
           <div class="emoji">${I.animal(id, 'lg')}</div>
           <div class="info">
             <div class="name">${a.name}</div>
-            <div class="sub">Makes ${D.ITEMS[a.product].emoji} ${D.ITEMS[a.product].name} (~${$$(D.ITEMS[a.product].base)}) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
+            <div class="sub">Makes ${I.item(a.product)} ${D.ITEMS[a.product].name} (~${$$(D.ITEMS[a.product].base)}) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
           </div>
           <div class="actions"><button class="mini gold">${I.icon('coin')}${fmt(a.cost)}</button></div>`;
         row.querySelector('button').onclick = () => {
@@ -558,8 +606,8 @@ const UI = (() => {
       fert.innerHTML = `
         <div class="emoji">${I.icon('sparkle')}</div>
         <div class="info">
-          <div class="name">Fertilizer · ${$$(D.FERT_COST)} per use</div>
-          <div class="sub">Use the Fert tool on growing crops: +25% growth speed and a 45% chance of a double harvest.</div>
+          <div class="name">Fertilizer · 30% of the seed price (min ${$$(8)})</div>
+          <div class="sub">Use the Fert tool on growing crops: +25% growth speed and a 45% chance of a double harvest. Cheap crops pay ${$$(8)}, premium crops up to ${$$(D.fertCost('grapes'))}.</div>
         </div>`;
       body.appendChild(fert);
     }
@@ -696,11 +744,22 @@ const UI = (() => {
         const have = s.inventory[id] || 0;
         return `<div class="order-item ${have >= qty ? 'ok' : ''}">${I.item(id)} ${Math.min(have, qty)}/${qty}</div>`;
       }).join('');
+      // hint the newcomer trap: items this farm has never produced
+      const unknown = Object.keys(o.reqs).filter(id => !(s.produced && s.produced[id]) && !(s.inventory[id] > 0));
+      const hint = unknown.length
+        ? `<div class="order-hint">🌱 Not grown yet: ${unknown.map(id => D.ITEMS[id].name).join(', ')}</div>` : '';
+      const rush = Game.orderRush(o);
+      const left = o.expires != null ? Math.max(0, o.expires - s.now) : null;
+      const daysLeft = left != null ? left / D.DAY_LEN : null;
+      const timer = left != null
+        ? `<span class="order-timer${daysLeft < 1 ? ' late' : ''}">⏳ ${daysLeft >= 1 ? daysLeft.toFixed(1) + ' days left' : Math.ceil(left) + 's left!'}</span>` : '';
       const can = Game.canFulfill(o);
       card.innerHTML = `
+        <div class="order-top">${timer}${rush ? '<span class="rush-tag">⚡ RUSH +25%</span>' : ''}</div>
         <div class="order-items">${items}</div>
+        ${hint}
         <div class="order-foot">
-          <div class="order-reward">+${$$(o.coins)} · +${o.xp} XP</div>
+          <div class="order-reward">+${$$(o.coins)}${rush ? ' <b class="rush-plus">+25%</b>' : ''} · +${o.xp} XP</div>
           <div style="display:flex;gap:6px">
             <button class="mini quiet">Skip</button>
             <button class="mini gold" ${can ? '' : 'disabled'}>Deliver 🚚</button>
@@ -716,6 +775,76 @@ const UI = (() => {
     }
   }
 
+  // ---------------- season care sheet ----------------
+  // opened automatically at dawn of a season's last day; lists every planted
+  // crop that won't survive the flip, with one-tap rescue actions.
+  function renderCare(body) {
+    const s = Game.state;
+    const nextName = D.SEASONS[(s.season + 1) % 4].name;
+    setSheetHeader(I.icon('warning'), 'Season care', `${nextName} is coming — save what you can`);
+    setTabs(null);
+    const list = Game.atRiskCrops();
+
+    if (!list.length) {
+      const e = document.createElement('div');
+      e.className = 'empty-note';
+      e.innerHTML = `<div class="empty-art">${I.icon('check')}</div>🌿 Nothing at risk — every planted crop survives ${nextName}!`;
+      body.appendChild(e);
+      return;
+    }
+
+    const ripe = list.filter(e => e.ripe);
+    const secondsLeft = ((D.SEASON_DAYS - s.day) + (1 - s.t)) * D.DAY_LEN;
+
+    const intro = document.createElement('div');
+    intro.className = 'empty-note';
+    intro.style.padding = '0 6px 10px';
+    intro.textContent = `${list.length} crop${list.length > 1 ? 's' : ''} won't survive ${nextName} — about ${Math.max(1, Math.round(secondsLeft))}s of ${D.SEASONS[s.season].name} left.`;
+    body.appendChild(intro);
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
+    actions.innerHTML = `
+      <button class="chunky green" style="flex:1" ${ripe.length ? '' : 'disabled'}>${I.icon('basket')} Harvest all ripe${ripe.length ? ' (' + ripe.length + ')' : ''}</button>
+      <button class="chunky red" style="flex:1">${I.icon('shovel')} Dig up all at-risk (${list.length})</button>`;
+    const [harvBtn, digBtn] = actions.querySelectorAll('button');
+    harvBtn.onclick = () => { Game.harvestAtRisk(); updateHud(); renderSheet(); };
+    digBtn.onclick = () => confirmBox('⛏️', `Dig up all ${list.length} at-risk crops for a 50% seed refund?`, 'Dig them up', () => {
+      Game.digAtRisk();
+      updateHud();
+      renderSheet();
+    });
+    body.appendChild(actions);
+
+    // group rows by crop + ripeness so the list stays readable
+    const groups = new Map();
+    for (const e of list) {
+      const key = e.id + (e.ripe ? ':ripe' : ':grow');
+      const g = groups.get(key) || { id: e.id, ripe: e.ripe, n: 0, minProg: 1 };
+      g.n++;
+      g.minProg = Math.min(g.minProg, e.prog);
+      groups.set(key, g);
+    }
+    for (const g of groups.values()) {
+      const def = D.CROPS[g.id];
+      const growLeft = Math.ceil((1 - g.minProg) * def.grow);
+      const status = g.ripe
+        ? '✅ ripe — harvest now!'
+        : growLeft > secondsLeft
+          ? `⏳ needs ~${growLeft}s but only ${Math.round(secondsLeft)}s left — it won't make it`
+          : `🌱 ~${growLeft}s to ripen · ${Math.round(secondsLeft)}s left — keep it watered!`;
+      const row = document.createElement('div');
+      row.className = 'row-card';
+      row.innerHTML = `
+        <div class="emoji">${I.item(g.id, 'lg')}</div>
+        <div class="info">
+          <div class="name">${D.ITEMS[g.id].name} × ${g.n}</div>
+          <div class="sub">${status}</div>
+        </div>`;
+      body.appendChild(row);
+    }
+  }
+
   // ---------------- building panel ----------------
   function renderBuilding(body, index) {
     const s = Game.state;
@@ -727,6 +856,7 @@ const UI = (() => {
 
     if (def.capacity) renderHousing(body, index, b, def);
     else if (b.queue) renderProcessor(body, index, b, def);
+    else if (b.type === 'mill') renderMill(body);
     else {
       const e = document.createElement('div');
       e.className = 'empty-note';
@@ -762,7 +892,7 @@ const UI = (() => {
     const top = document.createElement('div');
     top.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
     top.innerHTML = `
-      <button class="chunky green" style="flex:1">🌾 Feed all</button>
+      <button class="chunky green" style="flex:1">${I.item('wheat')} Feed all</button>
       <button class="chunky gold" style="flex:1" ${ready ? '' : 'disabled'}>${I.icon('crate')} Collect${ready ? ' (' + ready + ')' : ''}</button>`;
     const [feedBtn, collectBtn] = top.querySelectorAll('button');
     feedBtn.onclick = () => { Game.feedAll(index); updateHud(); renderSheet(); };
@@ -773,7 +903,8 @@ const UI = (() => {
       const n = document.createElement('div');
       n.className = 'empty-note';
       n.style.padding = '0 4px 10px';
-      n.textContent = '🌾 Feed Mill active: feeding uses your wheat & corn first, then cash.';
+      n.id = 'feed-credit-note';
+      n.innerHTML = `${I.item('wheat')} Feed credits: ${s.feedCredits || 0} — feeding uses 1 credit before cash. Grind wheat &amp; corn at the Feed Mill (1 grain → 3 feeds).`;
       body.appendChild(n);
     }
 
@@ -788,13 +919,13 @@ const UI = (() => {
       const adef = D.ANIMALS[a.type];
       const fed = s.now < a.fedUntil;
       const cost = Game.feedCostFor(a);
-      const costLabel = cost.grain ? `1 ${D.ITEMS[cost.grain].emoji}` : $$(cost.coins);
+      const costLabel = cost.credits ? `1 feed ${I.item('wheat')}` : $$(cost.coins);
       const vetCost = Math.ceil(adef.cost * D.VET_RATE);
       const sellPrice = Math.floor(adef.cost * 0.6 * (a.sick ? 0.5 : 1));
       const status = a.sick
         ? '🤒 sick — needs the vet before producing again'
         : fed
-          ? (a.prodProg >= 1 ? `${D.ITEMS[adef.product].emoji} ready!` : `making ${D.ITEMS[adef.product].emoji} · ${Math.round(a.prodProg * 100)}%`)
+          ? (a.prodProg >= 1 ? `${I.item(adef.product)} ready!` : `making ${I.item(adef.product)} · ${Math.round(a.prodProg * 100)}%`)
           : '😋 hungry — feed to produce';
       const row = document.createElement('div');
       row.className = 'row-card';
@@ -839,7 +970,7 @@ const UI = (() => {
       card.innerHTML = `
         <span class="plate">${I.animal(id)}</span>
         <div class="name">${a.name}</div>
-        <div class="sub">${D.ITEMS[a.product].emoji} every ${a.prodTime}s</div>
+        <div class="sub">${I.item(a.product)} every ${a.prodTime}s</div>
         ${chip(a.cost, full ? 'muted' : '')}`;
       card.onclick = () => {
         if (Game.buyAnimal(id, index)) { updateHud(); renderSheet(); }
@@ -851,7 +982,8 @@ const UI = (() => {
 
   function renderProcessor(body, index, b, def) {
     const s = Game.state;
-    const done = b.queue.filter(j => s.now >= j.done).length;
+    const slots = b.slots || 1;
+    const done = b.queue.filter(j => j.left <= 0).length;
 
     if (done) {
       const btn = document.createElement('button');
@@ -865,24 +997,42 @@ const UI = (() => {
     if (b.queue.length) {
       const label = document.createElement('div');
       label.className = 'section-label';
-      label.textContent = `In progress (${b.queue.length}/3)`;
+      label.textContent = `In progress (${b.queue.length}/3) · ${slots} craft slot${slots > 1 ? 's' : ''}`;
       body.appendChild(label);
+      const running = new Set(Game.runningJobs(b));
       for (const job of b.queue) {
         const r = D.RECIPES[job.r];
         const item = D.ITEMS[r.out];
-        const left = Math.max(0, job.done - s.now);
+        const left = Math.max(0, job.left);
         const pct = Math.round((1 - left / r.time) * 100);
+        const status = left <= 0 ? '✅ Ready!' : running.has(job) ? Math.ceil(left) + 's left' : '⏸️ queued — waiting for a free slot';
         const row = document.createElement('div');
         row.className = 'row-card';
         row.innerHTML = `
           <div class="emoji">${I.item(r.out, 'lg')}</div>
           <div class="info">
             <div class="name">${item.name}</div>
-            <div class="sub">${left <= 0 ? '✅ Ready!' : Math.ceil(left) + 's left'}</div>
+            <div class="sub">${status}</div>
             <div class="minibar pink"><div style="width:${pct}%"></div></div>
           </div>`;
         body.appendChild(row);
       }
+    }
+
+    // purchasable parallel craft lanes (slot 2 / slot 3)
+    if (slots < 3) {
+      const cost = D.SLOT_COSTS[slots + 1];
+      const slotRow = document.createElement('div');
+      slotRow.className = 'row-card';
+      slotRow.innerHTML = `
+        <div class="emoji">${I.icon('gear')}</div>
+        <div class="info">
+          <div class="name">Add craft slot ${slots + 1}</div>
+          <div class="sub">Recipes craft one at a time — an extra slot runs another in parallel.</div>
+        </div>
+        <div class="actions"><button class="mini gold">${I.icon('coin')}${fmt(cost)}</button></div>`;
+      slotRow.querySelector('button').onclick = () => { if (Game.buySlot(index)) { updateHud(); renderSheet(); } };
+      body.appendChild(slotRow);
     }
 
     const label = document.createElement('div');
@@ -892,7 +1042,7 @@ const UI = (() => {
     for (const [id, r] of Object.entries(D.RECIPES)) {
       if (r.building !== b.type) continue;
       const out = D.ITEMS[r.out];
-      const ins = Object.entries(r.in).map(([i, q]) => `${q} ${D.ITEMS[i].emoji}`).join(' + ');
+      const ins = Object.entries(r.in).map(([i, q]) => `${q} ${I.item(i)}`).join(' + ');
       const can = Game.canCraft(id) && b.queue.length < 3;
       const row = document.createElement('div');
       row.className = 'row-card';
@@ -904,6 +1054,35 @@ const UI = (() => {
         </div>
         <div class="actions"><button class="mini blue" ${can ? '' : 'disabled'}>Craft</button></div>`;
       row.querySelector('button').onclick = () => { if (Game.startRecipe(index, id)) { updateHud(); renderSheet(); } };
+      body.appendChild(row);
+    }
+  }
+
+  // ---------------- feed mill panel ----------------
+  function renderMill(body) {
+    const s = Game.state;
+    const credits = document.createElement('div');
+    credits.className = 'order-card';
+    credits.innerHTML = `<div style="font-weight:800;font-size:0.8125rem" id="feed-credits">${I.item('wheat')} Feed credits: <b>${s.feedCredits || 0}</b> — feeding an animal spends 1 credit before dipping into cash.</div>`;
+    body.appendChild(credits);
+
+    for (const grain of ['wheat', 'corn']) {
+      const have = s.inventory[grain] || 0;
+      const row = document.createElement('div');
+      row.className = 'row-card';
+      row.innerHTML = `
+        <div class="emoji">${I.item(grain, 'lg')}</div>
+        <div class="info">
+          <div class="name">Grind ${D.ITEMS[grain].name}</div>
+          <div class="sub">1 ${D.ITEMS[grain].name.toLowerCase()} → 3 feed credits · you have ${have}</div>
+        </div>
+        <div class="actions">
+          <button class="mini blue" ${have ? '' : 'disabled'}>Grind 1</button>
+          <button class="mini gold" ${have > 1 ? '' : 'disabled'}>All (${have})</button>
+        </div>`;
+      const [one, all] = row.querySelectorAll('button');
+      one.onclick = () => { if (Game.grindGrain(grain, 1)) { updateHud(); renderSheet(); } };
+      all.onclick = () => { if (Game.grindGrain(grain, have)) { updateHud(); renderSheet(); } };
       body.appendChild(row);
     }
   }
@@ -961,12 +1140,24 @@ const UI = (() => {
     const jobs = document.createElement('div');
     jobs.className = 'row-card';
     const jobsFree = Game.oddJobsAvailable();
+    const jobsPay = Game.oddJobsPay();
     jobs.innerHTML = `
       <div class="emoji">💪</div>
-      <div class="info"><div class="name">Work odd jobs</div><div class="sub">Earn ${$$(40)} helping in town — once per day. A farmer is never truly broke.</div></div>
-      <div class="actions"><button class="mini gold" ${jobsFree ? '' : 'disabled'}>${jobsFree ? '+' + $$(40) : 'Done today'}</button></div>`;
+      <div class="info"><div class="name">Work odd jobs</div><div class="sub">Earn ${$$(jobsPay)} helping in town — once per day, +${$$(5)} per consecutive day (max ${$$(60)}). A farmer is never truly broke.</div></div>
+      <div class="actions"><button class="mini gold" ${jobsFree ? '' : 'disabled'}>${jobsFree ? '+' + $$(jobsPay) : 'Done today'}</button></div>`;
     jobs.querySelector('button').onclick = () => { if (Game.workOddJobs()) { updateHud(); renderSheet(); } };
     body.appendChild(jobs);
+
+    // season outlook: reopen the care sheet any time
+    const care = document.createElement('div');
+    care.className = 'row-card';
+    const atRisk = Game.atRiskCrops().length;
+    care.innerHTML = `
+      <div class="emoji">🍂</div>
+      <div class="info"><div class="name">Season care</div><div class="sub">${atRisk ? atRisk + ' planted crop' + (atRisk > 1 ? 's' : '') + ' won\'t survive the next season!' : 'Every planted crop survives the next season.'}</div></div>
+      <div class="actions"><button class="mini${atRisk ? ' danger' : ''}">Review</button></div>`;
+    care.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('care'); };
+    body.appendChild(care);
 
     // ---- farm safety: backup & restore ----
     const safetyLabel = document.createElement('div');
@@ -1238,7 +1429,11 @@ const UI = (() => {
     } else {
       const n = Game.applyTool(tool, x, y, seed);
       if (n === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad');
-      if (n === 'broke') toast(`Fertilizer costs ${$$(D.FERT_COST)} per crop!`, 'bad');
+      if (n === 'broke') {
+        const t = Game.tileAt(x, y);
+        const cost = t && t.crop ? D.fertCost(t.crop.id) : 8;
+        toast(`Fertilizer costs ${$$(cost)} for this crop (30% of its seed price)!`, 'bad');
+      }
       if (n === 'nofuel') toast('⛽ Out of fuel — hand-tilling one plot. Buy diesel in the Shop!', 'bad');
       if (!n || typeof n === 'string') tapFallback(x, y);
     }
@@ -1254,10 +1449,17 @@ const UI = (() => {
       const b = Game.state.buildings[t.obj.i];
       if (!b) return;
       if (b.type === 'well') Game.refillCan();
-      else { openSheet('b:' + t.obj.i); SOUNDS.tap(); }
+      else { showBuildingCoverage(b); openSheet('b:' + t.obj.i); SOUNDS.tap(); }
     } else if (!Game.isUnlocked(x, y)) {
       const p = Game.parcelAt(x, y);
       if (p >= 0) handleSmartResult({ act: 'parcel', index: p }, x, y);
+    }
+  }
+
+  // tapping a greenhouse flashes its sheltered 6×6 zone on the map
+  function showBuildingCoverage(b) {
+    if (b && b.type === 'greenhouse' && Renderer.flashCoverage) {
+      Renderer.flashCoverage(b.x - 2, b.y - 2, b.x + 4, b.y + 4, 2);
     }
   }
 
@@ -1269,6 +1471,7 @@ const UI = (() => {
         SOUNDS.tap();
         break;
       case 'building':
+        showBuildingCoverage(Game.state.buildings[r.index]);
         openSheet('b:' + r.index);
         SOUNDS.tap();
         break;
@@ -1285,7 +1488,7 @@ const UI = (() => {
           const def = D.CROPS[t.crop.id];
           const c = t.crop;
           let status;
-          if (!Game.seasonOK(c.id)) status = '⚠️ wrong season — it\'s withering!';
+          if (!Game.seasonOK(c.id, x, y)) status = '⚠️ wrong season — it\'s withering!';
           else if ((c.wilt || 0) > 0.3) status = '🥀 wilting — water it fast!';
           else {
             const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
@@ -1386,12 +1589,20 @@ const UI = (() => {
     bindInput(canvas);
     applyTextScale(); // restore Comfy Mode large text
 
+    // shovel icon flows through Icons so a real SVG can replace the emoji later
+    const shIcon = $('shovel-icon');
+    if (shIcon) shIcon.outerHTML = I.icon('shovel');
+
     document.querySelectorAll('.tool-btn').forEach(b => {
       b.addEventListener('click', () => {
         SOUNDS.tap();
         const t = b.dataset.tool;
         if (t === 'plant') { plantTarget = null; openSheet('seeds'); }
-        if (t === 'fert' && tool !== 'fert') toast(`✨ Tap growing crops to fertilize (${$$(D.FERT_COST)}): faster growth + double-harvest chance!`);
+        if (t === 'fert' && tool !== 'fert') toast('✨ Tap growing crops to fertilize (30% of the seed price, min $8): faster growth + double-harvest chance!');
+        if (t === 'shovel' && Game.state && !Game.state._flags.shovelTold) {
+          Game.state._flags.shovelTold = true;
+          toast('⛏️ The shovel digs up living crops (50% seed refund), clears dead ones, and un-tills empty soil back to grass.');
+        }
         setTool(t);
       });
     });
@@ -1402,6 +1613,7 @@ const UI = (() => {
     $('btn-menu').onclick = () => { SOUNDS.tap(); openSheet('menu'); };
     $('sheet-close').onclick = () => { SOUNDS.tap(); closeSheet(); };
     $('sheet-backdrop').onclick = closeSheet;
+    $('sheet-tabs').addEventListener('scroll', updateTabFade, { passive: true });
     $('goal-chip').onclick = () => updateGoalChip();
 
     $('build-ok').onclick = () => {
@@ -1431,6 +1643,11 @@ const UI = (() => {
     Game.on('goal', () => { updateGoalChip(); Renderer.addGlintBurst(); });
     Game.on('orders', () => { if (sheetOpen === 'orders') renderSheet(); });
     Game.on('season', () => { if (sheetOpen === 'seeds') renderSheet(); });
+    // dawn of a season's last day: banner + auto-open the Season Care sheet
+    Game.on('care', info => {
+      toast(`⏳ Last day of ${info.season}! ${info.n} crop${info.n > 1 ? 's' : ''} won't survive ${info.next} — here's the rescue list (also in the ⚙️ Menu).`, 'bad');
+      openSheet('care');
+    });
 
     updateHud();
   }
@@ -1443,7 +1660,7 @@ const UI = (() => {
       refreshAcc = 0;
       updateAmbience();
       updateHud();
-      if (sheetOpen && (sheetOpen.startsWith('b:') || sheetOpen === 'orders')) renderSheet();
+      if (sheetOpen && (sheetOpen.startsWith('b:') || sheetOpen === 'orders' || sheetOpen === 'care')) renderSheet();
     }
   }
 
