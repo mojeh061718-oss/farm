@@ -7,9 +7,12 @@ yours. Money is the only ladder — and a farm you neglect will fail.
 
 ## ✨ What makes it tick
 
-- **A real 45° isometric farm** — depth-sorted buildings with walls, roofs and painted signs,
-  raised soil beds, wooden fences, hand-drawn animals, a pond, seasonal palettes, day/night and
-  a filmic vignette. No emoji sprites in the world — everything is drawn.
+- **A stunning 45° isometric farm** — "Golden Hour Storybook" art direction: sun-driven
+  lighting with colored shadows, glowing windows and fireflies at night, shingled roofs and
+  plank walls, crafted soil beds, worn paths, a living pond, seasonal transformations (blossoms,
+  amber falls, snow-lined winters), animated harvest/till/water effects, animal behaviors, real
+  lightning strikes, and a pentatonic sound system — all procedural Canvas 2D, zero assets,
+  60fps-tuned with sprite baking and a night lightmap.
 - **Start with a stake, not a grind** — name your farm and choose your starting capital:
   🌤️ *Cozy* ($6,000, gentle weather), 🌾 *Classic* ($3,000), or ⛈️ *Tycoon* ($1,500, harsher
   weather, but +10% sell prices). No levels to wait for, no unlock walls — strategy decides
@@ -83,8 +86,10 @@ index.html      app shell & UI overlays (incl. farm-setup screen)
 css/style.css   mobile-first UI styling
 js/data.js      all game data: crops, animals, buildings, recipes, weather, difficulties, goals
 js/game.js      simulation: time, seasons, weather events, economy, automation, save/load
-js/render.js    canvas renderer: terrain, crops, buildings, animals, weather, day/night, ambience
-js/ui.js        touch input, panels, toasts, sounds (WebAudio)
+js/render.js    canvas renderer: baked sprites, lighting/lightmap, tweens/particles, weather, world art
+js/ui.js        touch input, panels, toasts, motion, sounds (WebAudio)
+js/icons.js     inline SVG icon system (48 hand-drawn symbols)
+fonts/          bundled Nunito variable font
 js/main.js      bootstrap & game loop
 ```
 
