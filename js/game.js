@@ -301,6 +301,8 @@ const Game = (() => {
   function fuelPrice() { return state.market.fuelPrice; }
 
   function buyFuel(gal) {
+    gal = Number(gal);
+    if (!Number.isFinite(gal) || gal <= 0 || gal > 500) return false; // no negative-gallon money printers
     const cost = Math.ceil(gal * state.market.fuelPrice);
     if (state.coins < cost) { toast('Not enough cash for fuel!', 'bad'); return false; }
     state.coins -= cost;
@@ -611,6 +613,10 @@ const Game = (() => {
       toast('Sell or move the animals first!', 'bad');
       return false;
     }
+    if (b.type === 'well' && buildingsOf('well').length <= 1) {
+      toast('A farm needs at least one well!', 'bad');
+      return false;
+    }
     const refund = Math.floor(def.cost / 2);
     for (let dy = 0; dy < def.h; dy++)
       for (let dx = 0; dx < def.w; dx++) {
@@ -865,20 +871,34 @@ const Game = (() => {
   }
 
   // ---------------- goals ----------------
-  function currentGoal() { return D.GOALS[state.goalIndex] || null; }
+  // Goals pay out in ANY order — one skipped goal (e.g. "complete 2 orders")
+  // must never block credit for everything achieved after it.
+  function goalsDoneList() {
+    if (!state.goalsDone) state.goalsDone = D.GOALS.slice(0, state.goalIndex || 0).map(g => g.id);
+    return state.goalsDone;
+  }
+
+  function currentGoal() {
+    const done = goalsDoneList();
+    return D.GOALS.find(g => !done.includes(g.id)) || null;
+  }
 
   function checkGoal() {
-    const g = currentGoal();
-    if (!g) return;
-    const [cur, need] = g.check(state);
-    if (cur >= need) {
-      state.coins += g.reward;
-      toast(`${g.icon} Goal complete: ${g.title}! +${D.$(g.reward)}`, 'good');
-      emit('sound', 'goal');
-      state.goalIndex++;
-      emit('goal');
-      checkGoal(); // next goal may already be satisfied
+    const done = goalsDoneList();
+    let paid = false;
+    for (const g of D.GOALS) {
+      if (done.includes(g.id)) continue;
+      const [cur, need] = g.check(state);
+      if (cur >= need) {
+        done.push(g.id);
+        state.coins += g.reward;
+        toast(`${g.icon} Goal complete: ${g.title}! +${D.$(g.reward)}`, 'good');
+        emit('sound', 'goal');
+        paid = true;
+      }
     }
+    state.goalIndex = done.length;
+    if (paid) emit('goal');
   }
 
   // ---------------- daily events ----------------
@@ -1051,12 +1071,12 @@ const Game = (() => {
   // ---------------- derived info for UI ----------------
   function farmValue() {
     if (!state) return 0;
-    let v = state.coins;
+    let v = state.coins + state.fuel * (state.market.fuelPrice || 3.4);
     for (const [item, qty] of Object.entries(state.inventory)) v += D.ITEMS[item].base * qty;
     for (const b of state.buildings) if (b) v += D.BUILDINGS[b.type].cost;
     for (const a of state.animals) v += D.ANIMALS[a.type].cost;
     for (const i of state.unlockedParcels) v += D.PARCELS[i].cost;
-    return v;
+    return Math.round(v);
   }
 
   function ownsPoweredGear() {
