@@ -20,8 +20,7 @@ const Renderer = (() => {
 
   let ghost = null;             // {type, x, y}
   const floats = [];            // floating texts (iso px)
-  const bursts = [];            // particle bursts (iso px)
-  const animalAnim = new Map(); // ephemeral wander positions, keyed by animal uid
+  const animalAnim = new Map(); // ephemeral animal FSM state, keyed by animal uid
 
   // ---------------- projection ----------------
   function proj(gx, gy) { return { x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 }; }
@@ -221,6 +220,117 @@ const Renderer = (() => {
     cam.y = Math.min(Math.max(cam.y, Math.min(minY + halfH, cy)), Math.max(maxY - halfH, cy));
   }
 
+  /* ================= PHASE 3: tween micro-framework =================
+     The renderer's only time primitive used to be sin(time). Anticipation,
+     overshoot and settle need begin/end motion — this is the 40-line manager
+     from the animation review (§2), the standard 6-ease set, nothing more. */
+  const Ease = {
+    linear: t => t,
+    quadIn: t => t * t,
+    quadOut: t => t * (2 - t),
+    cubicOut: t => 1 - (1 - t) ** 3,
+    backOut: t => { const c = 1.70158, u = t - 1; return 1 + (c + 1) * u * u * u + c * u * u; },
+    elasticOut: t => t === 0 || t === 1 ? t : 2 ** (-10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1,
+  };
+  const Tween = (() => {
+    const active = [];
+    function to(obj, props, dur, ease, onComplete, delay) {
+      const tw = { obj, dur, ease: ease || Ease.quadOut, onComplete, t: -(delay || 0), from: null, to: props };
+      active.push(tw);
+      return tw;
+    }
+    function update(dt) {
+      for (let i = active.length - 1; i >= 0; i--) {
+        const tw = active[i];
+        tw.t += dt;
+        if (tw.t < 0) continue;
+        if (!tw.from) { tw.from = {}; for (const k in tw.to) tw.from[k] = tw.obj[k]; }
+        const p = Math.min(1, tw.t / tw.dur);
+        const e = tw.ease(p);
+        for (const k in tw.to) tw.obj[k] = tw.from[k] + (tw.to[k] - tw.from[k]) * e;
+        if (p >= 1) { active.splice(i, 1); if (tw.onComplete) tw.onComplete(); }
+      }
+    }
+    function kill(obj) { for (let i = active.length - 1; i >= 0; i--) if (active[i].obj === obj) active.splice(i, 1); }
+    return { to, update, kill };
+  })();
+
+  // one-shot scheduled callbacks — fx choreography ("then, 60ms later…")
+  const timers = [];
+  function after(d, fn) { timers.push({ t: d, fn }); }
+  function runTimers(dt) {
+    for (let i = timers.length - 1; i >= 0; i--) {
+      if ((timers[i].t -= dt) <= 0) { const fn = timers[i].fn; timers.splice(i, 1); fn(); }
+    }
+  }
+  // world-emitted sounds ride the same bus as game sounds (respects mute)
+  const sfx = name => { if (window.Game && Game.emit) Game.emit('sound', name); };
+
+  /* ---------------- pooled world particles (budget 150, kill-oldest ring) ----
+     Shapes: dot (plain), soil (rotating clod), chunk (fruit piece w/ glint),
+     leaf (rotating ellipse fleck), dust (expanding rising puff), spark,
+     drop (falling streak that splashes), splash (2-frame ground tick),
+     star (4-point glint), husk (grey crumble flake). */
+  const P_MAX = 150;
+  const parts = [];
+  let pHead = 0;
+  function spawnP(x, y, o) {
+    let p;
+    if (parts.length < P_MAX) { p = {}; parts.push(p); }
+    else { p = parts[pHead]; pHead = (pHead + 1) % P_MAX; } // over budget: recycle oldest
+    p.on = true;
+    p.x = x; p.y = y;
+    p.vx = o.vx || 0; p.vy = o.vy || 0;
+    p.g = o.g !== undefined ? o.g : 300;
+    p.rot = o.rot || Math.random() * 6; p.vr = o.vr || 0;
+    p.age = 0; p.life = o.life || 0.6;
+    p.size = o.size || 2.5; p.col = o.col || '#fff';
+    p.shape = o.shape || 'dot';
+    p.floorY = o.floorY; p.next = o.next;
+    return p;
+  }
+  function burstDust(px, py, n, size, col) {
+    for (let i = 0; i < n; i++) {
+      spawnP(px + (Math.random() - 0.5) * 26, py + (Math.random() - 0.5) * 8, {
+        shape: 'dust', g: 0, vy: -22 - Math.random() * 12, vx: (Math.random() - 0.5) * 14,
+        life: 0.4 + Math.random() * 0.15, size: (size || 5) + Math.random() * 3, col: col || '#a3805a', vr: 26,
+      });
+    }
+  }
+
+  /* ---------------- per-tile crop fx state (dip / squash / pulse) ---------------- */
+  const cropFxMap = new Map();
+  function cropFx(x, y) {
+    const key = x + '|' + y;
+    let f = cropFxMap.get(key);
+    if (!f) { f = { dip: 0, sc: 1, pulse: 1, hide: 0, glowK: -1, busy: 0 }; cropFxMap.set(key, f); }
+    return f;
+  }
+  const stageMap = new Map(); // render-side quantized growth stage per tile
+  let fxSweepAt = 0;
+  function sweepFx(state) {
+    for (const [k, f] of cropFxMap) {
+      if (time > f.busy && !f.hide && Math.abs(f.dip) < 0.05 && Math.abs(f.sc - 1) < 0.02 && Math.abs(f.pulse - 1) < 0.02) cropFxMap.delete(k);
+    }
+    for (const k of stageMap.keys()) {
+      const i = k.indexOf('|');
+      const x = +k.slice(0, i), y = +k.slice(i + 1);
+      const t = state.tiles[y] && state.tiles[y][x];
+      if (!t || !t.crop) stageMap.delete(k);
+    }
+  }
+
+  // small fx entity lists (world space unless noted)
+  const rings = [];      // impact shockwaves {x,y,r,a,vr,va,gold}
+  const soaks = [];      // watering dark-soak ellipses {x,y,age}
+  const tillFx = [];     // raked furrow reveal overlays {x,y,age}
+  const wedges = [];     // hoe blade anticipation sprites
+  const ghosts = [];     // harvest ghost crops (squash→flash→pop-out)
+  const fliers = [];     // item arcs to the HUD market button (screen space)
+  const bolts = [];      // lightning strikes
+  const emblems = [];    // season-transition sweep particles (screen space)
+  let skyFlash = 0, lastStrike = -9;
+
   // ---------------- fx (tile coords in, projected immediately) ----------------
   function addFloat(tx, ty, text, color) {
     const p = proj(tx, ty);
@@ -230,9 +340,236 @@ const Renderer = (() => {
     const p = proj(tx, ty);
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2 + Math.random() * 0.5;
-      bursts.push({ x: p.x, y: p.y, vx: Math.cos(a) * (40 + Math.random() * 50), vy: Math.sin(a) * (25 + Math.random() * 30) - 45, age: 0, color });
+      spawnP(p.x, p.y, {
+        shape: 'dot', col: color, g: 160, life: 0.5 + Math.random() * 0.2,
+        vx: Math.cos(a) * (40 + Math.random() * 50), vy: Math.sin(a) * (25 + Math.random() * 30) - 45,
+      });
     }
   }
+  // gold star glints at the camera focus — world-side beat for goal payouts
+  function addGlintBurst() {
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + Math.random();
+      spawnP(cam.x + (Math.random() - 0.5) * 40, cam.y + (Math.random() - 0.5) * 24, {
+        shape: 'star', col: '#ffe082', g: -30, life: 0.55 + Math.random() * 0.25,
+        vx: Math.cos(a) * 50, vy: Math.sin(a) * 30 - 30, vr: 3, size: 5 + Math.random() * 3,
+      });
+    }
+  }
+
+  /* ---------------- TILL: wedge anticipation → strike → raked reveal ---------------- */
+  let tillBatchAt = -9, tillBatchBase = 0;
+  function fxTill(tx, ty) {
+    const x = Math.floor(tx), y = Math.floor(ty);
+    // tractor multi-tile: NE→SW sweep, 40ms stagger per diagonal
+    if (time - tillBatchAt > 0.15) tillBatchBase = x + y;
+    tillBatchAt = time;
+    const delay = Math.max(0, x + y - tillBatchBase) * 0.04;
+    after(delay, () => {
+      const c = proj(x + 0.5, y + 0.5);
+      const w = { x: c.x + 6, y: c.y - 26, sc: 0.01, rot: -0.61, alpha: 1, dead: false };
+      wedges.push(w);
+      Tween.to(w, { sc: 1, y: c.y - 18 }, 0.06, Ease.backOut, () => {   // anticipation
+        Tween.to(w, { y: c.y - 5, rot: -0.15 }, 0.05, Ease.quadIn, () => { // strike
+          tillFx.push({ x, y, age: 0 });
+          for (let i = 0; i < 10; i++) {
+            const a = Math.random() * Math.PI * 2;
+            spawnP(c.x + (Math.random() - 0.5) * 20, c.y - 2, {
+              shape: 'soil', col: ['#5a4128', '#4a3520', '#6b4e30'][i % 3], g: 900,
+              vx: Math.cos(a) * (50 + Math.random() * 70), vy: -90 - Math.random() * 110,
+              vr: (Math.random() - 0.5) * 14, life: 0.42 + Math.random() * 0.16, size: 2 + Math.random() * 2,
+            });
+          }
+          burstDust(c.x, c.y, 4);
+          Tween.to(w, { alpha: 0, y: c.y - 20 }, 0.14, Ease.quadOut, () => { w.dead = true; });
+        });
+      });
+    });
+  }
+
+  /* ---------------- PLANT: seed toss → soil puff → sprout pop ---------------- */
+  let plantChain = 0, plantChainAt = -9;
+  function fxPlant(tx, ty, color) {
+    const x = Math.floor(tx), y = Math.floor(ty);
+    const c = proj(x + 0.5, y + 0.5);
+    plantChain = time - plantChainAt < 0.5 ? plantChain + 1 : 0;   // rate-limit the toss while drag-planting
+    plantChainAt = time;
+    const f = cropFx(x, y);
+    f.busy = time + 0.7;
+    f.sc = 0.01;
+    const toss = plantChain < 3 && cam.z >= 0.45;
+    if (toss) {
+      for (let i = 0; i < 3; i++) {
+        spawnP(c.x + (Math.random() - 0.5) * 8, c.y - 17 - Math.random() * 5, {
+          shape: 'dot', col: color || '#d9b23c', size: 1.6, g: 1000,
+          vx: (Math.random() - 0.5) * 34, vy: 46, life: 0.15,
+        });
+      }
+    }
+    after(toss ? 0.09 : 0, () => {
+      if (toss) burstDust(c.x, c.y + 1, 3, 3.5);
+      Tween.to(f, { sc: 1 }, 0.28, Ease.backOut);
+      if (cam.z >= 0.55) {
+        spawnP(c.x, c.y - 4, { shape: 'dot', col: '#7ba24c', size: 1.6, vy: -70, vx: (Math.random() - 0.5) * 20, g: 300, life: 0.3 });
+      }
+    });
+  }
+
+  /* ---------------- WATER: droplet fan → splash ticks → soak → happy pulse ---------------- */
+  function fxWater(tx, ty) {
+    const x = Math.floor(tx), y = Math.floor(ty);
+    const c = proj(x + 0.5, y + 0.5);
+    soaks.push({ x: c.x, y: c.y + 2, age: 0 });
+    if (cam.z >= 0.55) {
+      for (let i = 0; i < 10; i++) {
+        after(Math.random() * 0.24, () => {
+          const px = c.x + (Math.random() - 0.5) * TW * 0.5;
+          const py = c.y + (Math.random() - 0.5) * TH * 0.45;
+          spawnP(px + 4, py - 26 - Math.random() * 8, {
+            shape: 'drop', col: '#7ec3ea', size: 2, g: 500, vx: -12, vy: 200,
+            life: 0.4, floorY: py, next: 'splash',
+          });
+        });
+      }
+    }
+    const f = cropFx(x, y);
+    f.busy = time + 0.9;
+    after(0.35, () => { f.pulse = 1.08; Tween.to(f, { pulse: 1 }, 0.25, Ease.backOut); });
+  }
+
+  /* ---------------- HARVEST: the flagship chain (animation.md §1.5) ----------------
+     The game nulls the crop before the fx event lands, so the chain runs on a
+     ghost crop drawn at the tile: squash 80ms → white flash + pop + 14 mixed
+     particles + soil puff + ground ring + tile dip → item flier on a bezier
+     to the HUD market button → badge pop + chime (in ui.js). */
+  function fxHarvest(tx, ty, data) {
+    const x = Math.floor(tx), y = Math.floor(ty);
+    const def = data && D.CROPS[data.id];
+    if (!def) { addBurst(tx, ty, '#fff'); return; }
+    const n = (data.n || 1);
+    const f = cropFx(x, y);
+    f.hide = 1; f.busy = time + 1.4;
+    stageMap.delete(x + '|' + y);
+    const g = { x, y, def, sx: 1, sy: 1, alpha: 1, flash: 0, gold: n > 1, dead: false };
+    ghosts.push(g);
+    Tween.to(g, { sy: 0.7, sx: 1.22 }, 0.08, Ease.quadOut, () => {       // anticipation: the grab
+      g.flash = 1;
+      harvestImpact(x, y, def, n);
+      Tween.to(g, { sy: 1.28, sx: 1.28 }, 0.09, Ease.backOut, () => {    // impact pop
+        Tween.to(g, { alpha: 0, sy: 0.6, sx: 0.6 }, 0.1, Ease.quadIn, () => {
+          g.dead = true;
+          f.hide = 0;
+          const t = Game.state && Game.state.tiles[y] && Game.state.tiles[y][x];
+          if (t && t.crop && !t.crop.dead) {                             // regrow: visible snap back to young
+            f.sc = 0.05;
+            Tween.to(f, { sc: 1 }, 0.3, Ease.backOut);
+          }
+        });
+      });
+    });
+    after(0.14, () => launchFlier(x, y, def, false));
+    if (n > 1) after(0.22, () => launchFlier(x, y, def, true));          // double harvest: second flier
+  }
+
+  function harvestImpact(x, y, def, n) {
+    const c = proj(x + 0.5, y + 0.5);
+    const f = cropFx(x, y);
+    f.dip = 3.5;
+    Tween.to(f, { dip: 0 }, 0.5, Ease.elasticOut, null, 0.05);           // tile dip + elastic settle
+    rings.push({ x: c.x, y: c.y + 2, r: 6, a: 0.55, vr: 165, va: 2.3, gold: n > 1 });
+    const cnt = n > 1 ? 22 : 14;
+    const leafD = def.leaf, leafL = rampHex(def.leaf, 0.8);
+    for (let i = 0; i < cnt; i++) {
+      const leafy = i % 7 < 4;                                           // ~8 leaf flecks + ~6 fruit chunks
+      const a = Math.random() * Math.PI * 2;
+      const sp = 80 + Math.random() * 105;
+      spawnP(c.x, c.y - 12, {
+        shape: leafy ? 'leaf' : 'chunk',
+        col: leafy ? (Math.random() < 0.5 ? leafD : leafL) : (Math.random() < 0.7 ? def.color : rampHex(def.color, 0.8)),
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.55 - (110 + Math.random() * 85),
+        g: 560, vr: (Math.random() - 0.5) * 14,
+        life: 0.55 + Math.random() * 0.3,
+        size: leafy ? 3 + Math.random() * 1.8 : 2.6 + Math.random() * 2,
+      });
+    }
+    burstDust(c.x, c.y, n > 1 ? 8 : 6);
+    if (n > 1) addGlint(c.x, c.y - 20);
+  }
+  function addGlint(px, py) {
+    spawnP(px, py, { shape: 'star', col: '#ffe082', g: 0, vy: -14, life: 0.5, vr: 3.2, size: 7 });
+  }
+
+  function launchFlier(x, y, def, gold) {
+    const fl = { t: 0, wx: x + 0.5, wy: y + 0.5, def, gold, trail: [], dead: false };
+    fliers.push(fl);
+    Tween.to(fl, { t: 1 }, 0.48, Ease.quadIn, () => {
+      fl.dead = true;
+      if (window.UI && UI.fxArrive) UI.fxArrive(gold);                   // badge pop + pentatonic chime
+    });
+  }
+
+  /* ---------------- DEAD-CROP CLEAR: husk crumble ---------------- */
+  function fxClear(tx, ty) {
+    const c = proj(tx, ty);
+    for (let i = 0; i < 8; i++) {
+      spawnP(c.x + (Math.random() - 0.5) * 14, c.y - 6 - Math.random() * 8, {
+        shape: 'husk', col: ['#8a8178', '#93846a', '#7a6b52'][i % 3], g: 480,
+        vx: (Math.random() - 0.5) * 70, vy: -30 - Math.random() * 60,
+        vr: (Math.random() - 0.5) * 10, life: 0.45 + Math.random() * 0.2, size: 2 + Math.random() * 1.6,
+      });
+    }
+    burstDust(c.x, c.y, 3, 4, '#8f8478');
+  }
+
+  /* ---------------- LIGHTNING: a bolt that strikes something ---------------- */
+  function fxLightning(tx, ty, silent) {
+    after(Math.random() * 0.5, () => {
+      const c = proj(tx, ty);
+      bolts.push({
+        x: c.x, y: c.y, age: 0,
+        j1: (Math.random() - 0.5) * 110, j2: (Math.random() - 0.5) * 60,
+        m1: 0.3 + Math.random() * 0.18, m2: 0.62 + Math.random() * 0.16,
+      });
+      skyFlash = 1;
+      rings.push({ x: c.x, y: c.y + 2, r: 4, a: 0.7, vr: 260, va: 3.2 });
+      for (let i = 0; i < 8; i++) {
+        const a = Math.random() * Math.PI * 2;
+        spawnP(c.x, c.y - 4, {
+          shape: 'spark', col: i % 2 ? '#fff8d8' : '#ffd77a', g: 700,
+          vx: Math.cos(a) * (90 + Math.random() * 120), vy: -60 - Math.random() * 160,
+          life: 0.3 + Math.random() * 0.2, size: 2,
+        });
+      }
+      if (!silent) after(0.3 + Math.random() * 0.5, () => sfx('thunder')); // distance-delayed rumble
+    });
+  }
+
+  /* ---------------- STARTLE: tap near an animal → hop + flee ---------------- */
+  function addStartle(wx, wy) {
+    let any = false;
+    for (const [uid, anim] of animalAnim) {
+      if (uid === 99 || anim.st === 'flee' || anim.st === 'sleep') continue;
+      const d = Math.hypot(anim.x - wx, anim.y - wy);
+      if (d > 1.5 || d < 0.02) continue;
+      anim.st = 'flee';
+      anim.timer = 1.2;
+      anim.wp = 0;
+      const ang = Math.atan2(anim.y - wy, anim.x - wx);
+      anim.tx = Math.max(0.5, Math.min(D.WORLD_W - 0.5, anim.x + Math.cos(ang) * 2.2));
+      anim.ty = Math.max(0.5, Math.min(D.WORLD_H - 0.5, anim.y + Math.sin(ang) * 2.2));
+      const p = proj(anim.x, anim.y);
+      for (let i = 0; i < 3; i++) {
+        spawnP(p.x + (Math.random() - 0.5) * 10, p.y - 8 - Math.random() * 6, {
+          shape: 'leaf', col: i % 2 ? '#ece5d8' : '#d8cfc0', g: 120,
+          vx: (Math.random() - 0.5) * 60, vy: -40 - Math.random() * 30,
+          vr: (Math.random() - 0.5) * 12, life: 0.55, size: 2.4,
+        });
+      }
+      any = true;
+    }
+    if (any) sfx('squawk');
+  }
+
   function setGhost(g) { ghost = g; }
 
   // ---------------- small helpers ----------------
@@ -350,7 +687,10 @@ const Renderer = (() => {
     }
     return { get, season };
   })();
-  let LOD = 1; // picked per frame from cam.z
+  let LOD = 1;    // picked per frame from cam.z
+  let stormK = 0; // storm gust blend 0..1 (eased on weather change)
+  let fdt = 1 / 60; // current frame dt, for immediate-mode animation (rotors etc.)
+  let dripAcc = 0;  // roof drip spawner accumulator
 
   // stamp a baked sprite at world point (x, y), optionally rotated/scaled
   // around its anchor (used for tree sway, crop-free transforms are cheap)
@@ -1076,15 +1416,24 @@ const Renderer = (() => {
   // ---------------- pond: dynamic pass (bank/water/reeds live in the bake) ----------------
   const ripples = [{ age: 9, x: 0, y: 0 }, { age: 9, x: 0, y: 0 }, { age: 9, x: 0, y: 0 }];
   let rippleTimer = 0;
+  // pond duck FSM: paddle (drift on rails) ↔ dabble (tip forward, head under)
+  let duckPhase = 0, duckMode = 'paddle', duckTimer = 6;
   function drawPond(state, dt) {
     if (state.season === 3) return; // frozen solid — all baked
-    const duckX = POND.cx + Math.sin(time * 0.32) * 0.34;
-    const duckY = POND.cy + Math.cos(time * 0.24) * 0.62;
+    duckTimer -= dt;
+    if (duckTimer <= 0) {
+      if (duckMode === 'paddle') { duckMode = 'dabble'; duckTimer = 1.3; }
+      else { duckMode = 'paddle'; duckTimer = 5 + Math.random() * 4; }
+    }
+    const dabble = duckMode === 'dabble';
+    duckPhase += dt * (dabble ? 0 : 1); // hold position while dabbling
+    const duckX = POND.cx + Math.sin(duckPhase * 0.32) * 0.34;
+    const duckY = POND.cy + Math.cos(duckPhase * 0.24) * 0.62;
     const dp = proj(duckX, duckY);
-    // expanding ripple rings shed by the duck
+    // expanding ripple rings shed by the duck (faster while paddling/dabbling)
     rippleTimer -= dt;
     if (rippleTimer <= 0) {
-      rippleTimer = 1.1;
+      rippleTimer = dabble ? 0.4 : 1.1;
       let oldest = ripples[0];
       for (const r of ripples) if (r.age > oldest.age) oldest = r;
       oldest.age = 0; oldest.x = dp.x; oldest.y = dp.y + 3;
@@ -1126,8 +1475,22 @@ const Renderer = (() => {
         ctx.fillRect(px, py, 4.5, 1.3);
       }
     }
-    drawAnimalSprite('duck', dp.x, dp.y - 2, time, 99, Math.cos(time * 0.32) < 0);
+    if (dabble) { // bottoms up: tip forward, head under the waterline
+      ctx.save();
+      ctx.translate(dp.x, dp.y + 1);
+      if (Math.cos(duckPhase * 0.32) < 0) ctx.scale(-1, 1);
+      ctx.rotate(0.9 + Math.sin(time * 7) * 0.06);
+      ctx.translate(-dp.x, -(dp.y + 1));
+      drawAnimalSprite('duck', dp.x, dp.y - 1, 0, 99, false, posePool0);
+      ctx.restore();
+      // waterline masks the submerged head
+      ctx.fillStyle = 'rgba(88,148,178,.85)';
+      ctx.beginPath(); ctx.ellipse(dp.x + 4, dp.y + 3, 9, 3.4, 0, 0, PI2); ctx.fill();
+    } else {
+      drawAnimalSprite('duck', dp.x, dp.y - 2, time, 99, Math.cos(duckPhase * 0.32) < 0);
+    }
   }
+  const posePool0 = { moving: false, peck: 0, sleep: false, hop: 0 };
 
   // ---------------- parcels: fences, wild locked land, survey rope, signs ----------------
   function inUnlockedParcel(state, x, y) {
@@ -1144,10 +1507,11 @@ const Renderer = (() => {
     return false;
   }
 
-  function fencePost(gx, gy, big) {
+  function fencePost(gx, gy, big, sc) {
     const pt = proj(gx, gy);
     const j = (hash(Math.round(gx * 7), Math.round(gy * 11)) - 0.5) * 2;
-    const hgt = (big ? 18 : 16) + j;
+    let hgt = (big ? 18 : 16) + j;
+    if (sc !== undefined) hgt *= sc;   // fence-builds-itself: post scales in
     const w = big ? 3.4 : 3;
     ctx.fillStyle = 'rgba(30,26,50,.28)';
     ctx.beginPath(); ctx.ellipse(pt.x + 1, pt.y + 1, 4, 1.8, 0, 0, Math.PI * 2); ctx.fill();
@@ -1197,13 +1561,33 @@ const Renderer = (() => {
 
   // one side of a parcel's fence: unit segments with gate gaps; segments that
   // border another unlocked parcel are interior and skipped entirely.
-  function fenceSide(state, x0, y0, dx, dy, len, outDx, outDy, snow) {
+  // `age`/`base` clip the draw so a fresh parcel's fence builds itself
+  // post-by-post (~90ms per post) with a dust tick as each one lands.
+  function fenceSide(state, x0, y0, dx, dy, len, outDx, outDy, snow, age, base, pi) {
     for (let i = 0; i < len; i++) {
       const ax = x0 + dx * i, ay = y0 + dy * i;
       const mx = ax + dx * 0.5, my = ay + dy * 0.5;
       // outside neighbor tile of this segment
       const ox = Math.floor(mx + outDx * 0.5 - (dx ? 0 : 0.5)), oy = Math.floor(my + outDy * 0.5 - (dy ? 0 : 0.5));
       if (inUnlockedParcel(state, ox, oy)) continue;      // interior — no fence
+      let sc;
+      if (age !== Infinity) {
+        const t = age - (base + i) * 0.09;
+        if (t <= 0) continue;                             // this post hasn't been built yet
+        sc = Ease.backOut(Math.min(1, t / 0.16));
+        const dk = pi * 100 + base + i;
+        if (t < 0.1 && !postDust.has(dk)) {               // hammer-blow dust tick
+          postDust.add(dk);
+          const pp = proj(ax, ay);
+          burstDust(pp.x, pp.y, 2, 3);
+        }
+        if (gateAt(mx, my, dy === 0)) { drawGate(ax, ay, ax + dx, ay + dy); continue; }
+        const rk = Math.min(1, Math.max(0, (t - 0.08) / 0.12)); // rail draws on toward the next post
+        if (rk > 0) fenceRail(ax, ay, ax + (dx * rk), ay + (dy * rk), snow);
+        fencePost(ax, ay, false, sc);
+        if (rk >= 1) fencePost(ax + dx, ay + dy, false, Ease.backOut(Math.min(1, (age - (base + i + 1) * 0.09) / 0.16 + 0.4)));
+        continue;
+      }
       if (gateAt(mx, my, dy === 0)) { drawGate(ax, ay, ax + dx, ay + dy); continue; }
       fenceRail(ax, ay, ax + dx, ay + dy, snow);
       fencePost(ax, ay);
@@ -1211,15 +1595,17 @@ const Renderer = (() => {
     }
   }
 
-  function drawFenceBack(state, p, snow) { // N + W edges (behind entities)
-    fenceSide(state, p.x, p.y, 1, 0, p.w, 0, -1, snow);
-    fenceSide(state, p.x, p.y, 0, 1, p.h, -1, 0, snow);
+  function drawFenceBack(state, p, snow, i) { // N + W edges (behind entities)
+    const age = fenceAge(i);
+    fenceSide(state, p.x, p.y, 1, 0, p.w, 0, -1, snow, age, 0, i);
+    fenceSide(state, p.x, p.y, 0, 1, p.h, -1, 0, snow, age, p.w, i);
   }
   function drawFenceFront(state, i) {      // S + E edges (depth-sorted entity)
     const p = D.PARCELS[i];
     const snow = Game.state && Game.state.season === 3;
-    fenceSide(state, p.x, p.y + p.h, 1, 0, p.w, 0, 1, snow);
-    fenceSide(state, p.x + p.w, p.y, 0, 1, p.h, 1, 0, snow);
+    const age = fenceAge(i);
+    fenceSide(state, p.x, p.y + p.h, 1, 0, p.w, 0, 1, snow, age, p.w + p.h, i);
+    fenceSide(state, p.x + p.w, p.y, 0, 1, p.h, 1, 0, snow, age, p.w + p.h + p.w, i);
   }
 
   // locked parcels: stake-and-rope survey boundary over the wilder meadow
@@ -1259,7 +1645,7 @@ const Renderer = (() => {
     const snow = state.season === 3;
     for (let i = 0; i < D.PARCELS.length; i++) {
       const p = D.PARCELS[i];
-      if (state.unlockedParcels.includes(i)) drawFenceBack(state, p, snow);
+      if (state.unlockedParcels.includes(i)) drawFenceBack(state, p, snow, i);
       else drawSurvey(p);
     }
   }
@@ -1271,13 +1657,14 @@ const Renderer = (() => {
     return proj(p.x + p.w - 0.45, p.y + p.h - 0.32);
   }
 
-  function drawSign(state, index) {
+  function drawSign(state, index, fall, alpha) {
     const c = signAnchor(index);
     const p = D.PARCELS[index];
     shadow(c.x, c.y + 3, 15, 5);
     ctx.save();
     ctx.translate(c.x, c.y);
-    ctx.rotate(-0.045);
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.rotate(-0.045 + (fall || 0) * 1.42); // purchase: the sign keels over
     // two support posts
     ctx.fillStyle = hsl(26, 38, 26);
     ctx.fillRect(-16, -34, 4, 35);
@@ -1327,9 +1714,13 @@ const Renderer = (() => {
     ctx.restore();
   }
 
-  // ownership ceremony: watch for newly-bought parcels, pop a SOLD! board
+  // ownership ceremony: camera glide → fence builds itself post-by-post →
+  // the FOR SALE sign keels over in a dust puff → SOLD! board pops
   let knownParcels = null;
   const soldFx = [];
+  const signFalls = [];
+  const unlockAnim = new Map();   // parcel index → unlock time (clips fence draw)
+  const postDust = new Set();     // once-only dust tick per revealed post
   function trackParcelSales(state) {
     if (!knownParcels) { knownParcels = state.unlockedParcels.slice(); return; }
     if (state.unlockedParcels.length !== knownParcels.length) {
@@ -1338,12 +1729,38 @@ const Renderer = (() => {
           soldFx.push({ i, age: 0 });
           const p = D.PARCELS[i];
           addBurst(p.x + p.w - 0.45, p.y + p.h - 0.32, '#f2c23e');
+          unlockAnim.set(i, time + 0.45);            // fence starts after the camera lands
+          signFalls.push({ i, age: 0, dusted: false });
+          const c = proj(p.x + p.w / 2, p.y + p.h / 2);
+          Tween.to(cam, { x: c.x, y: c.y }, 0.65, Ease.cubicOut);
+          for (let k = 0; k < 4; k++) after(0.55 + k * 0.3, () => sfx('hammer'));
         }
       }
       knownParcels = state.unlockedParcels.slice();
     }
   }
+  // seconds since this parcel's fence started building (Infinity = long done)
+  function fenceAge(i) {
+    const t0 = unlockAnim.get(i);
+    if (t0 === undefined) return Infinity;
+    const age = time - t0;
+    if (age > 3.5) { unlockAnim.delete(i); postDust.clear(); return Infinity; }
+    return age;
+  }
   function drawSoldFx(dt) {
+    for (let i = signFalls.length - 1; i >= 0; i--) {
+      const f = signFalls[i];
+      f.age += dt;
+      if (f.age > 1.4) { signFalls.splice(i, 1); continue; }
+      const fall = Ease.quadIn(Math.min(1, f.age / 0.5));
+      if (fall >= 1 && !f.dusted) {
+        f.dusted = true;
+        const c = signAnchor(f.i);
+        burstDust(c.x + 20, c.y, 4, 5);
+      }
+      const alpha = f.age > 1.0 ? (1.4 - f.age) / 0.4 : 1;
+      drawSign(Game.state, f.i, fall, alpha);
+    }
     for (let i = soldFx.length - 1; i >= 0; i--) {
       const f = soldFx[i];
       f.age += dt;
@@ -1402,10 +1819,40 @@ const Renderer = (() => {
     ctx.beginPath(); ctx.arc(x - r * 0.3, y - ry * 0.32, Math.max(1, r * 0.14), 0, PI2); ctx.fill();
   }
 
+  // quantized growth: pop the plant when its render stage steps up (§1.4)
+  let ripeChimeAt = -9;
+  function stagePop(x, y, st, def) {
+    const f = cropFx(x, y);
+    f.busy = time + 0.6;
+    Tween.kill(f);
+    if (st === 3) {                                  // maturity moment — the bigger beat
+      f.sc = 0.62;
+      f.glowK = 0;
+      Tween.to(f, { sc: 1 }, 0.45, Ease.elasticOut);
+      Tween.to(f, { glowK: 1 }, 0.32, Ease.quadOut);
+      if (time - ripeChimeAt > 0.8) { ripeChimeAt = time; sfx('ripe'); }
+    } else {
+      f.sc = 1.22;
+      Tween.to(f, { sc: 1 }, 0.35, Ease.backOut);
+    }
+    if (cam.z >= 0.55) {
+      const c = proj(x + 0.5, y + 0.5);
+      const col = st === 3 ? def.color : rampHex(def.leaf, 0.8);
+      for (let i = 0; i < 3; i++) {
+        spawnP(c.x + (Math.random() - 0.5) * 8, c.y - 8, {
+          shape: 'dot', col, size: 1.7, g: 260,
+          vx: (Math.random() - 0.5) * 46, vy: -46 - Math.random() * 36, life: 0.35,
+        });
+      }
+    }
+  }
+
   function drawCrop(x, y, crop) {
     const def = D.CROPS[crop.id];
     const c = proj(x + 0.5, y + 0.5);
-    const cx = c.x, cy = c.y + 2;
+    const fx2 = cropFxMap.get(x + '|' + y);
+    if (fx2 && fx2.hide) return;                     // a harvest ghost owns this tile right now
+    const cx = c.x, cy = c.y + 2 + (fx2 ? fx2.dip : 0);
     const s = crop.prog;
 
     // fertilizer flecks (animated — kept out of the baked ground layer)
@@ -1432,21 +1879,13 @@ const Renderer = (() => {
     }
 
     const wilt = crop.wilt || 0;
-    const sway = Math.sin(time * 2.2 + x * 1.7 + y) * 0.05;
+    const storm = stormK > 0;
+    let sway = Math.sin(time * 2.2 + x * 1.7 + y) * 0.05;
+    // storm gust waves travel diagonally across the field via the (x+y) phase
+    if (storm) sway += Math.sin(time * 3 - (x + y) * 0.6) * 0.22 * stormK;
     const droop = wilt > 0.25 ? wilt * 0.45 : 0; // wilting plants lean over
     const mature = s >= 1;
-    const bounce = mature && !droop ? Math.sin(time * 3 + x) * 1.2 : 0;
-
-    // small contact shadow glues the plant to the soil
-    shadow(cx, cy + 5, 8 + s * 5, 3.2);
-
-    ctx.save();
-    ctx.translate(cx, cy + bounce);
-    ctx.rotate(sway * Math.min(1, s * 2) + droop);
-
-    if (mature && !droop && (crop.rot || 0) < 0.4) { // baked glow sprite for ready crops
-      ctx.drawImage(sprites.glow, -24, -32, 48, 48);
-    }
+    const bounce = mature && !droop ? Math.sin(time * 3 + x + y * 2.3) * 1.2 : 0;
 
     // stage buckets: 0 sprout / 1 young / 2 full / 3 mature — plus a gentle
     // within-stage scale so growth still feels continuous
@@ -1456,7 +1895,37 @@ const Renderer = (() => {
     else if (s < 0.25) { st = 0; wt = s / 0.25; }
     else if (s < 0.6) { st = 1; wt = (s - 0.25) / 0.35; }
     else { st = 2; wt = (s - 0.6) / 0.4; }
-    ctx.scale(0.78 + 0.22 * wt, 0.78 + 0.22 * wt);
+
+    // render-side stage tracking → pop on step-up, elastic beat at maturity
+    const skey = x + '|' + y;
+    const prev = stageMap.get(skey);
+    if (prev === undefined) stageMap.set(skey, st);
+    else if (st !== prev) {
+      stageMap.set(skey, st);
+      if (st > prev && !wilted && !crop.dead) stagePop(x, y, st, def);
+    }
+    const f = cropFxMap.get(skey);
+    const fsc = f ? f.sc * f.pulse : 1;
+
+    // small contact shadow glues the plant to the soil
+    shadow(cx, cy + 5, (8 + s * 5) * Math.min(1, fsc), 3.2);
+
+    ctx.save();
+    const lowLod = cam.z < 0.45;                     // LOD: skip sway transforms far out
+    ctx.translate(cx, cy + (lowLod ? 0 : bounce));
+    if (!lowLod) ctx.rotate(sway * Math.min(1, s * 2) + droop);
+
+    if (mature && !droop && (crop.rot || 0) < 0.4) { // baked glow sprite for ready crops
+      const gk = f && f.glowK >= 0 ? f.glowK : 1;    // maturity moment fades the glow IN
+      if (gk > 0.02) {
+        if (gk < 1) ctx.globalAlpha = gk;
+        ctx.drawImage(sprites.glow, -24, -32, 48, 48);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    const kk = (0.78 + 0.22 * wt) * fsc;
+    ctx.scale(kk, kk);
     drawTemplate(def, st, wilted);
     ctx.restore();
 
@@ -2678,6 +3147,7 @@ const Renderer = (() => {
   }
 
   // per-frame building draw: blit the bake, then the dynamic layer
+  const rotorPhase = new WeakMap(); // per-building rotor angle (dt-accumulated)
   function drawBarnLike(state, b, def) {
     const V = BVIS[b.type];
     const c = proj(b.x + def.w / 2, b.y + def.h / 2);
@@ -2707,26 +3177,40 @@ const Renderer = (() => {
       const wm = wallPoint(S, E, 0.475, baseH * 0.36 + 6);
       addLight(wm.x, wm.y, 96, sprites.lightWarm, 0.9 * SUN.glow, true, true);
     }
+    const cooking = b.queue && b.queue.some(j => state.now < j.done);
     // chimney smoke while a recipe is cooking (working-state feedback)
-    if (V.chimney && b.queue && b.queue.some(j => state.now < j.done)) {
+    if (V.chimney && cooking) {
       const apex = up(proj(b.x + def.w / 2, b.y + def.h / 2), baseH + V.roofH);
       const bE2 = up(proj(b.x + def.w + 0.14, b.y - 0.14), baseH);
       const ch = lpt(apex, bE2, 0.38);
+      const wind = state.weather === 'storm' ? 9 : state.weather === 'rain' ? 4 : 0;
       for (let i = 0; i < 3; i++) {
         const t = (time * 0.5 + i * 0.33) % 1;
         ctx.fillStyle = `rgba(235,235,230,${0.4 * (1 - t)})`;
         ctx.beginPath();
-        ctx.arc(ch.x + Math.sin(t * 5 + i) * 3, ch.y - 20 - t * 16, 2.5 + t * 4, 0, Math.PI * 2);
+        ctx.arc(ch.x + Math.sin(t * 5 + i) * 3 + wind * t, ch.y - 20 - t * 16, 2.5 + t * 4, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-    if (V.rotor) { // mill: slowly-turning rooftop rotor
+    // working processors: warm window pulse even in daylight (bakery ovens on)
+    if (cooking) {
+      const w0 = 0.35, w1 = 0.6, wv = baseH * 0.36, wh2 = 13;
+      const pulse = 0.15 + 0.1 * (Math.sin(time * 3.1) * 0.5 + 0.5);
+      ctx.fillStyle = `rgba(255,190,90,${pulse})`;
+      poly([wallPoint(S, E, w0 + 0.015, wv + 1.3), wallPoint(S, E, w1 - 0.015, wv + 1.3), wallPoint(S, E, w1 - 0.015, wv + wh2 - 1.3), wallPoint(S, E, w0 + 0.015, wv + wh2 - 1.3)]);
+      ctx.fill();
+    }
+    if (V.rotor) { // mill rotor: grinds while the farm's animals are fed, idles in the wind
       const apex = up(proj(b.x + def.w / 2, b.y + def.h / 2), baseH + V.roofH);
       const hub = { x: apex.x, y: apex.y - 6 };
       ctx.strokeStyle = '#4a3a28';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(apex.x, apex.y + 2); ctx.lineTo(hub.x, hub.y); ctx.stroke();
-      const a0 = time * 0.5;
+      const milling = state.animals.some(a2 => !a2.sick && state.now < a2.fedUntil);
+      let ph = rotorPhase.get(b) || 0;
+      ph += fdt * (milling ? 2.6 : 0.4);
+      rotorPhase.set(b, ph);
+      const a0 = ph;
       ctx.strokeStyle = '#5c4a32';
       ctx.lineWidth = 1.8;
       ctx.fillStyle = 'rgba(238,230,208,.85)';
@@ -2832,9 +3316,37 @@ const Renderer = (() => {
     }
   }
 
+  /* placement ceremony: drop from 24px → dust ring → elastic settle → outline flash */
+  const bDropMap = new Map();
+  let knownBTypes = null;
+  function trackPlacements(state) {
+    if (!knownBTypes) { knownBTypes = state.buildings.map(b => b && b.type); return; }
+    for (let i = 0; i < state.buildings.length; i++) {
+      const b = state.buildings[i];
+      const t = b && b.type;
+      if (t !== knownBTypes[i]) {
+        knownBTypes[i] = t;
+        if (!t) continue;
+        const def = D.BUILDINGS[t];
+        const dr = { dy: -26, flash: 1.2 };
+        bDropMap.set(i, dr);
+        Tween.to(dr, { dy: 0 }, 0.18, Ease.quadIn, () => {
+          const c = proj(b.x + def.w / 2, b.y + def.h / 2);
+          burstDust(c.x, c.y + 4, 8, 6);
+          dr.dy = 3;
+          Tween.to(dr, { dy: 0 }, 0.45, Ease.elasticOut);
+          after(0.6, () => bDropMap.delete(i));
+        });
+      }
+    }
+    while (knownBTypes.length < state.buildings.length) knownBTypes.push(state.buildings[knownBTypes.length] && state.buildings[knownBTypes.length].type);
+  }
+
   function drawBuilding(state, b, index, alpha) {
     const def = D.BUILDINGS[b.type];
     if (alpha !== undefined) ctx.globalAlpha = alpha;
+    const dr = index !== undefined ? bDropMap.get(index) : null;
+    if (dr) { ctx.save(); ctx.translate(0, dr.dy); }
 
     if (b.type === 'well') drawWell(state, b);
     else if (b.type === 'sprinkler') drawSprinkler(state, b);
@@ -2843,6 +3355,17 @@ const Renderer = (() => {
     else if (b.type === 'greenhouse') drawGreenhouse(state, b, def);
     else drawBarnLike(state, b, def);
 
+    if (dr) {
+      ctx.restore();
+      if (dr.flash > 0) { // white footprint flash on touchdown
+        const c0 = proj(b.x, b.y), c1 = proj(b.x + def.w, b.y), c2 = proj(b.x + def.w, b.y + def.h), c3 = proj(b.x, b.y + def.h);
+        ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, dr.flash) * 0.8})`;
+        ctx.lineWidth = 2.5;
+        poly([c0, c1, c2, c3]);
+        ctx.stroke();
+        if (dr.dy >= 0) dr.flash -= fdt * 6;
+      }
+    }
     ctx.globalAlpha = 1;
     if (index === undefined) return;
 
@@ -3137,7 +3660,9 @@ const Renderer = (() => {
     const it = decorItems[i];
     const c = proj(it.x, it.y);
     if (it.kind === 'tree') {
-      const sway = Math.sin(time * 1.2 + it.x * 0.6 + it.y) * 0.022;
+      let sway = Math.sin(time * 1.2 + it.x * 0.6 + it.y) * 0.022;
+      // storm gusts: trees whip at 2x crop amplitude, same traveling phase
+      if (stormK > 0) sway += Math.sin(time * 3 - (it.x + it.y) * 0.6) * 0.044 * stormK;
       shadow(c.x + 3, c.y + 1, 16 * it.s, 6.5 * it.s);
       blit(treeSprite(state, it.variant, it.hue), c.x, c.y, sway, it.s);
     } else if (it.kind === 'flower') {
@@ -3150,26 +3675,37 @@ const Renderer = (() => {
     }
   }
 
-  // ---------------- animals (hand-drawn vector sprites) ----------------
-  function legs(cx, cy, w, t, col) {
+  // ---------------- animals (hand-drawn vector sprites + micro-FSM poses) ----------------
+  const POSE_DEFAULT = { moving: true, peck: 0, sleep: false, hop: 0 };
+  function legs(cx, cy, w, t, col, moving) {
     ctx.strokeStyle = col;
     ctx.lineWidth = 2;
-    const step = Math.sin(t * 8) * 1.5;
+    const step = moving ? Math.sin(t * 8) * 1.5 : 0; // legs animate ONLY when moving
     ctx.beginPath(); ctx.moveTo(cx - w, cy); ctx.lineTo(cx - w + step, cy + 6); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx + w, cy); ctx.lineTo(cx + w - step, cy + 6); ctx.stroke();
   }
 
-  function drawAnimalSprite(type, sx, sy, t, uid, flip) {
+  function drawAnimalSprite(type, sx, sy, t, uid, flip, pose) {
+    pose = pose || POSE_DEFAULT;
     ctx.save();
     ctx.translate(sx, sy);
     if (flip) ctx.scale(-1, 1);
-    const bob = Math.abs(Math.sin(t * 5 + uid)) * 1.2;
+    const moving = pose.moving;
+    const bob = moving ? Math.abs(Math.sin(t * 5 + uid)) * 1.2 + (pose.hop || 0) : 0;
     ctx.translate(0, -bob);
     shadow(0, 7 + bob, 11, 4);
+    if (pose.sleep) {                                 // sit: squash body, hide legs
+      ctx.translate(0, 2.2);
+      ctx.scale(1, 0.82);
+    } else if (pose.peck > 0) {                       // head-dip toward the ground
+      ctx.translate(0, pose.peck * 1.6);
+      ctx.rotate(pose.peck * 0.22);
+    }
+    const legsOn = !pose.sleep;
 
     switch (type) {
       case 'chicken': {
-        legs(0, 3, 3, t + uid, '#c9862b');
+        if (legsOn) legs(0, 3, 3, t + uid, '#c9862b', moving);
         ctx.fillStyle = '#ece5d8';
         ctx.beginPath(); ctx.ellipse(0, -2, 7, 5.5, 0, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(-6, -5, 3.5, 3, -0.6, 0, Math.PI * 2); ctx.fill(); // tail
@@ -3184,7 +3720,7 @@ const Renderer = (() => {
         break;
       }
       case 'duck': {
-        legs(0, 3, 3, t + uid, '#c9862b');
+        if (legsOn) legs(0, 3, 3, t + uid, '#c9862b', moving);
         ctx.fillStyle = '#9c7a4e';
         ctx.beginPath(); ctx.ellipse(0, -2, 8, 5.5, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#2e6e46';
@@ -3198,8 +3734,7 @@ const Renderer = (() => {
         break;
       }
       case 'cow': {
-        legs(-3, 4, 4, t + uid, '#8a8178');
-        legs(5, 4, 3, t + uid + 1, '#8a8178');
+        if (legsOn) { legs(-3, 4, 4, t + uid, '#8a8178', moving); legs(5, 4, 3, t + uid + 1, '#8a8178', moving); }
         ctx.fillStyle = '#ece5d8';
         rr(-11, -9, 21, 13, 6);
         ctx.fill();
@@ -3219,7 +3754,7 @@ const Renderer = (() => {
         break;
       }
       case 'goat': {
-        legs(-2, 4, 4, t + uid, '#8a8178');
+        if (legsOn) legs(-2, 4, 4, t + uid, '#8a8178', moving);
         ctx.fillStyle = '#b3aca2';
         rr(-10, -8, 18, 11, 5);
         ctx.fill();
@@ -3235,7 +3770,7 @@ const Renderer = (() => {
         break;
       }
       case 'sheep': {
-        legs(-2, 4, 4, t + uid, '#5c554c');
+        if (legsOn) legs(-2, 4, 4, t + uid, '#5c554c', moving);
         ctx.fillStyle = '#eee8dc';
         ctx.beginPath();
         ctx.arc(-6, -4, 6.5, 0, Math.PI * 2);
@@ -3250,7 +3785,7 @@ const Renderer = (() => {
         break;
       }
       case 'pig': {
-        legs(-2, 4, 4, t + uid, '#c98a86');
+        if (legsOn) legs(-2, 4, 4, t + uid, '#c98a86', moving);
         ctx.fillStyle = '#e0a8a0';
         rr(-11, -8, 20, 12, 6);
         ctx.fill();
@@ -3270,11 +3805,15 @@ const Renderer = (() => {
     ctx.restore();
   }
 
-  // wandering animals near their homes — dt-correct update, pooled entities
+  /* ---------------- animal micro-FSM (render-side, zero save impact) ----------------
+     idle → peck/graze (60% — most of the "alive" feeling) or walk to a new
+     yard spot; birds hop, livestock amble; legs only swing while walking.
+     Night & sickness force the sleep pose; a nearby tap startles into flee. */
   const seenUids = new Set();
+  const isBird = t => t === 'chicken' || t === 'duck';
   function updateAnimals(state, dt) {
     seenUids.clear();
-    const k = 1 - Math.exp(-dt * 1.2); // frame-rate-independent lerp
+    const night = SUN.dark > 0.5;
     for (let i = 0; i < state.animals.length; i++) {
       const a = state.animals[i];
       const home = state.buildings[a.home];
@@ -3283,30 +3822,84 @@ const Renderer = (() => {
       const def = D.BUILDINGS[home.type];
       let anim = animalAnim.get(a.uid);
       if (!anim) {
-        anim = { x: home.x + def.w / 2, y: home.y + def.h + 0.4, tx: 0, ty: 0, timer: 0, flip: false };
+        anim = {
+          x: home.x + def.w / 2 + (Math.random() - 0.5), y: home.y + def.h + 0.4,
+          tx: 0, ty: 0, timer: Math.random() * 2, st: 'idle', flip: Math.random() < 0.5, wp: 0,
+        };
         anim.tx = anim.x; anim.ty = anim.y;
         animalAnim.set(a.uid, anim);
       }
+      const bird = isBird(a.type);
+      const asleep = a.sick || night;
+      if (asleep) { anim.st = 'sleep'; }
+      else if (anim.st === 'sleep') { anim.st = 'idle'; anim.timer = Math.random() * 1.5; }
       anim.timer -= dt;
-      if (anim.timer <= 0) {
-        anim.timer = 2 + Math.random() * 3;
-        anim.tx = home.x + Math.random() * def.w + (Math.random() - 0.5) * 1.2;
-        anim.ty = home.y + def.h + 0.1 + Math.random() * 0.9;
+      if (anim.st === 'walk' || anim.st === 'flee') {
+        const dx = anim.tx - anim.x, dy = anim.ty - anim.y;
+        const dist = Math.hypot(dx, dy);
+        const spd = (bird ? 0.5 : 0.3) * (anim.st === 'flee' ? 2.8 : 1);
+        if (dist < 0.05 || (anim.st === 'flee' && anim.timer <= 0)) {
+          anim.st = 'idle';
+          anim.timer = 0.8 + Math.random() * 2.2;
+          anim.wp = 0;
+        } else {
+          anim.x += dx / dist * spd * dt;
+          anim.y += dy / dist * spd * dt;
+          anim.flip = dx < 0;
+          if (bird) anim.wp += dt * (anim.st === 'flee' ? 9 : 4.5); // hop cadence
+        }
+      } else if (anim.st !== 'sleep' && anim.timer <= 0) {
+        if (anim.st === 'idle' && Math.random() < 0.6) {
+          anim.st = 'peck';
+          anim.timer = 2 + Math.random() * 2;
+        } else if (anim.st === 'idle') {
+          anim.st = 'walk';
+          anim.tx = home.x + Math.random() * def.w + (Math.random() - 0.5) * 1.2;
+          anim.ty = home.y + def.h + 0.1 + Math.random() * 0.9;
+        } else {
+          anim.st = 'idle';
+          anim.timer = 1 + Math.random() * 2;
+        }
       }
-      anim.x += (anim.tx - anim.x) * k;
-      anim.y += (anim.ty - anim.y) * k;
-      anim.flip = anim.tx < anim.x;
+      if (anim.st === 'idle' && Math.random() < dt * 0.1) anim.flip = !anim.flip; // head-turn
+      // pecking chickens kick up a soil fleck now and then
+      if (anim.st === 'peck' && bird && cam.z >= 0.55 && Math.random() < dt * 1.1) {
+        const p = proj(anim.x, anim.y);
+        spawnP(p.x + (anim.flip ? -8 : 8), p.y - 2, {
+          shape: 'dot', col: '#6b4e30', size: 1.2, g: 500,
+          vx: (Math.random() - 0.5) * 30, vy: -40, life: 0.3,
+        });
+      }
     }
     for (const key of animalAnim.keys()) if (!seenUids.has(key) && key !== 99) animalAnim.delete(key);
   }
 
+  const posePool = { moving: false, peck: 0, sleep: false, hop: 0 };
   function drawAnimal(state, i) {
     const a = state.animals[i];
     if (!a) return;
     const anim = animalAnim.get(a.uid);
     if (!anim) return;
     const p = proj(anim.x, anim.y);
-    drawAnimalSprite(a.type, p.x, p.y, a.sick ? 0 : time, a.uid, anim.flip);
+    const bird = isBird(a.type);
+    posePool.moving = anim.st === 'walk' || anim.st === 'flee';
+    posePool.sleep = anim.st === 'sleep';
+    // peck/graze: birds bob at 2Hz, livestock munch at ~0.5Hz
+    posePool.peck = anim.st === 'peck'
+      ? Math.max(0, Math.sin(time * (bird ? 12.6 : 3.2) + a.uid)) : 0;
+    posePool.hop = posePool.moving && bird ? Math.abs(Math.sin(anim.wp * Math.PI)) * 3 : 0;
+    drawAnimalSprite(a.type, p.x, p.y, time, a.uid, anim.flip, posePool);
+    if (posePool.sleep && !a.sick) { // drifting "z"
+      const zk = (time * 0.45 + a.uid * 0.37) % 1;
+      if (zk < 0.75) {
+        ctx.globalAlpha = 0.7 * (1 - zk / 0.75);
+        ctx.fillStyle = '#e8ecff';
+        ctx.font = '900 8px Nunito, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('z', p.x + 8 + zk * 6, p.y - 16 - zk * 12);
+        ctx.globalAlpha = 1;
+      }
+    }
     if (a.sick) { // green sick bubble
       ctx.fillStyle = 'rgba(140,180,80,.9)';
       ctx.beginPath(); ctx.arc(p.x + 9, p.y - 20, 4, 0, Math.PI * 2); ctx.fill();
@@ -3413,12 +4006,7 @@ const Renderer = (() => {
       if (w === 'storm') {
         ctx.fillStyle = 'rgba(20, 26, 46, .22)';
         ctx.fillRect(0, 0, vw, vh);
-        if ((time % 6) < 0.14) { // sky-band flash, softer than a full-screen slam
-          ctx.fillStyle = 'rgba(235,240,255,.28)';
-          ctx.fillRect(0, 0, vw, vh * 0.55);
-          ctx.fillStyle = 'rgba(235,240,255,.12)';
-          ctx.fillRect(0, vh * 0.55, vw, vh * 0.45);
-        }
+        // sky flash now comes from REAL lightning strikes — see drawBolts()
       }
     }
 
@@ -3546,21 +4134,388 @@ const Renderer = (() => {
   }
 
   // ---------------- fx rendering ----------------
+  // ground-level fx: soak stains, furrow reveals, shockwave rings.
+  // Drawn right after the ground blit so crops & buildings stack on top.
+  function drawGroundFx(dt) {
+    for (let i = soaks.length - 1; i >= 0; i--) {
+      const s = soaks[i];
+      s.age += dt;
+      if (s.age > 0.9) { soaks.splice(i, 1); continue; }
+      const k = s.age / 0.9;
+      ctx.fillStyle = `rgba(30,16,6,${0.32 * (1 - k)})`;
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, 6 + k * 30, (6 + k * 30) * 0.5, 0, 0, PI2);
+      ctx.fill();
+    }
+    // raked furrow reveal: strokes sweep on over the freshly-baked soil tile
+    for (let i = tillFx.length - 1; i >= 0; i--) {
+      const t = tillFx[i];
+      t.age += dt;
+      if (t.age > 0.55) { tillFx.splice(i, 1); continue; }
+      const c = proj(t.x + 0.5, t.y + 0.5);
+      if (t.age < 0.05) { // 1-frame impact flash on the diamond
+        ctx.fillStyle = 'rgba(255,255,255,.25)';
+        diamond(c.x, c.y, TW * 0.9, TH * 0.9);
+        ctx.fill();
+      }
+      const fade = t.age > 0.42 ? 1 - (t.age - 0.42) / 0.13 : 1;
+      ctx.strokeStyle = `rgba(24,12,4,${0.5 * fade})`;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      for (let f = 0; f < 4; f++) {
+        const start = f * 0.06;                      // staggered 60ms apart
+        const kk = Math.min(1, Math.max(0, (t.age - start) / 0.09));
+        if (kk <= 0) continue;
+        const u = (f + 0.5) / 4;
+        const A = proj(t.x + u, t.y + 0.05), B = proj(t.x + u, t.y + 0.95);
+        ctx.beginPath();
+        ctx.moveTo(A.x, A.y);
+        ctx.lineTo(A.x + (B.x - A.x) * kk, A.y + (B.y - A.y) * kk);
+        ctx.stroke();
+      }
+    }
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const r = rings[i];
+      r.r += r.vr * dt;
+      r.a -= r.va * dt;
+      if (r.a <= 0) { rings.splice(i, 1); continue; }
+      ctx.strokeStyle = r.gold ? `rgba(255,224,130,${r.a})` : `rgba(255,240,200,${r.a})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y, r.r, r.r * 0.5, 0, 0, PI2);
+      ctx.stroke();
+    }
+  }
+
+  // harvest ghost crops + hoe wedges (drawn above the entity pass)
+  function drawJuice(dt) {
+    for (let i = ghosts.length - 1; i >= 0; i--) {
+      const g = ghosts[i];
+      if (g.dead) { ghosts.splice(i, 1); continue; }
+      const f = cropFxMap.get(g.x + '|' + g.y);
+      const c = proj(g.x + 0.5, g.y + 0.5);
+      ctx.save();
+      ctx.translate(c.x, c.y + 2 + (f ? f.dip : 0));
+      ctx.scale(g.sx, g.sy);
+      ctx.globalAlpha = g.alpha;
+      drawTemplate(g.def, 3, false);
+      if (g.flash > 0) { // 1-frame white (gold when doubled) impact flash
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = g.gold ? `rgba(255,214,90,${g.flash * 0.9})` : `rgba(255,255,255,${g.flash * 0.8})`;
+        ctx.beginPath(); ctx.arc(0, -8, 20, 0, PI2); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        g.flash = Math.max(0, g.flash - 0.4);
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+    for (let i = wedges.length - 1; i >= 0; i--) {
+      const w = wedges[i];
+      if (w.dead) { wedges.splice(i, 1); continue; }
+      ctx.save();
+      ctx.translate(w.x, w.y);
+      ctx.rotate(w.rot);
+      ctx.scale(w.sc, w.sc);
+      ctx.globalAlpha = w.alpha;
+      ctx.fillStyle = '#6b7178';                     // steel blade
+      ctx.beginPath();
+      ctx.moveTo(-7, 0); ctx.lineTo(7, -2); ctx.lineTo(5, 6); ctx.lineTo(-4, 7);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#8a9198';
+      ctx.fillRect(-7, -1, 13, 2.4);
+      ctx.strokeStyle = '#7a5a34';                   // handle stub
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(2, -3); ctx.lineTo(12, -16); ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // item fliers: world-launched, screen-space landing on the market button.
+  // Re-aimed every frame so they land even while the camera moves.
+  let mktEl = null;
+  function marketPoint() {
+    if (!mktEl) mktEl = document.getElementById('btn-market');
+    if (!mktEl) return { x: vw - 34, y: vh - 46 };
+    const r = mktEl.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height * 0.35 };
+  }
+  function drawFliers() {
+    if (!fliers.length) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const b = marketPoint();
+    for (let i = fliers.length - 1; i >= 0; i--) {
+      const fl = fliers[i];
+      if (fl.dead) { fliers.splice(i, 1); continue; }
+      const a = tileToScreen(fl.wx, fl.wy);
+      const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 120;
+      const t = fl.t, u = 1 - t;
+      const x = u * u * a.x + 2 * u * t * mx + t * t * b.x;
+      const y = u * u * (a.y - 18) + 2 * u * t * my + t * t * b.y;
+      fl.trail.push({ x, y });
+      if (fl.trail.length > 10) fl.trail.shift();
+      ctx.globalCompositeOperation = 'lighter';      // additive amber trail
+      ctx.fillStyle = fl.gold ? '#ffe082' : '#ffd77a';
+      for (let k2 = 0; k2 < fl.trail.length; k2++) {
+        const p = fl.trail[k2];
+        ctx.globalAlpha = (k2 / fl.trail.length) * 0.45;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.4 + k2 * 0.5, 0, PI2); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      const s = 1 - t * 0.45;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(s, s);
+      ctx.rotate(t * 2.5);
+      ctx.fillStyle = fl.def.color;                  // drawn fruit, not emoji
+      ctx.beginPath(); ctx.arc(0, 0, 7, 0, PI2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.4)';
+      ctx.beginPath(); ctx.arc(-2.4, -2.4, 2, 0, PI2); ctx.fill();
+      ctx.fillStyle = fl.def.leaf;
+      ctx.beginPath(); ctx.ellipse(0, -6.5, 3.4, 1.9, 0, 0, PI2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // lightning bolts + sky flash — drawn AFTER the night multiply so they glow
+  function drawBolts(dt) {
+    if (skyFlash > 0.02) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = `rgba(235,240,255,${0.2 * skyFlash})`;
+      ctx.fillRect(0, 0, vw, vh * 0.55);
+      ctx.fillStyle = `rgba(235,240,255,${0.09 * skyFlash})`;
+      ctx.fillRect(0, vh * 0.55, vw, vh * 0.45);
+      skyFlash = Math.max(0, skyFlash - dt * 6);     // short double-frame flash
+    }
+    if (!bolts.length) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = bolts.length - 1; i >= 0; i--) {
+      const bl = bolts[i];
+      bl.age += dt;
+      if (bl.age > 0.18) { bolts.splice(i, 1); continue; }
+      const sx = (bl.x - cam.x) * cam.z + vw / 2;
+      const sy = (bl.y - cam.y) * cam.z + vh / 2;
+      // hot plateau then quick decay, with a strobe flicker on the tail
+      const k = Math.min(1, (1 - bl.age / 0.18) * 1.9) * (0.8 + 0.2 * Math.sin(bl.age * 110));
+      const pts = [
+        [sx + bl.j1 * 1.6, 0],
+        [sx + bl.j1, sy * bl.m1],
+        [sx + bl.j2, sy * bl.m2],
+        [sx, sy],
+      ];
+      for (const [w2, col] of [[9, `rgba(185,208,255,${0.5 * k})`], [4.5, `rgba(235,242,255,${0.75 * k})`], [2, `rgba(255,255,255,${k})`]]) {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w2;
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let p2 = 1; p2 < 4; p2++) ctx.lineTo(pts[p2][0], pts[p2][1]);
+        ctx.stroke();
+      }
+      // local radial flash at the strike point
+      ctx.fillStyle = `rgba(255,250,220,${0.5 * k})`;
+      ctx.beginPath(); ctx.ellipse(sx, sy, 26 * (1 - k * 0.4), 13 * (1 - k * 0.4), 0, 0, PI2); ctx.fill();
+    }
+  }
+
+  // dawn god-rays: warm translucent wedges from the top-left, 'screen' blend
+  function drawGodRays(state) {
+    if (state.t >= 0.07 || SUN.dark > 0.4) return;
+    const k = 1 - state.t / 0.07;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'screen';
+    const R = vw + vh;
+    for (let i = 0; i < 4; i++) {
+      const a0 = 0.34 + i * 0.24 + Math.sin(time * 0.12 + i * 1.7) * 0.035;
+      const a1 = a0 + 0.09 + (i % 2) * 0.05;
+      ctx.fillStyle = `rgba(255,222,150,${(0.075 + (i % 2) * 0.03) * k})`;
+      ctx.beginPath();
+      ctx.moveTo(-30, -30);
+      ctx.lineTo(-30 + Math.cos(a0) * R, -30 + Math.sin(a0) * R);
+      ctx.lineTo(-30 + Math.cos(a1) * R, -30 + Math.sin(a1) * R);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ---------------- season transition: crossfade + emblem sweep ----------------
+     The old hard palette cut was the most jarring frame in the game. On season
+     flip we keep the last-rendered frame (old palette) and fade it out over the
+     freshly-rebaked new-season world, while ~40 season emblems sweep through. */
+  let visSeason = -1;
+  let seasonFadeC = null;
+  const seasonFade = { a: 0 };
+  function checkSeasonFlip(state) {
+    if (state.season === visSeason) return;
+    const first = visSeason < 0;
+    visSeason = state.season;
+    if (first || !canvas.width) return;
+    if (!seasonFadeC) seasonFadeC = document.createElement('canvas');
+    seasonFadeC.width = canvas.width;
+    seasonFadeC.height = canvas.height;
+    seasonFadeC.getContext('2d').drawImage(canvas, 0, 0);   // capture the old-season frame
+    Tween.kill(seasonFade);
+    seasonFade.a = 1;
+    Tween.to(seasonFade, { a: 0 }, 2.2, Ease.quadOut);
+    emblems.length = 0;
+    for (let i = 0; i < 40; i++) {
+      emblems.push({
+        x: -60 - Math.random() * vw * 0.7, y: Math.random() * vh - vh * 0.25,
+        vx: 190 + Math.random() * 150, vy: 60 + Math.random() * 80,
+        rot: Math.random() * 6, vr: (Math.random() - 0.5) * 6,
+        age: -Math.random() * 0.9, life: 2.2, kind: state.season,
+        size: 3.5 + Math.random() * 3, ph: Math.random() * 6,
+      });
+    }
+  }
+  function drawSeasonFade(dt) {
+    if (seasonFade.a > 0.01 && seasonFadeC) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = seasonFade.a;
+      ctx.drawImage(seasonFadeC, 0, 0);
+      ctx.globalAlpha = 1;
+    }
+    if (!emblems.length) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (let i = emblems.length - 1; i >= 0; i--) {
+      const e = emblems[i];
+      e.age += dt;
+      if (e.age < 0) continue;
+      if (e.age > e.life) { emblems.splice(i, 1); continue; }
+      e.x += e.vx * dt;
+      e.y += (e.vy + Math.sin(time * 2.2 + e.ph) * 30) * dt;
+      e.rot += e.vr * dt;
+      const a = Math.min(1, (e.life - e.age) / 0.5);
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.rot);
+      ctx.globalAlpha = a * 0.9;
+      if (e.kind === 0) {          // spring: blossom petals
+        ctx.fillStyle = '#f2a8c4';
+        ctx.beginPath(); ctx.ellipse(0, 0, e.size, e.size * 0.62, 0, 0, PI2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        ctx.beginPath(); ctx.ellipse(-e.size * 0.25, -e.size * 0.2, e.size * 0.4, e.size * 0.25, 0, 0, PI2); ctx.fill();
+      } else if (e.kind === 1) {   // summer: pollen glints
+        ctx.fillStyle = '#ffe082';
+        ctx.beginPath(); ctx.arc(0, 0, e.size * 0.5, 0, PI2); ctx.fill();
+      } else if (e.kind === 2) {   // fall: leaves
+        ctx.fillStyle = ['#c4552e', '#d97c2e', '#d9b23c'][i % 3];
+        ctx.beginPath(); ctx.ellipse(0, 0, e.size, e.size * 0.55, 0, 0, PI2); ctx.fill();
+      } else {                     // winter: flakes
+        ctx.fillStyle = 'rgba(255,255,255,.92)';
+        ctx.beginPath(); ctx.arc(0, 0, e.size * 0.5, 0, PI2); ctx.fill();
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawFx(dt) {
-    for (let i = bursts.length - 1; i >= 0; i--) {
-      const p = bursts[i];
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      if (!p.on) continue;
       p.age += dt;
-      if (p.age > 0.6) { bursts.splice(i, 1); continue; }
+      if (p.age > p.life) { p.on = false; continue; }
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vy += 160 * dt;
-      ctx.globalAlpha = 1 - p.age / 0.6;
-      ctx.fillStyle = p.color || '#fff';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 3 * (1 - p.age), 0, Math.PI * 2); ctx.fill();
+      p.vy += p.g * dt;
+      p.rot += p.vr * dt;
+      // falling drops splash when they hit their floor
+      if (p.shape === 'drop' && p.floorY !== undefined && p.y >= p.floorY) {
+        if (p.next === 'splash') {
+          p.shape = 'splash'; p.y = p.floorY; p.vx = p.vy = p.g = 0;
+          p.age = 0; p.life = 0.16; p.next = null;
+        } else { p.on = false; continue; }
+      }
+      const k = 1 - p.age / p.life;
+      switch (p.shape) {
+        case 'dot':
+          ctx.globalAlpha = Math.min(1, k * 2);
+          ctx.fillStyle = p.col;
+          ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.5, p.size * k + 0.5), 0, PI2); ctx.fill();
+          break;
+        case 'soil':
+          ctx.globalAlpha = Math.min(1, k * 2.5);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.col;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          ctx.restore();
+          break;
+        case 'leaf':
+        case 'husk':
+          ctx.globalAlpha = Math.min(1, k * 2);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.col;
+          ctx.beginPath(); ctx.ellipse(0, 0, p.size, p.size * 0.45, 0, 0, PI2); ctx.fill();
+          ctx.restore();
+          break;
+        case 'chunk':
+          ctx.globalAlpha = Math.min(1, k * 2);
+          ctx.fillStyle = p.col;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size * k + 1, 0, PI2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,.4)';
+          ctx.beginPath(); ctx.arc(p.x - 1, p.y - 1, 1.1, 0, PI2); ctx.fill();
+          break;
+        case 'dust':
+          ctx.globalAlpha = 0.45 * k;
+          ctx.fillStyle = p.col;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size + p.vr * (1 - k), 0, PI2); ctx.fill();
+          break;
+        case 'spark':
+          ctx.globalAlpha = Math.min(1, k * 1.6);
+          ctx.strokeStyle = p.col;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03);
+          ctx.stroke();
+          break;
+        case 'drop':
+          ctx.globalAlpha = 0.85;
+          ctx.strokeStyle = p.col;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x - p.vx * 0.02, p.y - p.vy * 0.028);
+          ctx.stroke();
+          break;
+        case 'splash': {
+          ctx.globalAlpha = k;
+          ctx.strokeStyle = p.col;
+          ctx.lineWidth = 1.2;
+          const e = (1 - k) * 4;
+          const rx = 2 + e * 1.6;
+          ctx.beginPath();
+          ctx.moveTo(p.x - 1 - e, p.y - 1 - e * 0.7);
+          ctx.lineTo(p.x - 3 - e, p.y - 3 - e);
+          ctx.moveTo(p.x + 1 + e, p.y - 1 - e * 0.7);
+          ctx.lineTo(p.x + 3 + e, p.y - 3 - e);
+          ctx.moveTo(p.x + rx, p.y);
+          ctx.ellipse(p.x, p.y, rx, rx * 0.45, 0, 0, PI2);
+          ctx.stroke();
+          break;
+        }
+        case 'star': {
+          ctx.globalAlpha = Math.min(1, k * 1.8);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.col;
+          const r = p.size, r2 = p.size * 0.32;
+          ctx.beginPath();
+          for (let s2 = 0; s2 < 8; s2++) {
+            const rr2 = s2 % 2 ? r2 : r, aa = (s2 / 8) * PI2;
+            ctx[s2 ? 'lineTo' : 'moveTo'](Math.cos(aa) * rr2, Math.sin(aa) * rr2);
+          }
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+          break;
+        }
+      }
       ctx.globalAlpha = 1;
     }
     if (floats.length) {
-      ctx.font = '900 16px Nunito, system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (let i = floats.length - 1; i >= 0; i--) {
@@ -3568,12 +4523,15 @@ const Renderer = (() => {
         f.age += dt;
         if (f.age > 1.3) { floats.splice(i, 1); continue; }
         const a = Math.min(1, (1.3 - f.age) / 0.4);
+        const pop = 0.6 + 0.4 * Ease.backOut(Math.min(1, f.age / 0.14)); // pop-in
+        const rise = 44 * Ease.cubicOut(Math.min(1, f.age / 1.15));      // fast rise, then hang
+        ctx.font = `900 ${Math.round(16 * pop)}px Nunito, system-ui, sans-serif`;
         ctx.globalAlpha = a;
         ctx.strokeStyle = 'rgba(40,25,5,.8)';
         ctx.lineWidth = 4;
-        ctx.strokeText(f.text, f.x, f.y - 20 - f.age * 32);
+        ctx.strokeText(f.text, f.x, f.y - 20 - rise);
         ctx.fillStyle = f.color;
-        ctx.fillText(f.text, f.x, f.y - 20 - f.age * 32);
+        ctx.fillText(f.text, f.x, f.y - 20 - rise);
         ctx.globalAlpha = 1;
       }
     }
@@ -3617,12 +4575,20 @@ const Renderer = (() => {
   function render(state, dt) {
     if (!state) return;
     time += dt;
+    fdt = dt;
+    Tween.update(dt);                    // all fx motion advances first (§2)
+    runTimers(dt);
+    checkSeasonFlip(state);              // captures the old-season frame BEFORE drawing
     clampCam();
     computeSun(state);
     lightN = 0;
     LOD = cam.z >= 0.5 ? 1 : 0;          // sprite detail level for this frame
+    stormK += ((state.weather === 'storm' ? 1 : 0) - stormK) * Math.min(1, dt * 2);
+    if (stormK < 0.01) stormK = 0;
     Atlas.season(state.season);          // drop bakes when the season turns
-    trackParcelSales(state);             // SOLD! ceremony on new land
+    trackParcelSales(state);             // fence-build + sign-fall ceremony on new land
+    trackPlacements(state);              // drop-in ceremony on new buildings
+    if (time > fxSweepAt) { fxSweepAt = time + 2; sweepFx(state); }
 
     const pal = PALETTES[state.season];
 
@@ -3642,6 +4608,7 @@ const Renderer = (() => {
     ctx.drawImage(ground.c, ground.minX, ground.minY, ground.w, ground.h);
     ctx.imageSmoothingEnabled = true;
     drawPond(state, dt);
+    drawGroundFx(dt);                    // soak stains, furrow reveals, impact rings
     drawParcels(state);
 
     // viewport culling: visible tile window from the 4 screen corners
@@ -3650,6 +4617,35 @@ const Renderer = (() => {
     const vx1 = Math.min(D.WORLD_W - 1, Math.ceil(Math.max(c1.x, c2.x, c3.x, c4.x)) + 3);
     const vy0 = Math.max(0, Math.floor(Math.min(c1.y, c2.y, c3.y, c4.y)) - 2);
     const vy1 = Math.min(D.WORLD_H - 1, Math.ceil(Math.max(c1.y, c2.y, c3.y, c4.y)) + 3);
+
+    // world-space rain: splash ticks land ON the farm, roofs drip (LOD-gated)
+    const raining = state.weather === 'rain' || state.weather === 'storm';
+    if (raining && cam.z >= 0.55) {
+      const nSp = state.weather === 'storm' ? 2 : 2;
+      for (let i = 0; i < nSp; i++) {
+        const p = proj(vx0 + Math.random() * (vx1 - vx0 + 1), vy0 + Math.random() * (vy1 - vy0 + 1));
+        spawnP(p.x, p.y, { shape: 'splash', life: 0.15, g: 0, col: 'rgba(215,238,255,.75)' });
+      }
+      dripAcc += dt;
+      if (dripAcc > 0.45 && state.buildings.length) {
+        dripAcc = 0;
+        const b = state.buildings[(Math.random() * state.buildings.length) | 0];
+        const bv = b && BVIS[b.type];
+        if (b && bv && b.x >= vx0 && b.x <= vx1 && b.y >= vy0 && b.y <= vy1) {
+          const def = D.BUILDINGS[b.type];
+          const e = proj(b.x + Math.random() * def.w, b.y + def.h); // south eave line
+          spawnP(e.x, e.y - bv.baseH * 0.95, {
+            shape: 'drop', col: '#9fd0ee', g: 700, vy: 60, life: 0.6,
+            floorY: e.y, next: 'splash', size: 1.6,
+          });
+        }
+      }
+    }
+    // storm theater: ambient lightning strikes a real visible tile every few seconds
+    if (state.weather === 'storm' && time - lastStrike > 4.5) {
+      lastStrike = time + Math.random() * 4;
+      fxLightning(vx0 + 1 + Math.random() * (vx1 - vx0 - 1), vy0 + 1 + Math.random() * (vy1 - vy0 - 1));
+    }
 
     // entity pass: pooled records, depth-sorted by (x + y)
     entN = 0;
@@ -3718,6 +4714,7 @@ const Renderer = (() => {
       }
     }
 
+    drawJuice(dt);                       // harvest ghosts + hoe wedges
     drawSoldFx(dt);
     drawFireflies(state);
     drawAmbient(state);
@@ -3726,6 +4723,10 @@ const Renderer = (() => {
     // screen-space overlays
     drawWeather(state);
     drawNight(state);
+    drawBolts(dt);                       // lightning glows over the night multiply
+    drawFliers();                        // harvest items land on the DOM market button
+    drawGodRays(state);
+    drawSeasonFade(dt);                  // palette crossfade + emblem sweep
     // vignette+grain is invisible under the deep-night multiply — skip it there
     if (SUN.dark < 0.6) drawGrade();
   }
@@ -3733,6 +4734,9 @@ const Renderer = (() => {
   return {
     init, render, cam, clampCam, centerOn, screenToTile, tileToScreen,
     addFloat, addBurst, setGhost, getGhost: () => ghost,
+    // Phase 3 juice hooks (fx bus → ui.js → here)
+    fxTill, fxPlant, fxWater, fxHarvest, fxClear, fxLightning,
+    addStartle, addGlintBurst,
     get vw() { return vw; }, get vh() { return vh; },
   };
 })();

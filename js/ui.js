@@ -20,37 +20,158 @@ const UI = (() => {
   let sheetTab = null;
   let lastPaint = null;         // last tile painted during drag
 
-  // ---------------- sound (tiny WebAudio synth) ----------------
-  let actx = null;
-  function beep(freq, dur, type, vol, delay) {
-    if (!Game.state || !Game.state.settings.sound) return;
+  /* ---------------- sound: three synth voices, one pentatonic scale ----------------
+     Graphics 2.0 Phase 3 (animation.md §6). Every pitched sound sits in
+     C-major pentatonic so overlapping actions harmonize instead of clashing.
+     Voices: PLUCK (UI/positive — triangle + quiet octave sine, ±15 cents),
+     THOCK (physical impacts — lowpassed noise burst + pitch-bent low triangle),
+     CHIME (rewards — staggered sine partials f/1.5f/2f with long tails).
+     Everything routes through one master gain → compressor (one mute point,
+     no clipping when drag-harvesting). Consecutive plants/harvests inside
+     800ms climb the scale (combo ladder, cap +5). */
+  let actx = null, master = null, noiseBuf = null;
+  function audioCtx() {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = actx.createDynamicsCompressor();
+      comp.threshold.value = -18;
+      comp.ratio.value = 8;
+      master = actx.createGain();
+      master.gain.value = 0.9;
+      master.connect(comp);
+      comp.connect(actx.destination);
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  const soundOn = () => Game.state && Game.state.settings.sound;
+
+  // C-major pentatonic: octave 4 = C4 D4 E4 G4 A4; deg walks up the scale
+  const PENTA = [261.63, 293.66, 329.63, 392.0, 440.0];
+  function pent(oct, deg) {
+    const o = oct + Math.floor(deg / 5);
+    return PENTA[((deg % 5) + 5) % 5] * Math.pow(2, o - 4);
+  }
+  // combo ladder: consecutive same-verb actions within 800ms step up (cap +5)
+  const combos = { plant: { at: 0, n: 0 }, harvest: { at: 0, n: 0 } };
+  function combo(verb) {
+    const c = combos[verb], now = performance.now();
+    c.n = now - c.at < 800 ? Math.min(c.n + 1, 5) : 0;
+    c.at = now;
+    return c.n;
+  }
+
+  function tone(f, dur, type, vol, delay, bend, cents) {
+    if (!soundOn()) return;
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      if (actx.state === 'suspended') actx.resume();
-      const t0 = actx.currentTime + (delay || 0);
-      const o = actx.createOscillator();
-      const g = actx.createGain();
+      const a = audioCtx();
+      const t0 = a.currentTime + (delay || 0);
+      const o = a.createOscillator();
+      const g = a.createGain();
       o.type = type || 'sine';
-      o.frequency.value = freq;
+      if (cents) f *= Math.pow(2, ((Math.random() * 2 - 1) * cents) / 1200);
+      o.frequency.setValueAtTime(f, t0);
+      if (bend) o.frequency.exponentialRampToValueAtTime(bend, t0 + dur);
       g.gain.setValueAtTime(vol || 0.08, t0);
       g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-      o.connect(g).connect(actx.destination);
+      o.connect(g).connect(master);
       o.start(t0);
       o.stop(t0 + dur + 0.02);
     } catch (e) {}
   }
-  const SOUNDS = {
-    tap:     () => beep(500, 0.06, 'square', 0.04),
-    till:    () => beep(160, 0.12, 'triangle', 0.12),
-    plant:   () => { beep(420, 0.08, 'sine', 0.08); beep(560, 0.08, 'sine', 0.07, 0.06); },
-    water:   () => { beep(300, 0.1, 'sine', 0.07); beep(360, 0.12, 'sine', 0.06, 0.05); },
-    harvest: () => { beep(660, 0.09, 'triangle', 0.09); beep(880, 0.1, 'triangle', 0.09, 0.07); },
-    coin:    () => { beep(990, 0.07, 'square', 0.05); beep(1320, 0.12, 'square', 0.05, 0.06); },
-    build:   () => { beep(220, 0.12, 'triangle', 0.11); beep(330, 0.14, 'triangle', 0.1, 0.1); },
-    error:   () => beep(140, 0.18, 'sawtooth', 0.07),
-    goal:    () => { beep(660, 0.1, 'triangle', 0.09); beep(830, 0.1, 'triangle', 0.09, 0.09); beep(990, 0.16, 'triangle', 0.09, 0.18); },
-    levelup: () => { [523, 659, 784, 1046].forEach((f, i) => beep(f, 0.16, 'triangle', 0.1, i * 0.11)); },
+  // filtered noise burst — body of the thock, rain, thunder
+  function noise(dur, vol, delay, fType, f0, f1, q) {
+    if (!soundOn()) return;
+    try {
+      const a = audioCtx();
+      const t0 = a.currentTime + (delay || 0);
+      const n = a.createBufferSource();
+      n.buffer = noiseBuf;
+      n.loop = dur > 0.45;
+      const flt = a.createBiquadFilter();
+      flt.type = fType || 'lowpass';
+      flt.frequency.setValueAtTime(f0 || 900, t0);
+      if (f1) flt.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+      if (q) flt.Q.value = q;
+      const g = a.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      n.connect(flt).connect(g).connect(master);
+      n.start(t0);
+      n.stop(t0 + dur + 0.05);
+    } catch (e) {}
+  }
+  const pluck = (f, vol, delay) => {
+    tone(f, 0.1, 'triangle', (vol || 1) * 0.14, delay, 0, 15);
+    tone(f * 2, 0.13, 'sine', (vol || 1) * 0.07, (delay || 0) + 0.03, 0, 15);
   };
+  const thock = (vol, delay) => {
+    noise(0.09, (vol || 1) * 0.4, delay, 'lowpass', 900);
+    tone(120, 0.1, 'triangle', (vol || 1) * 0.3, delay, 70);
+  };
+  const chime = (f, vol, delay) => {
+    const v = vol || 1, d = delay || 0;
+    tone(f, 0.18, 'sine', 0.1 * v, d);
+    tone(f * 1.5, 0.26, 'sine', 0.06 * v, d + 0.05);
+    tone(f * 2, 0.34, 'sine', 0.04 * v, d + 0.1);
+  };
+  const wood = delay => { // hammer knock (fence builds itself)
+    noise(0.05, 0.22, delay, 'bandpass', 1700, 0, 2.5);
+    tone(pent(4, (Math.random() * 3) | 0), 0.05, 'triangle', 0.1, delay, 0, 20);
+  };
+
+  const SOUNDS = {
+    tap:     () => pluck(pent(5, 2), 0.45),                       // E5
+    till:    () => thock(1),
+    plant:   () => { const c = combo('plant'); pluck(pent(5, 1 + c), 0.8); }, // D5 ↑ ladder
+    water:   () => {                                              // the pour, not a beep
+      noise(0.3, 0.13, 0, 'bandpass', 1600, 700, 1.4);
+      tone(700 + Math.random() * 200, 0.07, 'sine', 0.05, 0.12);
+      tone(750 + Math.random() * 200, 0.06, 'sine', 0.04, 0.22);
+    },
+    harvest: () => thock(1, 0.08),                                // impact lands with the pop (t=80ms)
+    chime:   () => { const c = combo('harvest'); chime(pent(5, 2 + c)); },    // flier arrival, E5 ↑ ladder
+    chime2:  () => { const c = combos.harvest.n; chime(pent(5, 2 + c) * 1.5, 0.6); }, // double: a fifth up
+    ripe:    () => chime(pent(5, 3), 0.4),                        // G5, soft — a crop just matured
+    coin:    () => { chime(pent(6, 0), 0.8); chime(pent(6, 2), 0.5, 0.06); }, // C6 + E6
+    build:   () => { thock(0.9); pluck(pent(4, 3), 0.8, 0.12); },
+    hammer:  () => wood(),
+    error:   () => tone(140, 0.18, 'sawtooth', 0.06),
+    goal:    () => [0, 2, 3].forEach((d, i) => chime(pent(5, d), 0.85, i * 0.09)),    // C5 E5 G5
+    levelup: () => [0, 2, 3, 5].forEach((d, i) => { pluck(pent(5, d), 1, i * 0.11); chime(pent(5, d), 0.5, i * 0.11 + 0.02); }),
+    thunder: () => noise(1.2, 0.28, 0, 'lowpass', 220, 90),
+    squawk:  () => { tone(880, 0.06, 'square', 0.05, 0, 640); tone(740, 0.07, 'square', 0.04, 0.07, 500); },
+  };
+
+  // light weather ambience: one looping noise voice, gain-crossfaded by weather
+  let ambSrc = null, ambGain = null, ambFilter = null;
+  function updateAmbience() {
+    if (!actx || !master) return;         // starts only after the first user-gesture sound
+    const w = Game.state ? Game.state.weather : 'sun';
+    const target = !soundOn() ? 0 : w === 'storm' ? 0.05 : w === 'rain' ? 0.032 : 0;
+    if (target > 0 && !ambSrc) {
+      try {
+        ambSrc = actx.createBufferSource();
+        ambSrc.buffer = noiseBuf;
+        ambSrc.loop = true;
+        ambFilter = actx.createBiquadFilter();
+        ambFilter.type = 'bandpass';
+        ambFilter.frequency.value = 1400;
+        ambFilter.Q.value = 0.6;
+        ambGain = actx.createGain();
+        ambGain.gain.value = 0;
+        ambSrc.connect(ambFilter).connect(ambGain).connect(master);
+        ambSrc.start();
+      } catch (e) { ambSrc = null; }
+    }
+    if (ambGain) {
+      try { ambGain.gain.setTargetAtTime(target, actx.currentTime, 0.8); } catch (e) {}
+    }
+  }
 
   // ---------------- toasts / modal ----------------
   const toastLog = []; // ring buffer of the last 50 messages (read from Menu)
@@ -150,6 +271,19 @@ const UI = (() => {
         { transform: `translate(${x1 - 10}px, ${y1 - 10}px) scale(.45)`, opacity: .9 },
       ], { duration: 520, delay: i * 45, easing: 'cubic-bezier(.5,0,.8,.6)', fill: 'backwards' });
       anim.onfinish = () => { c.remove(); pulseCoinsPill(); };
+    }
+  }
+
+  // harvest flier landed on the market button: badge squash-pop + chime
+  function fxArrive(gold) {
+    if (gold) SOUNDS.chime2(); else SOUNDS.chime();
+    const btn = $('btn-market');
+    if (btn && !REDUCED.matches) {
+      btn.animate([
+        { transform: 'scale(1)' },
+        { transform: 'scale(1.28)', offset: 0.35 },
+        { transform: 'scale(1)' },
+      ], { duration: 260, easing: 'cubic-bezier(.34,1.56,.64,1)' });
     }
   }
 
@@ -1089,6 +1223,8 @@ const UI = (() => {
 
   function handleTap(sx, sy) {
     if (buildType) { moveGhost(sx, sy); return; }
+    const wpt = Renderer.screenToTile(sx, sy);
+    Renderer.addStartle(wpt.x, wpt.y);
     const { x, y } = tileFromScreen(sx, sy);
 
     if (tool === 'auto') {
@@ -1280,11 +1416,19 @@ const UI = (() => {
     Game.on('toast', toast);
     Game.on('sound', name => SOUNDS[name] && SOUNDS[name]());
     Game.on('fx', f => {
-      if (f.kind === 'float') Renderer.addFloat(f.x, f.y, f.text, f.color);
-      else Renderer.addBurst(f.x, f.y, f.color);
+      switch (f.kind) {
+        case 'float':     Renderer.addFloat(f.x, f.y, f.text, f.color); break;
+        case 'till':      Renderer.fxTill(f.x, f.y); break;
+        case 'plant':     Renderer.fxPlant(f.x, f.y, f.color); break;
+        case 'water':     Renderer.fxWater(f.x, f.y); break;
+        case 'harvest':   Renderer.fxHarvest(f.x, f.y, f.data); break;
+        case 'clear':     Renderer.fxClear(f.x, f.y); break;
+        case 'lightning': Renderer.fxLightning(f.x, f.y); break;
+        default:          Renderer.addBurst(f.x, f.y, f.color);
+      }
     });
     Game.on('levelup', showLevelUp);
-    Game.on('goal', updateGoalChip);
+    Game.on('goal', () => { updateGoalChip(); Renderer.addGlintBurst(); });
     Game.on('orders', () => { if (sheetOpen === 'orders') renderSheet(); });
     Game.on('season', () => { if (sheetOpen === 'seeds') renderSheet(); });
 
@@ -1297,10 +1441,11 @@ const UI = (() => {
     refreshAcc += dt;
     if (refreshAcc > 0.5) {
       refreshAcc = 0;
+      updateAmbience();
       updateHud();
       if (sheetOpen && (sheetOpen.startsWith('b:') || sheetOpen === 'orders')) renderSheet();
     }
   }
 
-  return { init, update, toast, updateHud, showAwaySummary, showSetup, get tool() { return tool; } };
+  return { init, update, toast, updateHud, showAwaySummary, showSetup, fxArrive, get tool() { return tool; } };
 })();

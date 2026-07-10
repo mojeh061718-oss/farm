@@ -17,7 +17,7 @@ const Game = (() => {
   }
   function toast(msg, kind) { emit('toast', msg, kind); }
   // fx coordinates are in TILE units — the renderer projects them
-  function fx(kind, x, y, text, color) { emit('fx', { kind, x, y, text, color }); }
+  function fx(kind, x, y, text, color, data) { emit('fx', { kind, x, y, text, color, data }); }
 
   // ---------------- helpers ----------------
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -396,7 +396,7 @@ const Game = (() => {
     if (!t || !isUnlocked(x, y) || t.k !== 'grass' || t.obj) return false;
     t.k = 'soil';
     state.stats.tilled++;
-    fx('burst', x + .5, y + .5, null, '#7d5c3c');
+    fx('till', x + .5, y + .5, null, '#7d5c3c');
     checkGoal();
     return true;
   }
@@ -415,6 +415,7 @@ const Game = (() => {
     t.crop = { id: cropId, prog: 0, water: 0, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
     if (state.weather === 'rain' || state.weather === 'storm') t.crop.water = 1;
     state.stats.planted++;
+    fx('plant', x + .5, y + .5, null, def.color);
     checkGoal();
     return true;
   }
@@ -426,7 +427,7 @@ const Game = (() => {
     state.can.water--;
     t.crop.water = 1;
     state.stats.watered++;
-    fx('burst', x + .5, y + .35, null, '#4a90b8');
+    fx('water', x + .5, y + .35, null, '#4a90b8');
     checkGoal();
     return true;
   }
@@ -470,7 +471,7 @@ const Game = (() => {
 
     if (!silent) {
       fx('float', x + .5, y, `+${n} ${D.ITEMS[id].emoji}`, n > 1 ? '#ffe082' : '#fff');
-      fx('burst', x + .5, y + .4, null, def.color);
+      fx('harvest', x + .5, y + .4, null, def.color, { n, id });
     }
     checkGoal();
     return n;
@@ -480,7 +481,7 @@ const Game = (() => {
     const t = tileAt(x, y);
     if (!t || !t.crop || !t.crop.dead) return false;
     t.crop = null;
-    fx('burst', x + .5, y + .4, null, '#8a8178');
+    fx('clear', x + .5, y + .4, null, '#8a8178');
     return true;
   }
 
@@ -944,7 +945,10 @@ const Game = (() => {
       let smashed = 0;
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
-        if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12 * diff().eventMult) { t.crop.dead = true; smashed++; state.stats.lost++; }
+        if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12 * diff().eventMult) {
+          t.crop.dead = true; smashed++; state.stats.lost++;
+          if (smashed <= 4) fx('lightning', x + .5, y + .5);
+        }
       }
       if (smashed) toast(`⛈️ The storm destroyed ${smashed} crop${smashed > 1 ? 's' : ''}! Scarecrows protect nearby plots.`, 'bad');
     }
