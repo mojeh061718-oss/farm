@@ -649,6 +649,91 @@ const UI = (() => {
       </div>`;
     body.appendChild(stats);
 
+    const jobs = document.createElement('div');
+    jobs.className = 'row-card';
+    const jobsFree = Game.oddJobsAvailable();
+    jobs.innerHTML = `
+      <div class="emoji">💪</div>
+      <div class="info"><div class="name">Work odd jobs</div><div class="sub">Earn ${$$(40)} helping in town — once per day. A farmer is never truly broke.</div></div>
+      <div class="actions"><button class="mini gold" ${jobsFree ? '' : 'disabled'}>${jobsFree ? '+' + $$(40) : 'Done today'}</button></div>`;
+    jobs.querySelector('button').onclick = () => { if (Game.workOddJobs()) { updateHud(); renderSheet(); } };
+    body.appendChild(jobs);
+
+    // ---- farm safety: backup & restore ----
+    const safetyLabel = document.createElement('div');
+    safetyLabel.className = 'section-label';
+    safetyLabel.textContent = '💾 Keep your farm safe';
+    body.appendChild(safetyLabel);
+
+    const backupRow = document.createElement('div');
+    backupRow.className = 'row-card';
+    backupRow.innerHTML = `
+      <div class="emoji">🔐</div>
+      <div class="info">
+        <div class="name">Backup this farm</div>
+        <div class="sub">Your farm autosaves with 3 rotating safety snapshots. For extra safety, copy a farm code or download a file you can restore anywhere.</div>
+      </div>
+      <div class="actions">
+        <button class="mini blue">Copy code</button>
+        <button class="mini">Download</button>
+      </div>`;
+    const [copyBtn, dlBtn] = backupRow.querySelectorAll('button');
+    copyBtn.onclick = async () => {
+      const code = Game.exportCode();
+      try {
+        await navigator.clipboard.writeText(code);
+        toast('🔐 Farm code copied — store it somewhere safe!', 'good');
+      } catch (e) {
+        window.prompt('Copy your farm code:', code);
+      }
+    };
+    dlBtn.onclick = () => {
+      const code = Game.exportCode();
+      const a = document.createElement('a');
+      a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(code);
+      a.download = `${Game.state.farmName.replace(/[^a-z0-9]+/gi, '-')}-day${Game.state.day}-y${Game.state.year}.harvestfarm.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('🔐 Backup file downloaded!', 'good');
+    };
+    body.appendChild(backupRow);
+
+    const restoreRow = document.createElement('div');
+    restoreRow.className = 'row-card';
+    restoreRow.style.flexWrap = 'wrap';
+    restoreRow.innerHTML = `
+      <div class="emoji">📥</div>
+      <div class="info"><div class="name">Restore a farm</div><div class="sub">Paste a farm code below — it replaces the current farm.</div></div>
+      <textarea class="restore-input" placeholder="HE1.…" rows="2"></textarea>
+      <button class="mini blue" style="margin-top:8px">Restore</button>`;
+    const ta = restoreRow.querySelector('textarea');
+    restoreRow.querySelector('button').onclick = () => {
+      const code = ta.value;
+      if (!code.trim()) { toast('Paste a farm code first!', 'bad'); return; }
+      confirmBox('📥', 'Restore this farm code? Your current farm will be replaced.', 'Restore', () => {
+        const r = Game.importCode(code);
+        if (r.ok) { toast('📥 Farm restored — welcome back!', 'good'); closeSheet(); updateHud(); }
+        else toast(r.why, 'bad');
+      });
+    };
+    body.appendChild(restoreRow);
+
+    const persistRow = document.createElement('div');
+    persistRow.className = 'row-card';
+    persistRow.innerHTML = `
+      <div class="emoji">🛡️</div>
+      <div class="info"><div class="name">Protected storage</div><div class="sub" id="persist-status">Checking…</div></div>`;
+    body.appendChild(persistRow);
+    if (navigator.storage && navigator.storage.persisted) {
+      navigator.storage.persisted().then(on => {
+        const el = document.getElementById('persist-status');
+        if (el) el.textContent = on
+          ? 'On — the browser has promised not to evict this farm\'s data.'
+          : 'Standard — add this game to your Home Screen to strengthen protection, and keep a farm code as backup.';
+      });
+    }
+
     const soundRow = document.createElement('div');
     soundRow.className = 'row-card';
     soundRow.innerHTML = `

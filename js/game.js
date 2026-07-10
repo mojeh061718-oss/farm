@@ -138,32 +138,110 @@ const Game = (() => {
     return idx;
   }
 
-  // ---------------- save / load ----------------
+  // ---------------- save / load & data safety ----------------
+  // Layered protection: main save + 3 rotating timestamped backups,
+  // checksum-verified export/import codes, and corruption recovery on load.
+  const BACKUP_KEYS = ['harvest-empire-backup-1', 'harvest-empire-backup-2', 'harvest-empire-backup-3'];
+  let lastBackupAt = 0;
+  let backupSlot = 0;
+
+  function fnv(str) { // small checksum for save codes
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h * 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+  }
+
+  function validSave(st) {
+    return st && st.v === 3 && Array.isArray(st.tiles) && st.tiles.length === D.WORLD_H
+      && Number.isFinite(st.coins) && st.setupDone;
+  }
+
   function save() {
     if (!state) return;
     state.lastSaved = Date.now();
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) { /* storage full/blocked */ }
+    const json = JSON.stringify(state);
+    try { localStorage.setItem(SAVE_KEY, json); } catch (e) { /* storage full/blocked */ }
+    // rotate a backup snapshot every ~2 minutes of play
+    if (Date.now() - lastBackupAt > 120000 && state.setupDone) {
+      lastBackupAt = Date.now();
+      try {
+        localStorage.setItem(BACKUP_KEYS[backupSlot % BACKUP_KEYS.length], JSON.stringify({ at: Date.now(), data: json }));
+        backupSlot++;
+      } catch (e) {}
+    }
+  }
+
+  function tryParse(json) {
+    try {
+      const st = JSON.parse(json);
+      return validSave(st) ? st : null;
+    } catch (e) { return null; }
+  }
+
+  function newestBackup() {
+    let best = null;
+    for (const key of BACKUP_KEYS) {
+      try {
+        const wrap = JSON.parse(localStorage.getItem(key));
+        if (wrap && wrap.data && (!best || wrap.at > best.at)) {
+          const st = tryParse(wrap.data);
+          if (st) best = { at: wrap.at, st };
+        }
+      } catch (e) {}
+    }
+    return best;
+  }
+
+  function adoptState(st) {
+    state = st;
+    state._flags = state._flags || {};
+    state._flags.deaths = state._flags.deaths || { dry: 0, rot: 0, season: 0 };
+    for (const a of state.animals) if (!a.uid) a.uid = animalUid++;
+    animalUid = Math.max(animalUid, ...state.animals.map(a => a.uid + 1), 1);
   }
 
   function load() {
     let raw = null;
     try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {}
-    if (!raw) { newGame(); return { fresh: true }; }
+    let st = raw ? tryParse(raw) : null;
+    let recovered = false;
+    if (!st) { // main save missing or corrupt — try the backup snapshots
+      const backup = newestBackup();
+      if (backup) { st = backup.st; recovered = true; }
+    }
+    if (!st) { newGame(); return { fresh: true }; }
+    adoptState(st);
+    if (recovered) save();
+    const elapsed = Math.min((Date.now() - (state.lastSaved || Date.now())) / 1000, 4 * 3600);
+    let away = null;
+    if (elapsed > 45) away = fastForward(elapsed);
+    return { fresh: false, away, recovered };
+  }
+
+  // portable save code: HE1.<base64 json>.<checksum>
+  function exportCode() {
+    if (!state) return null;
+    save();
+    const json = JSON.stringify(state);
+    return 'HE1.' + btoa(unescape(encodeURIComponent(json))) + '.' + fnv(json);
+  }
+
+  function importCode(code) {
     try {
-      const st = JSON.parse(raw);
-      if (!st || st.v !== 3 || !st.tiles || !st.setupDone) { newGame(); return { fresh: true }; }
-      state = st;
-      state._flags = state._flags || {};
-      state._flags.deaths = state._flags.deaths || { dry: 0, rot: 0, season: 0 };
-      for (const a of state.animals) if (!a.uid) a.uid = animalUid++;
-      animalUid = Math.max(animalUid, ...state.animals.map(a => a.uid + 1), 1);
-      const elapsed = Math.min((Date.now() - (state.lastSaved || Date.now())) / 1000, 4 * 3600);
-      let away = null;
-      if (elapsed > 45) away = fastForward(elapsed);
-      return { fresh: false, away };
+      const parts = (code || '').trim().split('.');
+      if (parts.length !== 3 || parts[0] !== 'HE1') return { ok: false, why: 'That doesn\'t look like a farm code.' };
+      const json = decodeURIComponent(escape(atob(parts[1])));
+      if (fnv(json) !== parts[2]) return { ok: false, why: 'The code is damaged (checksum mismatch).' };
+      const st = tryParse(json);
+      if (!st) return { ok: false, why: 'The code holds an incompatible save.' };
+      adoptState(st);
+      save();
+      return { ok: true };
     } catch (e) {
-      newGame();
-      return { fresh: true };
+      return { ok: false, why: 'Could not read that code.' };
     }
   }
 
@@ -223,6 +301,8 @@ const Game = (() => {
   function fuelPrice() { return state.market.fuelPrice; }
 
   function buyFuel(gal) {
+    gal = Number(gal);
+    if (!Number.isFinite(gal) || gal <= 0 || gal > 500) return false; // no negative-gallon money printers
     const cost = Math.ceil(gal * state.market.fuelPrice);
     if (state.coins < cost) { toast('Not enough cash for fuel!', 'bad'); return false; }
     state.coins -= cost;
@@ -325,10 +405,10 @@ const Game = (() => {
     const t = tileAt(x, y);
     const def = D.CROPS[cropId];
     if (!t || !def || t.k !== 'soil' || t.crop || t.obj) return false;
-    if (state.coins < def.seed) { toast('Not enough cash for seeds!', 'bad'); return false; }
+    if (state.coins < def.seed) { toast('Not enough cash for seeds! (Tip: work odd jobs from the ⚙️ Menu)', 'bad'); return false; }
     // planting out of season is allowed — but the crop will wither and die.
-    if (!seasonOK(cropId) && state._flags.offWarnDay !== state.now && !state._offline) {
-      state._flags.offWarnDay = state.now;
+    if (!seasonOK(cropId) && state.now >= (state._flags.offWarnUntil || 0) && !state._offline) {
+      state._flags.offWarnUntil = state.now + 12; // don't spam while drag-planting
       toast(`⚠️ ${D.ITEMS[cropId].name} is out of season — it will wither and the seed money is gone!`, 'bad');
     }
     state.coins -= def.seed;
@@ -531,6 +611,10 @@ const Game = (() => {
     const def = D.BUILDINGS[b.type];
     if (def.capacity && animalsIn(index).length > 0) {
       toast('Sell or move the animals first!', 'bad');
+      return false;
+    }
+    if (b.type === 'well' && buildingsOf('well').length <= 1) {
+      toast('A farm needs at least one well!', 'bad');
       return false;
     }
     const refund = Math.floor(def.cost / 2);
@@ -748,6 +832,20 @@ const Game = (() => {
     return n;
   }
 
+  // odd jobs: a once-per-day income floor so a failed farm is never a dead end
+  function oddJobsAvailable() {
+    return state._flags.oddJobsDay !== `${state.year}-${state.season}-${state.day}`;
+  }
+
+  function workOddJobs() {
+    if (!oddJobsAvailable()) { toast('You already worked today — come back tomorrow!', 'bad'); return false; }
+    state._flags.oddJobsDay = `${state.year}-${state.season}-${state.day}`;
+    state.coins += 40;
+    emit('sound', 'coin');
+    toast('💪 A hard day\'s work in town: +' + D.$(40), 'good');
+    return true;
+  }
+
   // ---------------- upgrades ----------------
   function buyCanTier() {
     const next = D.CAN_TIERS[state.can.tier + 1];
@@ -773,20 +871,34 @@ const Game = (() => {
   }
 
   // ---------------- goals ----------------
-  function currentGoal() { return D.GOALS[state.goalIndex] || null; }
+  // Goals pay out in ANY order — one skipped goal (e.g. "complete 2 orders")
+  // must never block credit for everything achieved after it.
+  function goalsDoneList() {
+    if (!state.goalsDone) state.goalsDone = D.GOALS.slice(0, state.goalIndex || 0).map(g => g.id);
+    return state.goalsDone;
+  }
+
+  function currentGoal() {
+    const done = goalsDoneList();
+    return D.GOALS.find(g => !done.includes(g.id)) || null;
+  }
 
   function checkGoal() {
-    const g = currentGoal();
-    if (!g) return;
-    const [cur, need] = g.check(state);
-    if (cur >= need) {
-      state.coins += g.reward;
-      toast(`${g.icon} Goal complete: ${g.title}! +${D.$(g.reward)}`, 'good');
-      emit('sound', 'goal');
-      state.goalIndex++;
-      emit('goal');
-      checkGoal(); // next goal may already be satisfied
+    const done = goalsDoneList();
+    let paid = false;
+    for (const g of D.GOALS) {
+      if (done.includes(g.id)) continue;
+      const [cur, need] = g.check(state);
+      if (cur >= need) {
+        done.push(g.id);
+        state.coins += g.reward;
+        toast(`${g.icon} Goal complete: ${g.title}! +${D.$(g.reward)}`, 'good');
+        emit('sound', 'goal');
+        paid = true;
+      }
     }
+    state.goalIndex = done.length;
+    if (paid) emit('goal');
   }
 
   // ---------------- daily events ----------------
@@ -804,9 +916,10 @@ const Game = (() => {
     state._flags.crowDone = false;
     state._flags.frostDone = false;
 
-    // sprinklers water every dawn, then drones harvest & replant
-    for (const b of state.buildings) if (b && b.type === 'sprinkler') sprinkle(b);
+    // drones harvest & replant first, THEN sprinklers water — so freshly
+    // replanted crops don't spend their first day dry
     runDrones();
+    for (const b of state.buildings) if (b && b.type === 'sprinkler') sprinkle(b);
 
     // hungry animals lose happiness; at rock bottom they fall sick
     for (const a of state.animals) {
@@ -959,12 +1072,12 @@ const Game = (() => {
   // ---------------- derived info for UI ----------------
   function farmValue() {
     if (!state) return 0;
-    let v = state.coins;
+    let v = state.coins + state.fuel * (state.market.fuelPrice || 3.4);
     for (const [item, qty] of Object.entries(state.inventory)) v += D.ITEMS[item].base * qty;
     for (const b of state.buildings) if (b) v += D.BUILDINGS[b.type].cost;
     for (const a of state.animals) v += D.ANIMALS[a.type].cost;
     for (const i of state.unlockedParcels) v += D.PARCELS[i].cost;
-    return v;
+    return Math.round(v);
   }
 
   function ownsPoweredGear() {
@@ -975,6 +1088,8 @@ const Game = (() => {
     get state() { return state; },
     on, emit, toast,
     newGame, applySetup, load, save, resetGame,
+    exportCode, importCode,
+    workOddJobs, oddJobsAvailable,
     tick,
     // world queries
     tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK,
