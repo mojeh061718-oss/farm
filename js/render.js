@@ -4541,10 +4541,40 @@ const Renderer = (() => {
     }
   }
 
+  // ---------------- coverage zones (greenhouse aura) ----------------
+  // translucent iso-diamond over a tile rect — placement ghosts show it live,
+  // tapping a greenhouse flashes it for a couple of seconds.
+  let covFlash = null; // { x0, y0, x1, y1, until }
+  function flashCoverage(x0, y0, x1, y1, dur) {
+    covFlash = { x0, y0, x1, y1, until: time + (dur || 2) };
+  }
+
+  function drawZone(x0, y0, x1, y1, alpha) {
+    const pts = [proj(x0, y0), proj(x1, y0), proj(x1, y1), proj(x0, y1)];
+    ctx.fillStyle = `rgba(126,207,146,${(0.24 * alpha).toFixed(3)})`;
+    poly(pts);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(47,143,82,${(0.8 * alpha).toFixed(3)})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 5]);
+    poly(pts);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawCoverageFlash() {
+    if (!covFlash) return;
+    const a = Math.min(1, (covFlash.until - time) / 0.4);
+    if (a <= 0) { covFlash = null; return; }
+    drawZone(covFlash.x0, covFlash.y0, covFlash.x1, covFlash.y1, a);
+  }
+
   // ---------------- ghost (build placement) ----------------
   function drawGhost(state) {
     if (!ghost) return;
     const def = D.BUILDINGS[ghost.type];
+    // greenhouses shelter a 6×6 zone — show it while placing
+    if (ghost.type === 'greenhouse') drawZone(ghost.x - 2, ghost.y - 2, ghost.x + 4, ghost.y + 4, 0.85);
     const ok = Game.canPlaceBuilding(ghost.type, ghost.x, ghost.y);
     const corners = [
       proj(ghost.x, ghost.y), proj(ghost.x + def.w, ghost.y),
@@ -4614,6 +4644,7 @@ const Renderer = (() => {
     drawPond(state, dt);
     drawGroundFx(dt);                    // soak stains, furrow reveals, impact rings
     drawParcels(state);
+    drawCoverageFlash();                 // tapped-greenhouse 6×6 aura
 
     // viewport culling: visible tile window from the 4 screen corners
     const c1 = screenToTile(0, 0), c2 = screenToTile(vw, 0), c3 = screenToTile(0, vh), c4 = screenToTile(vw, vh);
@@ -4737,7 +4768,7 @@ const Renderer = (() => {
 
   return {
     init, render, cam, clampCam, centerOn, screenToTile, tileToScreen,
-    addFloat, addBurst, setGhost, getGhost: () => ghost,
+    addFloat, addBurst, setGhost, getGhost: () => ghost, flashCoverage,
     // Phase 3 juice hooks (fx bus → ui.js → here)
     fxTill, fxPlant, fxWater, fxHarvest, fxClear, fxLightning,
     addStartle, addGlintBurst,

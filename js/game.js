@@ -60,8 +60,18 @@ const Game = (() => {
     return state.buildings.some(b => b && b.type === 'scarecrow' && Math.abs(b.x - x) <= 2 && Math.abs(b.y - y) <= 2);
   }
 
-  function seasonOK(cropId) {
-    return D.CROPS[cropId].seasons.includes(state.season) || hasBuilding('greenhouse');
+  // a greenhouse shelters a 6×6 zone: its 2×2 footprint plus a 2-tile ring
+  function greenhouseAt(x, y) {
+    return state.buildings.some(b => b && b.type === 'greenhouse'
+      && x >= b.x - 2 && x <= b.x + 3 && y >= b.y - 2 && y <= b.y + 3);
+  }
+
+  // position-aware: pass tile coords to honor greenhouse coverage.
+  // Without coords (item pools etc.) any greenhouse counts as "maybe".
+  function seasonOK(cropId, x, y) {
+    if (D.CROPS[cropId].seasons.includes(state.season)) return true;
+    if (x === undefined) return hasBuilding('greenhouse');
+    return greenhouseAt(x, y);
   }
 
   // ---------------- new game ----------------
@@ -83,7 +93,7 @@ const Game = (() => {
       xp: 0,
       level: 1,
       now: 0,                  // total gameplay seconds
-      day: 1, t: 0.25,         // morning of day 1
+      day: 1, t: 0.02,         // dawn of day 1 — a full first day for crops
       season: 0, year: 1,
       weather: 'sun',
       forecast: 'rain',
@@ -98,7 +108,10 @@ const Game = (() => {
       orderTimer: 20,
       unlockedParcels: [0],
       goalIndex: 0,
-      stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0, fertilized: 0, earned: 0, lost: 0 },
+      feedCredits: 0,
+      usedNames: [],
+      produced: {},
+      stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0, fertilized: 0, earned: 0, lost: 0, recent: 0, prodMark: 0 },
       settings: { sound: true },
       lastSaved: Date.now(),
       _flags: { deaths: { dry: 0, rot: 0, season: 0 } },
@@ -127,7 +140,7 @@ const Game = (() => {
     const def = D.BUILDINGS[type];
     const b = { type, x, y };
     if (def.capacity) b.capacity = def.capacity;
-    if (['bakery', 'creamery', 'press', 'loom'].includes(type)) b.queue = [];
+    if (['bakery', 'creamery', 'press', 'loom'].includes(type)) { b.queue = []; b.slots = 1; }
     // reuse tombstone slots so indexes stay stable
     let idx = state.buildings.indexOf(null);
     if (idx === -1) { state.buildings.push(b); idx = state.buildings.length - 1; }
@@ -201,6 +214,33 @@ const Game = (() => {
     state._flags.deaths = state._flags.deaths || { dry: 0, rot: 0, season: 0 };
     for (const a of state.animals) if (!a.uid) a.uid = animalUid++;
     animalUid = Math.max(animalUid, ...state.animals.map(a => a.uid + 1), 1);
+
+    // ---- 2.0 additive migrations (v3 saves stay loadable) ----
+    state.feedCredits = state.feedCredits || 0;
+    state.usedNames = state.usedNames || [...new Set(state.animals.map(a => a.name))];
+    state.produced = state.produced || {};
+    for (const k of Object.keys(state.inventory || {})) state.produced[k] = 1;
+    state.stats.recent = state.stats.recent || 0;
+    state.stats.prodMark = state.stats.prodMark || 0;
+    // orders gain deadlines
+    for (const o of state.orders || []) {
+      if (o.expires == null) o.expires = state.now + 3 * D.DAY_LEN;
+      if (o.posted == null) o.posted = state.now;
+    }
+    // craft queues: absolute `done` timestamps → remaining seconds; jobs
+    // queued under the old parallel rules are grandfathered (legacy) so
+    // they all finish — new jobs obey the slot lanes.
+    for (const b of state.buildings) {
+      if (!b || !b.queue) continue;
+      if (!b.slots) b.slots = 1;
+      b.queue = b.queue.map(j => j.left != null ? j
+        : { r: j.r, left: Math.max(0, (j.done || 0) - state.now), legacy: true });
+    }
+    // greenhouse became an area effect — tell the player once
+    if (!state._flags.ghAreaNotice && state.buildings.some(b => b && b.type === 'greenhouse')) {
+      state._flags.ghAreaNotice = true;
+      state._flags.pendingToast = '🪴 Greenhouses now protect a 6×6 area around them!';
+    }
   }
 
   function load() {
@@ -324,22 +364,36 @@ const Game = (() => {
 
   function makeOrder() {
     const pool = availableItems();
-    const wealth = 1 + Math.min(6, state.stats.earned / 4000); // orders grow with your empire
-    const n = 1 + Math.floor(rnd() * Math.min(3, 1 + wealth / 2));
+    // quantities scale with RECENT production (decayed daily harvest+collect),
+    // not lifetime wealth — a slumping or fresh farm gets small orders again
+    const scale = 1 + Math.min(6, (state.stats.recent || 0) / 10);
+    const n = 1 + Math.floor(rnd() * Math.min(3, 1 + scale / 2));
     const reqs = {};
-    let total = 0;
     for (let i = 0; i < n; i++) {
       const item = pick(pool);
-      const qty = Math.max(2, Math.round((2 + rnd() * 3) * (0.7 + wealth * 0.25)));
+      const qty = Math.max(2, Math.round((2 + rnd() * 3) * (0.7 + scale * 0.25)));
       reqs[item] = (reqs[item] || 0) + qty;
     }
-    for (const [item, qty] of Object.entries(reqs)) total += D.ITEMS[item].base * qty;
+    // payout rides the player's LIVE prices (market, reputation, difficulty)
+    // so a delivery always beats spot-selling by ~25%
+    let total = 0, baseTotal = 0;
+    for (const [item, qty] of Object.entries(reqs)) {
+      total += sellPrice(item) * qty;
+      baseTotal += D.ITEMS[item].base * qty;
+    }
     return {
       id: 'o' + Math.floor(rnd() * 1e9),
       reqs,
-      coins: Math.ceil(total * 1.6 / 5) * 5,
-      xp: Math.max(5, Math.ceil(total / 8)),
+      coins: Math.ceil(total * 1.25 / 5) * 5,
+      xp: Math.max(5, Math.ceil(baseTotal / 8)),
+      posted: state.now,
+      expires: state.now + 3 * D.DAY_LEN,
     };
+  }
+
+  // rush bonus: delivered within one day of posting pays +25%
+  function orderRush(order) {
+    return order.posted != null && state.now <= order.posted + D.DAY_LEN;
   }
 
   function canFulfill(order) {
@@ -355,13 +409,15 @@ const Game = (() => {
       state.inventory[item] -= qty;
       if (state.inventory[item] <= 0) delete state.inventory[item];
     }
-    state.coins += order.coins;
-    state.stats.earned += order.coins;
+    const rush = orderRush(order);
+    const payout = rush ? Math.ceil(order.coins * 1.25 / 5) * 5 : order.coins;
+    state.coins += payout;
+    state.stats.earned += payout;
     addXp(order.xp);
     state.stats.orders++;
     state.orders.splice(i, 1);
     state.orderTimer = 30;
-    toast(`Order complete! +${D.$(order.coins)}`, 'good');
+    toast(`Order complete! +${D.$(payout)}${rush ? ' ⚡ RUSH +25%!' : ''}`, 'good');
     emit('sound', 'coin');
     checkGoal();
     return true;
@@ -384,7 +440,14 @@ const Game = (() => {
     state.coins += gain;
     state.stats.earned += gain;
     state.stats.sold += qty;
-    addXp(Math.ceil(qty / 2));
+    addXp(qty * 0.5); // fractional — selling 1-at-a-time earns exactly the same
+    // market memory: dumping a pile crashes that price (daily drift recovers it)
+    const crash = Math.max(0.55, 1 - qty * 0.004);
+    state.market.mults[item] = Math.max(0.55, (state.market.mults[item] || 1) * crash);
+    if (crash <= 0.85 && !state._flags.dumpTold && !state._offline) {
+      state._flags.dumpTold = true;
+      toast(`📉 Dumping ${qty} ${D.ITEMS[item].name} at once crashed its price! It recovers over a few days.`, 'bad');
+    }
     emit('sound', 'coin');
     checkGoal();
     return gain;
@@ -407,7 +470,7 @@ const Game = (() => {
     if (!t || !def || t.k !== 'soil' || t.crop || t.obj) return false;
     if (state.coins < def.seed) { toast('Not enough cash for seeds! (Tip: work odd jobs from the ⚙️ Menu)', 'bad'); return false; }
     // planting out of season is allowed — but the crop will wither and die.
-    if (!seasonOK(cropId) && state.now >= (state._flags.offWarnUntil || 0) && !state._offline) {
+    if (!seasonOK(cropId, x, y) && state.now >= (state._flags.offWarnUntil || 0) && !state._offline) {
       state._flags.offWarnUntil = state.now + 12; // don't spam while drag-planting
       toast(`⚠️ ${D.ITEMS[cropId].name} is out of season — it will wither and the seed money is gone!`, 'bad');
     }
@@ -435,8 +498,9 @@ const Game = (() => {
   function fertilize(x, y) {
     const t = tileAt(x, y);
     if (!t || !t.crop || t.crop.dead || t.crop.fert || t.crop.prog >= 1) return false;
-    if (state.coins < D.FERT_COST) return 'broke';
-    state.coins -= D.FERT_COST;
+    const cost = D.fertCost(t.crop.id);
+    if (state.coins < cost) return 'broke';
+    state.coins -= cost;
     t.crop.fert = true;
     state.stats.fertilized++;
     fx('burst', x + .5, y + .4, null, '#d9b23c');
@@ -457,10 +521,11 @@ const Game = (() => {
     const def = D.CROPS[id];
     const n = harvestYield(t.crop);
     state.inventory[id] = (state.inventory[id] || 0) + n;
+    if (state.produced) state.produced[id] = 1;
     addXp(def.xp);
     state.stats.harvested++;
 
-    if (def.regrow && seasonOK(id)) { // multi-harvest crops grow back
+    if (def.regrow && seasonOK(id, x, y)) { // multi-harvest crops grow back
       t.crop.prog = 0;
       t.crop.rot = 0;
       t.crop.regrown = true;
@@ -483,6 +548,28 @@ const Game = (() => {
     t.crop = null;
     fx('clear', x + .5, y + .4, null, '#8a8178');
     return true;
+  }
+
+  // the shovel: dig up a living crop (50% seed refund), clear a dead one,
+  // or un-till empty soil back to grass (the ground layer repaints itself)
+  function dig(x, y) {
+    const t = tileAt(x, y);
+    if (!t || !isUnlocked(x, y) || t.obj) return false;
+    if (t.crop) {
+      if (t.crop.dead) return clearDead(x, y);
+      const refund = Math.round(D.CROPS[t.crop.id].seed * 0.5);
+      t.crop = null;
+      state.coins += refund;
+      fx('till', x + .5, y + .5, null, '#7d5c3c'); // small dirt burst
+      fx('float', x + .5, y, `+${D.$(refund)}`, '#ffe082');
+      return true;
+    }
+    if (t.k === 'soil') {
+      t.k = 'grass'; // baked ground layer repaints via its tile signature
+      fx('till', x + .5, y + .5, null, '#6a8f3c');
+      return true;
+    }
+    return false;
   }
 
   function refillCan() {
@@ -540,6 +627,8 @@ const Game = (() => {
     } else if (tool === 'harvest') {
       if (harvest(x, y)) { count = 1; emit('sound', 'harvest'); }
       else if (clearDead(x, y)) count = 1;
+    } else if (tool === 'shovel') {
+      if (dig(x, y)) { count = 1; emit('sound', 'till'); }
     }
     return count;
   }
@@ -562,7 +651,14 @@ const Game = (() => {
     }
 
     if (t.crop) {
-      if (t.crop.dead) { clearDead(x, y); emit('sound', 'till'); return { act: 'clear' }; }
+      if (t.crop.dead) {
+        // teach the loss: say WHY it died, then clear it
+        const CAUSES = { thirst: 'thirst 🥀', rot: 'rot — it stood ripe too long 🪰', season: 'the season change 🍂', frost: 'frost ❄️', storm: 'the storm ⛈️' };
+        toast(`💀 ${D.ITEMS[t.crop.id].name} died of ${CAUSES[t.crop.deadCause] || 'neglect'}`);
+        clearDead(x, y);
+        emit('sound', 'till');
+        return { act: 'clear' };
+      }
       if (t.crop.prog >= 1) { applyTool('harvest', x, y); return { act: 'harvest' }; }
       if (t.crop.water <= 0.55) {
         const r = applyTool('water', x, y);
@@ -601,6 +697,8 @@ const Game = (() => {
     emit('sound', 'build');
     toast(`${def.emoji} ${def.name} built!`, 'good');
     if (type === 'sprinkler') sprinkle(state.buildings[idx]);
+    if (type === 'greenhouse') state._flags.ghAreaNotice = true; // built under the area rules
+
     checkGoal();
     return true;
   }
@@ -667,7 +765,7 @@ const Game = (() => {
           const id = t.crop.id;
           harvested += harvest(x, y, true);
           worked = true;
-          if (!tileAt(x, y).crop && state.coins >= D.CROPS[id].seed && seasonOK(id)) {
+          if (!tileAt(x, y).crop && state.coins >= D.CROPS[id].seed && seasonOK(id, x, y)) {
             if (plant(x, y, id)) replanted++;
           }
         }
@@ -684,6 +782,23 @@ const Game = (() => {
 
   function animalsIn(bIdx) { return state.animals.filter(a => a.home === bIdx); }
 
+  // draw names without replacement; when the pool runs dry, "Clover II" etc.
+  function pickAnimalName() {
+    state.usedNames = state.usedNames || [];
+    const used = state.usedNames;
+    let pool = D.ANIMAL_NAMES.filter(n => !used.includes(n));
+    if (!pool.length) {
+      const ROMAN = ['', '', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+      for (let gen = 2; !pool.length; gen++) {
+        const suffix = ROMAN[gen] || `#${gen}`;
+        pool = D.ANIMAL_NAMES.map(n => `${n} ${suffix}`).filter(n => !used.includes(n));
+      }
+    }
+    const name = pick(pool);
+    used.push(name);
+    return name;
+  }
+
   function buyAnimal(type, bIdx) {
     const def = D.ANIMALS[type];
     const b = state.buildings[bIdx];
@@ -694,7 +809,7 @@ const Game = (() => {
     state.animals.push({
       uid: animalUid++,
       type, home: bIdx,
-      name: pick(D.ANIMAL_NAMES),
+      name: pickAnimalName(),
       fedUntil: state.now + D.DAY_LEN * 1.2,
       happiness: 60,
       sick: false,
@@ -732,13 +847,24 @@ const Game = (() => {
     return true;
   }
 
-  // feeding uses grain (wheat/corn) if you own a Feed Mill, otherwise dollars
+  // the Feed Mill grinds grain into feed credits: 1 wheat/corn → 3 feeds
+  function grindGrain(item, qty) {
+    if (item !== 'wheat' && item !== 'corn') return 0;
+    if (!hasBuilding('mill')) return 0;
+    qty = Math.min(Math.max(0, Math.floor(qty)), state.inventory[item] || 0);
+    if (qty <= 0) { toast(`No ${D.ITEMS[item].name.toLowerCase()} to grind!`, 'bad'); return 0; }
+    state.inventory[item] -= qty;
+    if (state.inventory[item] <= 0) delete state.inventory[item];
+    state.feedCredits = (state.feedCredits || 0) + qty * 3;
+    emit('sound', 'till');
+    toast(`🌾 Ground ${qty} ${D.ITEMS[item].name.toLowerCase()} into ${qty * 3} feed credit${qty * 3 > 1 ? 's' : ''}!`, 'good');
+    return qty * 3;
+  }
+
+  // feeding spends a feed credit first, then falls back to cash
   function feedCostFor(animal) {
     const def = D.ANIMALS[animal.type];
-    if (hasBuilding('mill')) {
-      if ((state.inventory.wheat || 0) > 0) return { grain: 'wheat' };
-      if ((state.inventory.corn || 0) > 0) return { grain: 'corn' };
-    }
+    if ((state.feedCredits || 0) > 0) return { credits: 1 };
     return { coins: def.feedCost };
   }
 
@@ -746,9 +872,8 @@ const Game = (() => {
     const a = state.animals[index];
     if (!a || state.now < a.fedUntil - D.DAY_LEN * 0.2) return false; // already well fed
     const cost = feedCostFor(a);
-    if (cost.grain) {
-      state.inventory[cost.grain]--;
-      if (state.inventory[cost.grain] <= 0) delete state.inventory[cost.grain];
+    if (cost.credits) {
+      state.feedCredits -= cost.credits;
     } else {
       if (state.coins < cost.coins) { toast('Not enough cash for feed!', 'bad'); return false; }
       state.coins -= cost.coins;
@@ -773,6 +898,7 @@ const Game = (() => {
       const def = D.ANIMALS[a.type];
       const bonus = a.happiness >= 85 && rnd() < 0.25 ? 2 : 1; // happy animals sometimes give double
       state.inventory[def.product] = (state.inventory[def.product] || 0) + bonus;
+      if (state.produced) state.produced[def.product] = 1;
       a.prodProg = 0;
       n += bonus;
       gainXp += Math.ceil(D.ITEMS[def.product].base / 8);
@@ -805,8 +931,38 @@ const Game = (() => {
       state.inventory[item] -= qty;
       if (state.inventory[item] <= 0) delete state.inventory[item];
     }
-    b.queue.push({ r: recipeId, done: state.now + r.time });
+    b.queue.push({ r: recipeId, left: r.time }); // remaining seconds — lanes tick it down
     emit('sound', 'plant');
+    return true;
+  }
+
+  // which queued jobs are actually crafting right now (up to `slots` lanes;
+  // legacy jobs from pre-2.0 parallel saves always run to completion)
+  function runningJobs(b) {
+    const out = [];
+    let lanes = b.slots || 1;
+    for (const job of b.queue) {
+      if (job.left <= 0) continue;                 // finished, awaiting collection
+      if (job.legacy) { out.push(job); continue; } // grandfathered
+      if (lanes <= 0) break;
+      out.push(job);
+      lanes--;
+    }
+    return out;
+  }
+
+  // buy an extra parallel craft lane for a processing building
+  function buySlot(bIdx) {
+    const b = state.buildings[bIdx];
+    if (!b || !b.queue) return false;
+    const next = (b.slots || 1) + 1;
+    const cost = D.SLOT_COSTS[next];
+    if (!cost) return false;
+    if (state.coins < cost) { toast('Not enough cash!', 'bad'); return false; }
+    state.coins -= cost;
+    b.slots = next;
+    emit('sound', 'build');
+    toast(`⚙️ Craft slot ${next} installed — ${next} recipes run at once!`, 'good');
     return true;
   }
 
@@ -815,9 +971,10 @@ const Game = (() => {
     if (!b || !b.queue) return 0;
     let n = 0;
     b.queue = b.queue.filter(job => {
-      if (state.now >= job.done) {
+      if (job.left <= 0) {
         const out = D.RECIPES[job.r].out;
         state.inventory[out] = (state.inventory[out] || 0) + 1;
+        if (state.produced) state.produced[out] = 1;
         state.stats.crafted++;
         addXp(Math.ceil(D.ITEMS[out].base / 10));
         n++;
@@ -833,17 +990,30 @@ const Game = (() => {
     return n;
   }
 
-  // odd jobs: a once-per-day income floor so a failed farm is never a dead end
+  // odd jobs: a once-per-day income floor so a failed farm is never a dead end.
+  // $40 base, +$5 per consecutive day worked (cap $60); skipping a day resets.
+  function absDay() {
+    return ((state.year - 1) * 4 + state.season) * D.SEASON_DAYS + state.day;
+  }
+
   function oddJobsAvailable() {
     return state._flags.oddJobsDay !== `${state.year}-${state.season}-${state.day}`;
   }
 
+  function oddJobsPay() { // today's rate, streak included
+    const streak = state._flags.oddJobsAbs === absDay() - 1 ? (state._flags.oddJobsStreak || 0) + 1 : 0;
+    return Math.min(60, 40 + streak * 5);
+  }
+
   function workOddJobs() {
     if (!oddJobsAvailable()) { toast('You already worked today — come back tomorrow!', 'bad'); return false; }
+    const pay = oddJobsPay();
+    state._flags.oddJobsStreak = state._flags.oddJobsAbs === absDay() - 1 ? (state._flags.oddJobsStreak || 0) + 1 : 0;
+    state._flags.oddJobsAbs = absDay();
     state._flags.oddJobsDay = `${state.year}-${state.season}-${state.day}`;
-    state.coins += 40;
+    state.coins += pay;
     emit('sound', 'coin');
-    toast('💪 A hard day\'s work in town: +' + D.$(40), 'good');
+    toast(`💪 A hard day's work in town: +${D.$(pay)}${pay > 40 ? ' (streak bonus!)' : ''}`, 'good');
     return true;
   }
 
@@ -902,8 +1072,51 @@ const Game = (() => {
     if (paid) emit('goal');
   }
 
+  // ---------------- season telegraphs ----------------
+  // planted crops that will NOT survive the next season flip
+  function atRiskCrops() {
+    const next = (state.season + 1) % 4;
+    const out = [];
+    for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
+      const c = state.tiles[y][x].crop;
+      if (!c || c.dead) continue;
+      if (D.CROPS[c.id].seasons.includes(next)) continue;
+      if (greenhouseAt(x, y)) continue;
+      out.push({ x, y, id: c.id, ripe: c.prog >= 1, prog: c.prog });
+    }
+    return out;
+  }
+
+  function harvestAtRisk() { // one tap: bring in everything ripe on the risk list
+    let n = 0;
+    for (const e of atRiskCrops()) if (e.ripe) n += harvest(e.x, e.y, true);
+    if (n) {
+      toast(`🧺 Harvested ${n} crop${n > 1 ? 's' : ''} ahead of the season flip!`, 'good');
+      emit('sound', 'harvest');
+    }
+    return n;
+  }
+
+  function digAtRisk() { // one tap: shovel out everything still at risk (50% seed refund)
+    let n = 0;
+    const before = state.coins;
+    for (const e of atRiskCrops()) if (dig(e.x, e.y)) n++;
+    if (n) {
+      toast(`⛏️ Dug up ${n} at-risk crop${n > 1 ? 's' : ''} — ${D.$(state.coins - before)} in seed refunds.`, 'good');
+      emit('sound', 'till');
+    }
+    return n;
+  }
+
   // ---------------- daily events ----------------
   function newDay() {
+    // recent production: exponentially decayed daily harvest+collect count
+    // (order quantities scale with this, not lifetime wealth)
+    const hc = state.stats.harvested + state.stats.collected;
+    const today = Math.max(0, hc - (state.stats.prodMark || 0));
+    state.stats.recent = Math.round(((state.stats.recent || 0) * 0.7 + today * 0.3) * 10) / 10;
+    state.stats.prodMark = hc;
+
     state.day++;
     if (state.day > D.SEASON_DAYS) {
       state.day = 1;
@@ -911,6 +1124,17 @@ const Game = (() => {
       if (state.season === 0) state.year++;
       toast(`${D.SEASONS[state.season].emoji} ${D.SEASONS[state.season].name} has arrived!`);
       emit('season');
+    }
+    // dawn of the season's LAST day: warn about crops that won't make it
+    if (state.day === D.SEASON_DAYS && !state._offline) {
+      const risk = atRiskCrops();
+      if (risk.length) {
+        emit('care', {
+          n: risk.length,
+          season: D.SEASONS[state.season].name,
+          next: D.SEASONS[(state.season + 1) % 4].name,
+        });
+      }
     }
     state.weather = state.forecast;
     state.forecast = rollWeather(state.day === D.SEASON_DAYS ? (state.season + 1) % 4 : state.season);
@@ -946,7 +1170,7 @@ const Game = (() => {
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
         if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12 * diff().eventMult) {
-          t.crop.dead = true; smashed++; state.stats.lost++;
+          t.crop.dead = true; t.crop.deadCause = 'storm'; smashed++; state.stats.lost++;
           if (smashed <= 4) fx('lightning', x + .5, y + .5);
         }
       }
@@ -975,13 +1199,19 @@ const Game = (() => {
   }
 
   function nightfallEvents() {
-    // winter frost kills non-winter crops unless you own a greenhouse
-    if (state.season === 3 && !hasBuilding('greenhouse') && !state._offline && rnd() < 0.4 * diff().eventMult) {
+    // winter frost kills non-winter crops — greenhouse coverage spares its 6×6 zone
+    if (state.season === 3 && !state._offline && rnd() < 0.4 * diff().eventMult) {
       let frozen = 0;
-      for (const row of state.tiles) for (const t of row) {
-        if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3)) { t.crop.dead = true; frozen++; state.stats.lost++; }
+      for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
+        const t = state.tiles[y][x];
+        if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3) && !greenhouseAt(x, y)) {
+          t.crop.dead = true;
+          t.crop.deadCause = 'frost';
+          frozen++;
+          state.stats.lost++;
+        }
       }
-      if (frozen) toast(`❄️ Frost killed ${frozen} crop${frozen > 1 ? 's' : ''}! Only winter crops survive — or build a Greenhouse.`, 'bad');
+      if (frozen) toast(`❄️ Frost killed ${frozen} crop${frozen > 1 ? 's' : ''}! Only winter crops survive — or shelter plots under a Greenhouse.`, 'bad');
     }
   }
 
@@ -1016,10 +1246,10 @@ const Game = (() => {
     const deaths = state._flags.deaths;
 
     // crops: growth, thirst, wilting, rot
-    for (const row of state.tiles) for (const tile of row) {
-      const c = tile.crop;
+    for (let ty = 0; ty < D.WORLD_H; ty++) for (let tx = 0; tx < D.WORLD_W; tx++) {
+      const c = state.tiles[ty][tx].crop;
       if (!c || c.dead) continue;
-      const off = !seasonOK(c.id);
+      const off = !seasonOK(c.id, tx, ty);
       if (raining) c.water = 1;
       else c.water = Math.max(0, c.water - dt / drain);
 
@@ -1030,6 +1260,7 @@ const Game = (() => {
       if (!wilting && c.wilt > 0) c.wilt = Math.max(0, c.wilt - dt / D.DAY_LEN);
       if (c.wilt >= 1) {
         c.dead = true;
+        c.deadCause = off ? 'season' : 'thirst';
         state.stats.lost++;
         deaths[off ? 'season' : 'dry']++;
         continue;
@@ -1038,7 +1269,7 @@ const Game = (() => {
       if (c.prog >= 1) {
         // ripe crops rot if you leave them standing
         c.rot = (c.rot || 0) + (dt * decayMult) / (D.ROT_DAYS * D.DAY_LEN);
-        if (c.rot >= 1) { c.dead = true; state.stats.lost++; deaths.rot++; }
+        if (c.rot >= 1) { c.dead = true; c.deadCause = 'rot'; state.stats.lost++; deaths.rot++; }
       } else if (c.water > 0 && !off) {
         const def = D.CROPS[c.id];
         const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
@@ -1062,6 +1293,26 @@ const Game = (() => {
       }
     }
 
+    // craft lanes: only `slots` jobs per building tick down (legacy jobs always run)
+    for (const b of state.buildings) {
+      if (!b || !b.queue || !b.queue.length) continue;
+      for (const job of runningJobs(b)) job.left -= dt;
+    }
+
+    // expired orders quietly leave the board (no penalty) and refresh
+    if (state.orders.length) {
+      let expired = 0;
+      for (let i = state.orders.length - 1; i >= 0; i--) {
+        const o = state.orders[i];
+        if (o.expires != null && state.now >= o.expires) { state.orders.splice(i, 1); expired++; }
+      }
+      if (expired) {
+        state.orderTimer = Math.min(state.orderTimer, 8);
+        toast(`📋 ${expired} order${expired > 1 ? 's' : ''} expired — fresh ones are on the way.`);
+        emit('orders');
+      }
+    }
+
     // order refill
     if (state.orders.length < 4) {
       state.orderTimer -= dt;
@@ -1070,6 +1321,13 @@ const Game = (() => {
         state.orderTimer = 45;
         emit('orders');
       }
+    }
+
+    // one-shot notices deferred from load (UI listeners weren't attached yet)
+    if (state._flags.pendingToast && !state._offline) {
+      const msg = state._flags.pendingToast;
+      delete state._flags.pendingToast;
+      toast(msg, 'good');
     }
   }
 
@@ -1093,17 +1351,19 @@ const Game = (() => {
     on, emit, toast,
     newGame, applySetup, load, save, resetGame,
     exportCode, importCode,
-    workOddJobs, oddJobsAvailable,
+    workOddJobs, oddJobsAvailable, oddJobsPay,
     tick,
     // world queries
-    tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK,
+    tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK, greenhouseAt,
     buildingsOf, animalsIn, readyIn, feedCostFor, canCraft, canFulfill,
     currentGoal, sellPrice, fuelPrice, availableItems, farmValue, ownsPoweredGear,
+    atRiskCrops, runningJobs, orderRush,
     // actions
-    smartAction, applyTool, till, plant, water, fertilize, harvest, clearDead, refillCan,
+    smartAction, applyTool, till, plant, water, fertilize, harvest, clearDead, dig, refillCan,
+    harvestAtRisk, digAtRisk,
     canPlaceBuilding, placeBuilding, sellBuilding, buyParcel,
-    buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding,
-    startRecipe, collectRecipes,
+    buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
+    startRecipe, collectRecipes, buySlot,
     sellItem, fulfillOrder, skipOrder,
     buyCanTier, buyTillTier, buyFuel,
     addXp, checkGoal,

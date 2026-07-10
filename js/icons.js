@@ -376,13 +376,16 @@ window.Icons = (() => {
 
   const IDS = new Set([...SPRITE.matchAll(/id="i-([\w-]+)"/g)].map(m => m[1]));
 
+  // known ids that have no SVG symbol yet — emoji until their art lands
+  const FALLBACK = { shovel: '⛏️' };
+
   // core helper — svg <use> markup, or a graceful emoji fallback for ids
   // that have no symbol yet (phase-3 items keep their emoji this way)
   function icon(id, cls, fallbackEmoji) {
     if (IDS.has(id)) {
       return `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
     }
-    return `<span class="ic ic-emoji${cls ? ' ' + cls : ''}" aria-hidden="true">${fallbackEmoji || '❔'}</span>`;
+    return `<span class="ic ic-emoji${cls ? ' ' + cls : ''}" aria-hidden="true">${fallbackEmoji || FALLBACK[id] || '❔'}</span>`;
   }
 
   // ---- domain mappings ----
@@ -392,7 +395,7 @@ window.Icons = (() => {
     press: 'juice', loom: 'spool', drone: 'drone', greenhouse: 'greenhouse',
   };
   const ANIMAL = { chicken: 'hen', duck: 'duck', cow: 'cow', goat: 'goat', sheep: 'sheep', pig: 'pig' };
-  const TOOL = { auto: 'hand', hoe: 'hoe', plant: 'sprout', water: 'drop', fert: 'sparkle', harvest: 'basket' };
+  const TOOL = { auto: 'hand', hoe: 'hoe', plant: 'sprout', water: 'drop', fert: 'sparkle', harvest: 'basket', shovel: 'shovel' };
   const SEASON = ['blossom', 'sun', 'leaf', 'snowflake'];
   const WEATHER = { sun: 'sun', cloud: 'cloud', rain: 'rain', storm: 'storm', drought: 'flame', snow: 'snow' };
   // emoji used as system icons elsewhere in game data (goals etc.)
