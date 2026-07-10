@@ -195,13 +195,49 @@ const Renderer = (() => {
   }
 
   let gradeCanvas = null; // pre-composed vignette+grain overlay (rebuilt on resize)
+
+  /* ---------- dynamic resolution (DPR 3 with an automatic safety net) ----------
+     The backing store targets the device's real DPR (now capped at 3.0 so DPR-3
+     phones get text-sharp world rendering). If sustained frame times run hot,
+     the store steps down 3.0 → 2.5 → 2.0 → 1.75 (CSS size unchanged — only the
+     internal resolution drops, which is invisible next to a dropped frame).
+     It steps back up after a sustained cool period. Steps apply between frames. */
+  const RES_CAPS = [3.0, 2.5, 2.0, 1.75];
+  let resStep = 0;
+  let emaFrame = 16.7, hotFrames = 0, coolTime = 0, coolNeed = 5, upAt = -1e9;
+  function dynRes(dt) {
+    emaFrame += (dt * 1000 - emaFrame) * 0.08;         // EMA ≈ running p50
+    // cool = at/under vsync for coolNeed s (a 60 Hz rAF never reports <15 ms
+    // even when idle). Mild jitter (17.5–19 ms) holds the cool clock instead
+    // of resetting it — only genuinely hot frames restart the wait.
+    if (emaFrame > 19) { hotFrames++; coolTime = 0; }
+    else { hotFrames = 0; if (emaFrame < 17.5) coolTime += dt; }
+    const dev = Math.min(window.devicePixelRatio || 1, RES_CAPS[0]);
+    if (hotFrames >= 60 && resStep < RES_CAPS.length - 1) {
+      // a step-up that went hot again within 12 s was a failed probe:
+      // exponential backoff so boundary hardware doesn't oscillate visibly
+      if (time - upAt < 12) coolNeed = Math.min(80, coolNeed * 2);
+      // skip caps that don't actually lower the store on this device
+      do { resStep++; } while (resStep < RES_CAPS.length - 1 && Math.min(dev, RES_CAPS[resStep]) >= dpr);
+      hotFrames = 0; coolTime = 0;
+      if (Math.min(dev, RES_CAPS[resStep]) < dpr) resize();
+    } else if (coolTime >= coolNeed && resStep > 0) {
+      do { resStep--; } while (resStep > 0 && Math.min(dev, RES_CAPS[resStep]) <= dpr);
+      coolTime = 0; emaFrame = 16.7;
+      upAt = time;
+      if (Math.min(dev, RES_CAPS[resStep]) > dpr) resize();
+    }
+    if (coolNeed > 5 && time - upAt > 90) coolNeed = 5; // held a level for 90 s — trust it again
+  }
+
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2.0); // capped at 2.0
+    dpr = Math.min(window.devicePixelRatio || 1, RES_CAPS[resStep]); // DPR-3-ready, dyn-res capped
     // size to the canvas's actual CSS box (body tracks 100dvh), not the layout viewport
     vw = canvas.clientWidth || window.innerWidth;
     vh = canvas.clientHeight || window.innerHeight;
     canvas.width = Math.round(vw * dpr);
     canvas.height = Math.round(vh * dpr);
+    ctx.imageSmoothingQuality = 'high'; // context state resets with the store size
     lm.width = Math.max(1, Math.round(vw * dpr / 2));   // half-res light layer
     lm.height = Math.max(1, Math.round(vh * dpr / 2));
     lmFull.width = Math.max(1, Math.round(vw * dpr));
@@ -665,14 +701,26 @@ const Renderer = (() => {
      over the next frames (each bake is < 1 ms). */
   const Atlas = (() => {
     const cache = new Map();
+    let stale = null;   // last season's sprites, kept briefly as fallbacks
     let curSeason = -1;
+    let bakesLeft = 3;  // per-frame budget while a season turnover is in flight
     // bakeFn(g, lod) draws with its anchor at local (0,0); the sprite covers
     // x in [-ox, w-ox], y in [-oy, h-oy] around that anchor.
     function get(kind, variant, season, lod, w, h, ox, oy, bakeFn) {
       const key = kind + '|' + variant + '|' + season + '|' + lod;
       let e = cache.get(key);
+      if (!e && stale && bakesLeft <= 0) {
+        // over budget this frame: stamp the old season's sprite instead —
+        // the season crossfade is covering the screen while this happens
+        const old = stale.get(kind + '|' + variant + '|' + lod);
+        if (old) return old;
+      }
       if (!e) {
-        const sc = lod ? 2 : 1; // 2 ≈ dpr2 × z1: bakes stay crisp into close zoom
+        if (stale) bakesLeft--;
+        // LOD0 1x (far zoom, simplified art), LOD1 2x (classic detail),
+        // LOD2 3x (lazy — only baked when cam.z × dpr actually needs it, so
+        // high-DPR close zoom never upscales a bake)
+        const sc = lod === 2 ? 3 : lod ? 2 : 1;
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.ceil(w * sc));
         c.height = Math.max(1, Math.ceil(h * sc));
@@ -685,12 +733,23 @@ const Renderer = (() => {
       }
       return e;
     }
-    function season(s) { // drop everything when the season palette changes
+    function season(s) { // season palette change: current bakes become fallbacks
       if (s === curSeason) return;
       curSeason = s;
+      if (cache.size) {
+        stale = new Map();
+        for (const [k, v] of cache) {
+          const p = k.split('|'); // kind|variant|season|lod → kind|variant|lod
+          stale.set(p[0] + '|' + p[1] + '|' + p[3], v);
+        }
+      }
       cache.clear();
     }
-    return { get, season };
+    function tick() { // once per frame: refill the bake budget, retire fallbacks
+      bakesLeft = 2;
+      if (stale && seasonFade.a < 0.5 && !seasonFade.hold) stale = null;
+    }
+    return { get, season, tick };
   })();
   let LOD = 1;    // picked per frame from cam.z
   let stormK = 0; // storm gust blend 0..1 (eased on weather change)
@@ -718,12 +777,45 @@ const Renderer = (() => {
      soil-cliff rim — lives in ONE offscreen world canvas. Individual tiles are
      repainted into it when they change (till / water / unlock); the whole layer
      rebuilds on season change. Per-frame cost: one drawImage. */
-  const GS = 2; // ground bake supersample
+  // Ground bake supersample follows the device DPR: 2x on DPR-≤2 screens
+  // (unchanged, ~30 MB), 3x on DPR-3 phones so the ground stays crisp at
+  // gameplay zoom (5664×3078 ≈ 70 MB — measured, within a modern phone's
+  // canvas budget; DPR-2 devices never pay it). Decided per device at load,
+  // independent of dynamic-resolution steps (no rebake when the store steps).
+  const GS = (window.devicePixelRatio || 1) > 2.05 ? 3 : 2;
   const ground = {
-    c: null, g: null, season: -1,
+    c: null, g: null, mip: null, mg: null, season: -1,
     minX: 0, minY: 0, w: 0, h: 0,
     sig: new Int8Array(D.WORLD_W * D.WORLD_H),
   };
+  // half- and quarter-res mips of the ground bake: far zoom samples the mip
+  // whose scale is nearest 1:1 instead of minifying the full-res bake >2:1
+  // (no pan shimmer, and near-1:1 sampling stays cheap on software raster)
+  function refreshMip(sx, sy, sw, sh) {
+    if (!ground.mip) {
+      for (const [key, div] of [['mip', 2], ['mip2', 4]]) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(ground.c.width / div));
+        c.height = Math.max(1, Math.round(ground.c.height / div));
+        const g2 = c.getContext('2d');
+        g2.imageSmoothingQuality = 'high';
+        ground[key] = c;
+        ground[key + 'g'] = g2;
+      }
+    }
+    for (const [key, div] of [['mip', 2], ['mip2', 4]]) {
+      const mg = ground[key + 'g'], mc = ground[key];
+      mg.setTransform(1, 0, 0, 1, 0, 0);
+      if (sx === undefined) {
+        mg.clearRect(0, 0, mc.width, mc.height);
+        mg.drawImage(ground.c, 0, 0, mc.width, mc.height);
+      } else {
+        const px = Math.max(0, sx) / div, py = Math.max(0, sy) / div;
+        mg.clearRect(px, py, sw / div, sh / div);
+        mg.drawImage(ground.c, Math.max(0, sx), Math.max(0, sy), sw, sh, px, py, sw / div, sh / div);
+      }
+    }
+  }
 
   // per-tile bake signature: any visual state that lives in the baked ground
   // layer must be encoded here so the tile repaints when it changes.
@@ -752,32 +844,79 @@ const Renderer = (() => {
     // locked parcels read as wilder, slightly faded meadow (not police tape)
     const pi = Game.parcelAt(x, y);
     const locked = pi >= 0 && !state.unlockedParcels.includes(pi);
-    // smoothed-noise meadow: meso tone variance + macro patches + hue jitter
+    // smoothed-noise meadow: meso tone variance + macro patches + a fine
+    // micro octave (crisper patch texture at DPR 3) + hue jitter
     const n = snoise(x * 0.55 + 3.1, y * 0.55 + 7.7);
     const m = snoise(x * 0.21 + 11.3, y * 0.21 + 4.9); // macro meadow patches
-    const l = pal.grass[2] + (n - 0.5) * 7 + (m - 0.5) * 9 + (locked ? -2 : 0);
+    const mi = snoise(x * 1.35 + 8.5, y * 1.35 + 2.2); // micro grain
+    const owned = !locked && pi >= 0 && state.unlockedParcels.includes(pi);
+    // owned grass reads groomed: subtle alternating diagonal mowing bands
+    const mow = owned && state.season !== 3 ? ((Math.floor((x - y) / 2) % 2 + 2) % 2 ? 1.1 : -1.1) : 0;
+    const l = pal.grass[2] + (n - 0.5) * 7 + (m - 0.5) * 9 + (mi - 0.5) * 3 + (locked ? -2 : 0) + mow;
     const hh = pal.grass[0] + (snoise(x * 0.4 + 5.2, y * 0.4 + 2.8) - 0.5) * pal.hueJit;
     g.fillStyle = hsl(hh, pal.grass[1] - (locked ? 13 : 0), l);
     diamondOn(g, c.x, c.y, TW + 1.5, TH + 1);
     g.fill();
     const h = hash(x, y);
-    // clustered two-value grass tufts (crossing tile borders is fine at bake time)
-    if (h > (locked ? 0.14 : 0.28)) {
+    // clustered grass tufts — curved tapered blades in two shapes (loose
+    // scatter vs. fan sharing one base), two tones + season palette
+    if (h > (locked ? 0.14 : 0.21)) {
       const tx = c.x + (h * 997 % 1 - 0.5) * TW * 0.55;
       const ty = c.y + (h * 613 % 1 - 0.5) * TH * 0.55;
-      const nblades = (locked ? 5 : 3) + Math.floor(h * 17) % 4;
+      const fan = h * 771 % 1 > 0.55; // tuft shape variant
+      const nblades = (locked ? 6 : 4) + Math.floor(h * 17) % 4;
       const tall = locked ? 1.8 : 1;
-      g.lineWidth = 1.4;
+      g.lineWidth = 1.25;
       g.lineCap = 'round';
       for (let i = 0; i < nblades; i++) {
-        const bx = tx + (hash(x * 7 + i, y * 3) - 0.5) * (locked ? 22 : 13);
-        const by = ty + (hash(x * 3, y * 7 + i) - 0.5) * (locked ? 11 : 6);
+        const bx = fan ? tx + (i - nblades / 2) * 1.3
+          : tx + (hash(x * 7 + i, y * 3) - 0.5) * (locked ? 22 : 13);
+        const by = fan ? ty + (hash(x * 3, y + i) - 0.5) * 2
+          : ty + (hash(x * 3, y * 7 + i) - 0.5) * (locked ? 11 : 6);
         const tc = (i % 2 === 0) ? pal.tuftD : pal.tuftL;
-        g.strokeStyle = hsl(tc[0], tc[1] - (locked ? 12 : 0), tc[2], 0.75);
+        const hgt = (3.4 + (hash(x + i * 3, y * 5 + i) * 3.2)) * tall;
+        const lean = fan ? (i - (nblades - 1) / 2) * 1.6 : (hash(x + i, y - i) - 0.5) * 5;
+        g.strokeStyle = hsl(tc[0], tc[1] - (locked ? 12 : 0), tc[2], 0.78);
         g.beginPath();
         g.moveTo(bx, by);
-        g.lineTo(bx + (hash(x + i, y - i) - 0.5) * 4, by - (3 + (h * 431 % 1) * 3) * tall);
+        g.quadraticCurveTo(bx + lean * 0.25, by - hgt * 0.65, bx + lean, by - hgt);
         g.stroke();
+      }
+    }
+    // fine grass speckle: 3 short paired micro-blades per tile (bake-time
+    // only) — breaks up the flat diamond read at DPR-3 close zoom
+    if (state.season !== 3) {
+      g.lineWidth = 1;
+      g.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        const r1 = hash(x * 17 + i * 5, y * 19 + 3), r2 = hash(x * 23 + 7, y * 29 + i * 3);
+        if (r1 < 0.25) continue;
+        const px = c.x + (r1 - 0.5) * TW * 0.86;
+        const py = c.y + (r2 - 0.5) * TH * 0.86;
+        g.strokeStyle = hsl(pal.grass[0] + (i % 2 ? 8 : -5), pal.grass[1],
+          pal.grass[2] + (i % 2 ? 9 : -8), 0.42);
+        g.beginPath();
+        g.moveTo(px, py);
+        g.lineTo(px + (r2 - 0.5) * 2.4, py - 2 - r1 * 1.6);
+        g.moveTo(px + 1.8, py + 0.8);
+        g.lineTo(px + 1.8 + (r1 - 0.5) * 2.4, py - 1 - r2 * 1.6);
+        g.stroke();
+      }
+    }
+    // clover patches: little three-dot clusters, a light fleck on some
+    if (!locked && state.season !== 3 && hash(x * 5 + 1, y * 9 + 2) > 0.74) {
+      const px = c.x + (hash(x * 3 + 4, y + 6) - 0.5) * TW * 0.5;
+      const py = c.y + (hash(x + 8, y * 5 + 3) - 0.5) * TH * 0.5;
+      g.fillStyle = hsl(pal.grass[0] + 14, pal.grass[1], pal.grass[2] - 9, 0.55);
+      for (let i = 0; i < 6; i++) {
+        const a = hash(x + i, y * 7 + i) * Math.PI * 2, r = 1.5 + hash(x * 9 + i, y) * 4.5;
+        g.beginPath();
+        g.ellipse(px + Math.cos(a) * r, py + Math.sin(a) * r * 0.55, 1.15, 0.85, a, 0, PI2);
+        g.fill();
+      }
+      if (hash(x * 7, y * 11) > 0.5 && state.season < 2) { // odd white bloom
+        g.fillStyle = 'rgba(248,246,238,.7)';
+        g.beginPath(); g.arc(px, py - 1.2, 0.9, 0, PI2); g.fill();
       }
     }
     // winter: soft snow drifts
@@ -846,6 +985,12 @@ const Renderer = (() => {
     g.fillStyle = hsl(sh, ss, sl);
     diamondOn(g, c.x, c.y, W, H);
     g.fill();
+    // hairline half-px-inset lighter stroke anti-aliases the diamond edge so
+    // bed rims don't sparkle against grass at DPR 3
+    g.strokeStyle = hsl(sh, ss, sl + 4, 0.5);
+    g.lineWidth = 0.8;
+    diamondOn(g, c.x, c.y, W - 1, H - 0.6);
+    g.stroke();
     // seam filler along merged edges (covers the sliver of grass between beds)
     if (nNE || nSE || nSW || nNW) {
       g.strokeStyle = hsl(sh, ss, sl);
@@ -859,32 +1004,62 @@ const Renderer = (() => {
       g.stroke();
       g.lineCap = 'round';
     }
-    // ridged wobbly furrows: paired dark trench + lit crest, clipped to bed
+    // ridged wobbly furrows: paired dark trench + lit crest, clipped to bed.
+    // 8 samples + midpoint quadratics — the old 4-segment polyline faceted
+    // visibly at DPR 3 close zoom.
     g.save();
     diamondOn(g, c.x, c.y, W - 3, H - 3);
     g.clip();
+    const furrow = (wob, ox, oy) => {
+      const NSEG = 8;
+      const pts = [];
+      for (let k = 0; k <= NSEG; k++) pts.push(wob(k / NSEG));
+      g.beginPath();
+      g.moveTo(pts[0].x + ox, pts[0].y + oy);
+      for (let k = 1; k < NSEG; k++) {
+        const mx = (pts[k].x + pts[k + 1].x) / 2, my = (pts[k].y + pts[k + 1].y) / 2;
+        g.quadraticCurveTo(pts[k].x + ox, pts[k].y + oy, mx + ox, my + oy);
+      }
+      g.lineTo(pts[NSEG].x + ox, pts[NSEG].y + oy);
+      g.stroke();
+    };
     for (let i = 0; i < 4; i++) {
       const u = (i + 0.5) / 4;
-      const wob = (k, ph) => proj(x + u + Math.sin(k * 9 + ph + i + x * 2 + y) * 0.02, y + 0.05 + k * 0.9);
+      const wob = ph => k => proj(x + u + Math.sin(k * 9 + ph + i + x * 2 + y) * 0.02, y + 0.05 + k * 0.9);
       g.strokeStyle = wet ? 'rgba(14,8,4,.44)' : dead ? 'rgba(40,36,30,.4)' : 'rgba(30,16,6,.38)';
       g.lineWidth = 3;
-      g.beginPath();
-      for (let k = 0; k <= 4; k++) { const p = wob(k / 4, 0); k === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y); }
-      g.stroke();
+      furrow(wob(0), 0, 0);
       g.strokeStyle = winter ? 'rgba(245,250,255,.55)' // snow caught in the troughs
         : wet ? 'rgba(155,175,205,.14)' : dead ? 'rgba(200,196,185,.25)' : 'rgba(235,195,140,.28)';
       g.lineWidth = 1.6;
-      g.beginPath();
-      for (let k = 0; k <= 4; k++) { const p = wob(k / 4, 1.3); k === 0 ? g.moveTo(p.x - 3, p.y - 1.6) : g.lineTo(p.x - 3, p.y - 1.6); }
-      g.stroke();
+      furrow(wob(1.3), -3, -1.6);
     }
-    // mulch flecks: dark clods + light straw bits
-    for (let i = 0; i < 12; i++) {
+    // mulch flecks: dark clods, light straw bits, warm crumbs — denser and
+    // more varied than the old 12-fleck pass; clods get a lit top edge
+    for (let i = 0; i < 18; i++) {
       const r1 = hash(x * 13 + i, y * 7), r2 = hash(x * 5, y * 17 + i), r3 = hash(x + i, y + i);
-      g.fillStyle = r3 > 0.62 ? 'rgba(216,186,120,.35)' : r3 > 0.3 ? 'rgba(40,22,8,.4)' : 'rgba(210,165,115,.24)';
+      const px = c.x + (r1 - 0.5) * W * 0.82, py = c.y + (r2 - 0.5) * H * 0.82;
+      const rw = 1.1 + r3 * 1.6, rh = 0.7 + r3 * 0.9;
+      g.fillStyle = r3 > 0.72 ? 'rgba(216,186,120,.35)' : r3 > 0.36 ? 'rgba(40,22,8,.42)' : 'rgba(210,165,115,.26)';
       g.beginPath();
-      g.ellipse(c.x + (r1 - 0.5) * W * 0.8, c.y + (r2 - 0.5) * H * 0.8, 1.3 + r3 * 1.4, 0.8 + r3, r1 * 3, 0, Math.PI * 2);
+      g.ellipse(px, py, rw, rh, r1 * 3, 0, Math.PI * 2);
       g.fill();
+      if (r3 > 0.36 && r3 <= 0.72 && r2 > 0.5) { // lit crumb edge on the bigger clods
+        g.fillStyle = 'rgba(200,150,100,.22)';
+        g.beginPath();
+        g.ellipse(px - rw * 0.25, py - rh * 0.45, rw * 0.55, rh * 0.4, r1 * 3, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    // a few small field stones half-buried in the bed
+    for (let i = 0; i < 3; i++) {
+      const r1 = hash(x * 29 + i * 7, y * 23), r2 = hash(x * 11, y * 31 + i * 5);
+      if (r1 < 0.55) continue;
+      const px = c.x + (r2 - 0.5) * W * 0.7, py = c.y + (hash(x + i * 3, y * 13) - 0.5) * H * 0.7;
+      g.fillStyle = wet ? 'rgba(96,98,104,.8)' : 'rgba(128,124,116,.8)';
+      g.beginPath(); g.ellipse(px, py, 1.5 + r1, 1 + r1 * 0.6, r2 * 2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(210,208,196,.4)';
+      g.beginPath(); g.ellipse(px - 0.5, py - 0.5, (1.5 + r1) * 0.45, (1 + r1 * 0.6) * 0.4, r2 * 2, 0, Math.PI * 2); g.fill();
     }
     // wilting: dry cracks across the bed
     if (wilty && !wet) {
@@ -1045,19 +1220,25 @@ const Renderer = (() => {
   const POND = (() => {
     const cx = 1.0, cy = 7.65, rx = 0.85, ry = 1.42;
     const pts = [];
-    const n = 14;
+    const n = 22; // denser control ring + spline drawing = no visible facets
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
-      const j = 0.84 + hash(i * 7 + 1, 31) * 0.26; // hash-jittered organic bank
+      // two jitter octaves: big lobes + fine bank wobble
+      const j = 0.86 + hash((i >> 1) * 7 + 1, 31) * 0.22 + (hash(i * 13 + 5, 33) - 0.5) * 0.05;
       pts.push({ gx: cx + Math.cos(a) * rx * j, gy: cy + Math.sin(a) * ry * j });
     }
     return { cx, cy, rx, ry, pts };
   })();
-  function pondPoly(g, k) { // bank polygon scaled about the center, projected
+  function pondPoly(g, k) { // closed quadratic spline through bank midpoints
+    const P = POND.pts, n = P.length, S = [];
+    for (let i = 0; i < n; i++) {
+      S.push(proj(POND.cx + (P[i].gx - POND.cx) * k, POND.cy + (P[i].gy - POND.cy) * k));
+    }
     g.beginPath();
-    for (let i = 0; i < POND.pts.length; i++) {
-      const p = proj(POND.cx + (POND.pts[i].gx - POND.cx) * k, POND.cy + (POND.pts[i].gy - POND.cy) * k);
-      i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y);
+    g.moveTo((S[n - 1].x + S[0].x) / 2, (S[n - 1].y + S[0].y) / 2);
+    for (let i = 0; i < n; i++) {
+      const nx = S[(i + 1) % n];
+      g.quadraticCurveTo(S[i].x, S[i].y, (S[i].x + nx.x) / 2, (S[i].y + nx.y) / 2);
     }
     g.closePath();
   }
@@ -1075,14 +1256,20 @@ const Renderer = (() => {
     g.fillStyle = winter ? hsl(216, 14, 52) : hsl(28, 34, 33);
     pondPoly(g, 1.1);
     g.fill();
-    // grass overhang scallops on the mud's outer edge
-    g.fillStyle = hsl(pal.grass[0] + 3, pal.grass[1] + 4, pal.grass[2] - 5, 0.95);
-    for (let i = 0; i < 30; i++) {
-      const a = (i / 30) * Math.PI * 2;
-      const j = 1.22 + hash(i * 3, 47) * 0.1;
+    // grass overhang scallops on the mud's outer edge — denser ring with
+    // varied sizes + a darker under-tuft so the lip reads at DPR 3
+    for (let i = 0; i < 44; i++) {
+      const a = (i / 44) * Math.PI * 2;
+      const j = 1.21 + hash(i * 3, 47) * 0.11;
       const p = proj(POND.cx + Math.cos(a) * POND.rx * j, POND.cy + Math.sin(a) * POND.ry * j);
+      const rw = 3.2 + hash(i, 49) * 4.4, rh = 1.8 + hash(i, 51) * 1.6;
+      g.fillStyle = hsl(pal.grass[0] + 5, pal.grass[1] + 2, pal.grass[2] - 11, 0.6);
       g.beginPath();
-      g.ellipse(p.x, p.y, 4 + hash(i, 49) * 4, 2.2 + hash(i, 51) * 1.4, 0, 0, Math.PI * 2);
+      g.ellipse(p.x + 0.6, p.y + 0.9, rw, rh, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = hsl(pal.grass[0] + 3, pal.grass[1] + 4, pal.grass[2] - 5, 0.95);
+      g.beginPath();
+      g.ellipse(p.x, p.y, rw, rh, 0, 0, Math.PI * 2);
       g.fill();
     }
     // water with radial depth gradient (shallow warm teal rim → deep center)
@@ -1387,46 +1574,92 @@ const Renderer = (() => {
     { w: 7.2, c: [[28, 38, 36], [216, 10, 64]] },
     { w: 4.0, c: [[33, 40, 45], [218, 8, 72]] },   // dry light center
   ];
-  function paintPaths(g, state) {
+  // part: undefined = everything; 0..2 = one blob layer; 3 = ruts/stones/creep.
+  // f0/f1 slice the blob list so the progressive rebake can spread lane
+  // painting across frames in small raster units.
+  function paintPaths(g, state, part, f0, f1) {
     if (!paths.blobs.length) return;
+    const nB = paths.blobs.length;
+    const b0 = f0 === undefined ? 0 : Math.floor(f0 * nB);
+    const b1 = f1 === undefined ? nB : Math.floor(f1 * nB);
     const wi = state.season === 3 ? 1 : 0;
-    for (let li = 0; li < 3; li++) {
+    const l0 = part === undefined ? 0 : Math.min(part, 3);
+    const l1 = part === undefined ? 2 : Math.min(part, 2);
+    for (let li = l0; li <= l1 && li < 3; li++) {
       const L = PATH_LAYERS[li];
       const c = L.c[wi];
       g.fillStyle = hsl(c[0], c[1], c[2], li === 0 ? 0.72 : 1);
-      for (const b of paths.blobs) {
+      for (let bi = b0; bi < b1; bi++) {
+        const b = paths.blobs[bi];
         const r = L.w * (0.88 + b.j * 0.24);
         g.beginPath();
         g.ellipse(b.x, b.y, r, r * 0.52, 0, 0, Math.PI * 2);
         g.fill();
       }
     }
-    // wheel ruts
-    g.strokeStyle = wi ? 'rgba(90,100,120,.4)' : 'rgba(74,52,30,.42)';
-    g.lineWidth = 2.2;
-    g.lineCap = 'round';
-    for (const rut of paths.ruts) {
-      g.beginPath();
-      for (let i = 0; i < rut.length; i++) i === 0 ? g.moveTo(rut[i].x, rut[i].y) : g.lineTo(rut[i].x, rut[i].y);
-      g.stroke();
+    if (part !== undefined && part !== 3) return;
+    // wheel ruts — quadratic-smoothed through sample midpoints (the raw
+    // polyline faceted at DPR 3); drawn with the first extras slice
+    if (b0 === 0) {
+      g.strokeStyle = wi ? 'rgba(90,100,120,.4)' : 'rgba(74,52,30,.42)';
+      g.lineWidth = 2.2;
+      g.lineCap = 'round';
+      for (const rut of paths.ruts) {
+        if (rut.length < 3) continue;
+        g.beginPath();
+        g.moveTo(rut[0].x, rut[0].y);
+        for (let i = 1; i < rut.length - 1; i++) {
+          g.quadraticCurveTo(rut[i].x, rut[i].y, (rut[i].x + rut[i + 1].x) / 2, (rut[i].y + rut[i + 1].y) / 2);
+        }
+        g.lineTo(rut[rut.length - 1].x, rut[rut.length - 1].y);
+        g.stroke();
+      }
     }
-    // pebbles along the shoulders
-    for (let i = 0; i < paths.blobs.length; i += 7) {
+    // pebbles + small stones along the shoulders
+    for (let i = Math.ceil(b0 / 5) * 5; i < b1; i += 5) {
       const b = paths.blobs[i];
       const a = hash(i, 83) * Math.PI * 2, r = 9 + hash(i, 87) * 6;
-      g.fillStyle = i % 14 ? '#96897b' : '#b3a48f';
+      g.fillStyle = i % 15 ? '#96897b' : '#b3a48f';
+      const pw = 1.2 + hash(i, 89) * 1.5, ph = 0.9 + hash(i, 91);
+      const px = b.x + Math.cos(a) * r, py = b.y + Math.sin(a) * r * 0.5;
       g.beginPath();
-      g.ellipse(b.x + Math.cos(a) * r, b.y + Math.sin(a) * r * 0.5, 1.4 + hash(i, 89) * 1.4, 1 + hash(i, 91), a, 0, Math.PI * 2);
+      g.ellipse(px, py, pw, ph, a, 0, Math.PI * 2);
       g.fill();
+      if (hash(i, 93) > 0.6) { // lit top facet on the bigger stones
+        g.fillStyle = 'rgba(225,218,200,.5)';
+        g.beginPath();
+        g.ellipse(px - pw * 0.2, py - ph * 0.35, pw * 0.5, ph * 0.4, a, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    // parcel-boundary wear: grass creeping in over the lane's shoulders
+    if (!wi) {
+      const pal = PALETTES[state.season];
+      g.fillStyle = hsl(pal.grass[0] + 4, pal.grass[1] + 4, pal.grass[2] - 6, 0.85);
+      for (let i = Math.ceil(Math.max(0, b0 - 2) / 6) * 6 + 2; i < b1; i += 6) {
+        const b = paths.blobs[i];
+        const side = i % 12 < 6 ? -1 : 1;
+        const rr3 = 2.6 + hash(i, 101) * 3.4;
+        g.beginPath();
+        g.ellipse(b.x + side * (9.5 + hash(i, 103) * 3), b.y + (hash(i, 105) - 0.5) * 4,
+          rr3, rr3 * 0.48, 0, 0, Math.PI * 2);
+        g.fill();
+      }
     }
   }
 
-  function bakeGround(state, pal) {
+  function groundGeom() {
     const W = D.WORLD_W, H = D.WORLD_H;
     ground.minX = proj(0, H).x - TW / 2 - 56;
     ground.minY = -118;
     ground.w = (proj(W, 0).x + TW / 2 + 56) - ground.minX;
     ground.h = (proj(W, H).y + TH / 2 + 44) - ground.minY;
+  }
+
+  // full synchronous bake — used once at boot, before anything is on screen
+  function bakeGround(state, pal) {
+    const W = D.WORLD_W, H = D.WORLD_H;
+    groundGeom();
     if (!ground.c) {
       ground.c = document.createElement('canvas');
       ground.c.width = Math.ceil(ground.w * GS);
@@ -1450,6 +1683,79 @@ const Renderer = (() => {
     paintPond(g, state, pal);
     paintCliff(g, pal);
     ground.season = state.season;
+    refreshMip();
+  }
+
+  /* ---- progressive rebake: season flips & lane changes ----
+     A full ground bake at the DPR-3 supersample costs several hundred ms of
+     software raster — far past the frame budget. Instead the new ground is
+     painted into a spare buffer a few milliseconds per frame while the old
+     one stays on screen (the season crossfade holds at full alpha meanwhile),
+     then buffers swap and the old store is released. Nothing pops. */
+  const bakeJob = { active: false, c: null, g: null, unit: 0, units: null };
+  function startGroundBake() {
+    groundGeom();
+    if (!bakeJob.c) bakeJob.c = document.createElement('canvas');
+    bakeJob.c.width = Math.ceil(ground.w * GS);   // (re)alloc — also clears
+    bakeJob.c.height = Math.ceil(ground.h * GS);
+    bakeJob.g = bakeJob.c.getContext('2d');
+    bakeJob.g.setTransform(GS, 0, 0, GS, -ground.minX * GS, -ground.minY * GS);
+    const W = D.WORLD_W, H = D.WORLD_H;
+    const g = bakeJob.g;
+    // small fixed raster units — canvas paint is deferred, so a time budget
+    // would only measure command *recording*; ~2 units/frame keeps the real
+    // raster cost of each frame bounded
+    const U = bakeJob.units = [];
+    U.push((s2, p2) => paintBackdrop(g, p2));
+    for (let y = 0; y < H; y++) {
+      for (const [x0, x1] of [[0, W >> 1], [W >> 1, W]]) {
+        U.push((s2, p2) => {
+          for (let x = x0; x < x1; x++) {
+            paintGroundTile(g, s2, x, y, p2);
+            ground.sig[y * W + x] = tileSig(s2, x, y);
+          }
+        });
+      }
+    }
+    for (let li = 0; li < 3; li++)
+      for (let k = 0; k < 3; k++)
+        U.push((s2) => paintPaths(g, s2, li, k / 3, (k + 1) / 3));
+    U.push((s2) => paintPaths(g, s2, 3, 0, 0.5));
+    U.push((s2) => paintPaths(g, s2, 3, 0.5, 1));
+    for (const [y0, y1] of [[0, H >> 1], [H >> 1, H]]) {
+      U.push((s2, p2) => {
+        for (let y = y0; y < y1; y++)
+          for (let x = 0; x < W; x++)
+            if (s2.tiles[y][x].k === 'soil') paintSoilTile(g, s2, x, y, p2);
+      });
+    }
+    U.push((s2, p2) => paintPond(g, s2, p2));
+    U.push((s2, p2) => {
+      paintCliff(g, p2);
+      const old = ground.c;
+      ground.c = bakeJob.c; ground.g = bakeJob.g; // swap buffers
+      old.width = 1; old.height = 1;              // release the old store now
+      bakeJob.c = old; bakeJob.g = null;
+      ground.season = s2.season;
+    });
+    // mips refresh in 4 horizontal strips (reads the swapped-in ground.c)
+    for (let k = 0; k < 4; k++) {
+      U.push(() => {
+        const hh = Math.ceil(ground.c.height / 4 / 4) * 4; // mip2-aligned strips
+        refreshMip(0, k * hh, ground.c.width, Math.min(hh, ground.c.height - k * hh));
+      });
+    }
+    bakeJob.unit = 0;
+    bakeJob.active = true;
+  }
+  function stepGroundBake(state, pal) {
+    for (let i = 0; i < 2 && bakeJob.active; i++) {
+      bakeJob.units[bakeJob.unit++](state, pal);
+      if (bakeJob.unit >= bakeJob.units.length) {
+        bakeJob.active = false;
+        bakeJob.units = null;
+      }
+    }
   }
 
   function repaintTile(state, pal, x, y) {
@@ -1479,15 +1785,31 @@ const Renderer = (() => {
     if (nearPond(x, y)) paintPond(g, state, pal);
     g.restore();
     ground.sig[y * D.WORLD_W + x] = tileSig(state, x, y);
+    // keep the far-zoom mip in sync with the repainted patch
+    refreshMip(
+      (c.x - TW / 2 - 2 - ground.minX) * GS, (c.y - TH / 2 - 2 - ground.minY) * GS,
+      (TW + 4) * GS, (TH + 12) * GS
+    );
   }
 
   function updateGround(state, pal) {
-    if (paths.sig !== pathSig(state)) { // building placed/sold or land bought
-      computePaths(state);
+    if (!ground.c) { // boot: synchronous first bake, nothing on screen yet
+      if (paths.sig !== pathSig(state)) computePaths(state);
       bakeGround(state, pal);
       return;
     }
-    if (!ground.c || ground.season !== state.season) { bakeGround(state, pal); return; }
+    if (bakeJob.active) { stepGroundBake(state, pal); return; } // rebake in flight
+    if (paths.sig !== pathSig(state)) { // building placed/sold or land bought
+      computePaths(state);
+      startGroundBake();
+      stepGroundBake(state, pal);
+      return;
+    }
+    if (ground.season !== state.season) {
+      startGroundBake();
+      stepGroundBake(state, pal);
+      return;
+    }
     const W = D.WORLD_W, H = D.WORLD_H;
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++) {
@@ -1562,15 +1884,23 @@ const Renderer = (() => {
       for (const r of ripples) if (r.age > oldest.age) oldest = r;
       oldest.age = 0; oldest.x = dp.x; oldest.y = dp.y + 3;
     }
-    ctx.lineWidth = 1.4;
     for (const r of ripples) {
       r.age += dt;
       if (r.age > 1.8) continue;
       const k = r.age / 1.8;
-      ctx.strokeStyle = `rgba(225,245,255,${0.4 * (1 - k)})`;
+      const rr4 = 4 + k * 22;
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = `rgba(225,245,255,${0.42 * (1 - k)})`;
       ctx.beginPath();
-      ctx.ellipse(r.x, r.y, 4 + k * 22, (4 + k * 22) * 0.48, 0, 0, Math.PI * 2);
+      ctx.ellipse(r.x, r.y, rr4, rr4 * 0.48, 0, 0, Math.PI * 2);
       ctx.stroke();
+      if (k > 0.22) { // finer trailing ring behind the crest
+        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = `rgba(225,245,255,${0.22 * (1 - k)})`;
+        ctx.beginPath();
+        ctx.ellipse(r.x, r.y, rr4 * 0.72, rr4 * 0.72 * 0.48, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
     // two drifting lily pads with a blossom
     for (let i = 0; i < 2; i++) {
@@ -1939,8 +2269,10 @@ const Renderer = (() => {
     ctx.beginPath(); ctx.ellipse(x + r * 0.18, y + ry * 0.24, r * 0.74, ry * 0.68, 0, 0, PI2); ctx.fill();
     ctx.fillStyle = 'rgba(255,250,230,.30)';
     ctx.beginPath(); ctx.ellipse(x - r * 0.34, y - ry * 0.36, r * 0.42, ry * 0.34, 0, 0, PI2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.75)';
-    ctx.beginPath(); ctx.arc(x - r * 0.3, y - ry * 0.32, Math.max(1, r * 0.14), 0, PI2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; // crisp primary specular
+    ctx.beginPath(); ctx.arc(x - r * 0.3, y - ry * 0.32, Math.max(0.9, r * 0.13), 0, PI2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; // tiny trailing glint
+    ctx.beginPath(); ctx.arc(x - r * 0.12, y - ry * 0.46, Math.max(0.6, r * 0.07), 0, PI2); ctx.fill();
   }
 
   // quantized growth: pop the plant when its render stage steps up (§1.4)
@@ -2439,7 +2771,7 @@ const Renderer = (() => {
     polyOn(g, quad);
     g.clip();
     if (mat === 'plank') { // vertical boards: per-board value jitter + seams
-      const n = 9;
+      const n = lod >= 2 ? 12 : 9; // finer boards at the 3x bake
       for (let i = 0; i < n; i++) {
         const u0 = i / n, u1 = (i + 1) / n;
         const j = (hash(seed + i, seed * 3 + 11) - 0.5) * 0.5;
@@ -2450,9 +2782,28 @@ const Renderer = (() => {
         g.lineWidth = 0.9;
         const p1 = wallPoint(A, B, u1, v0), p2 = wallPoint(A, B, u1, v1);
         g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
+        if (lod >= 2) { // wood grain: a couple of short strokes + a knot per board
+          g.strokeStyle = 'rgba(40,18,8,.14)';
+          g.lineWidth = 0.7;
+          for (let k = 0; k < 2; k++) {
+            const gu = u0 + (0.25 + 0.4 * hash(seed + i * 3, k * 7 + 19)) * (u1 - u0);
+            const gv0 = v0 + (0.12 + 0.3 * hash(seed + k, i * 5 + 23)) * (v1 - v0);
+            const ga = wallPoint(A, B, gu, gv0), gb = wallPoint(A, B, gu, gv0 + (v1 - v0) * 0.28);
+            g.beginPath();
+            g.moveTo(ga.x, ga.y);
+            g.quadraticCurveTo(ga.x + 0.8, (ga.y + gb.y) / 2, gb.x, gb.y);
+            g.stroke();
+          }
+          if (hash(seed * 5 + i, 29) > 0.72) {
+            const ku = u0 + 0.5 * (u1 - u0), kv = v0 + (0.3 + hash(seed + i, 31) * 0.4) * (v1 - v0);
+            const kp = wallPoint(A, B, ku, kv);
+            g.fillStyle = 'rgba(40,18,8,.22)';
+            g.beginPath(); g.ellipse(kp.x, kp.y, 0.9, 1.3, 0, 0, Math.PI * 2); g.fill();
+          }
+        }
       }
     } else if (mat === 'siding') { // horizontal clapboard courses
-      const n = 7;
+      const n = lod >= 2 ? 10 : 7;
       for (let i = 0; i < n; i++) {
         const va = v0 + (i / n) * (v1 - v0), vb = v0 + ((i + 1) / n) * (v1 - v0);
         const j = (hash(seed + i * 5, seed + 7) - 0.5) * 0.34;
@@ -2483,6 +2834,31 @@ const Renderer = (() => {
       g.lineWidth = 3;
       g.beginPath(); g.moveTo(t1.x, t1.y); g.lineTo(t2.x, t2.y); g.stroke();
     }
+    // 5-step ramp completion: core shadow just past the corner terminator on
+    // the shaded face + a cool reflected-light lift low on it; the lit face
+    // gets a warm highlight wash toward its sunward corner (art-director ramp:
+    // deep shadow / shadow / base / light / highlight)
+    if (!lit) {
+      const core = g.createLinearGradient(A.x, 0, B.x, 0);
+      core.addColorStop(0, 'rgba(38,28,86,.20)');
+      core.addColorStop(0.45, 'rgba(38,28,86,0)');
+      polyOn(g, quad);
+      g.fillStyle = core;
+      g.fill();
+      const refl = g.createLinearGradient(0, A.y - v0 - (v1 - v0) * 0.05, 0, A.y - v0 - (v1 - v0) * 0.5);
+      refl.addColorStop(0, 'rgba(150,180,225,.11)'); // sky/grass bounce
+      refl.addColorStop(1, 'rgba(150,180,225,0)');
+      polyOn(g, quad);
+      g.fillStyle = refl;
+      g.fill();
+    } else {
+      const hi = g.createLinearGradient(A.x, 0, B.x, 0);
+      hi.addColorStop(0, 'rgba(255,240,196,.13)');
+      hi.addColorStop(0.6, 'rgba(255,240,196,0)');
+      polyOn(g, quad);
+      g.fillStyle = hi;
+      g.fill();
+    }
     // grime rising from the ground + eave light at the top
     const gg = g.createLinearGradient(0, A.y - v0, 0, A.y - v1);
     gg.addColorStop(0, 'rgba(30,16,8,.26)');
@@ -2511,26 +2887,37 @@ const Renderer = (() => {
     g.save();
     polyOn(g, [P, Q, apex]);
     g.clip();
-    const rows = 6;
+    const rows = lod >= 2 ? 9 : 6; // finer shingle courses at the 3x bake
     for (let i = 1; i <= rows; i++) {
       const t0 = i / rows;
       const p1 = lpt(P, apex, t0), q1 = lpt(Q, apex, t0);
       g.strokeStyle = 'rgba(30,14,6,.30)';
-      g.lineWidth = 1.5;
+      g.lineWidth = lod >= 2 ? 1.2 : 1.5;
       g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(q1.x, q1.y); g.stroke();
       g.strokeStyle = 'rgba(255,225,190,.10)';
       g.lineWidth = 1;
-      g.beginPath(); g.moveTo(p1.x, p1.y - 1.3); g.lineTo(q1.x, q1.y - 1.3); g.stroke();
+      g.beginPath(); g.moveTo(p1.x, p1.y - 1.1); g.lineTo(q1.x, q1.y - 1.1); g.stroke();
       // staggered shingle ticks
       g.strokeStyle = 'rgba(30,14,6,.18)';
-      g.lineWidth = 0.9;
-      const segs = 8 - i;
+      g.lineWidth = lod >= 2 ? 0.7 : 0.9;
+      const segs = (lod >= 2 ? 12 : 8) - i;
       const t1 = (i - 1) / rows;
       for (let k = 1; k < segs; k++) {
         const u = (k + (i % 2 ? 0.5 : 0)) / segs;
         const a1 = lpt(p1, q1, u);
         const a0 = lpt(lpt(P, apex, t1), lpt(Q, apex, t1), u);
         g.beginPath(); g.moveTo(a1.x, a1.y); g.lineTo(a0.x, a0.y); g.stroke();
+      }
+      if (lod >= 2) { // per-course weathering: a few darker shingle tabs
+        const t1m = (t0 + t1) / 2;
+        for (let k = 0; k < 3; k++) {
+          const hj = hash(i * 7 + k, 151);
+          if (hj < 0.55) continue;
+          const u = hash(k * 5 + i, 153);
+          const s0 = lpt(lpt(P, apex, t1m), lpt(Q, apex, t1m), u);
+          g.fillStyle = hj > 0.8 ? 'rgba(255,230,200,.09)' : 'rgba(30,14,6,.12)';
+          g.fillRect(s0.x - 2.4, s0.y - 1.6, 4.8, 3.2);
+        }
       }
     }
     // sun gradient down the face
@@ -3663,6 +4050,23 @@ const Renderer = (() => {
       g.arc(-10, -27, 5, 0, Math.PI * 2);
       g.fill();
     }
+    // 5-step ramp completion (art-director §ramp): core shadow tucked into
+    // the canopy underside + a faint cool reflected-light arc on the shadow
+    // side, so canopies read as volumes instead of stacked flats
+    {
+      const cy0 = variant === 1 ? -24 : -23;
+      const rr0 = variant === 1 ? 8 : 12;
+      g.fillStyle = hsl(deep[0] + hs + 11, Math.min(100, deep[1] + 9), deep[2] - 7, 0.55);
+      g.beginPath();
+      g.arc(3, cy0, rr0 * 0.66, Math.PI * 1.75, Math.PI * 0.85);
+      g.arc(rr0 * 0.45, cy0 - 4, rr0 * 0.4, Math.PI * 1.8, Math.PI * 0.9);
+      g.fill();
+      g.strokeStyle = hsl(215, 42, 72, 0.22); // sky bounce along the dark limb
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.arc(1, cy0 - 2, rr0 * 0.92, Math.PI * 0.12, Math.PI * 0.6);
+      g.stroke();
+    }
     // baked cream rim light on the sun-facing contour
     if (lod) {
       g.strokeStyle = 'rgba(255,246,200,.4)';
@@ -3672,6 +4076,23 @@ const Renderer = (() => {
       g.beginPath();
       g.arc(0, ry, rr2, Math.PI * 1.05, Math.PI * 1.6);
       g.stroke();
+    }
+    // LOD2: individual leaf-cluster ticks along the lit crown (only baked at
+    // 3x for high-DPR close zoom, where flat fills start reading empty)
+    if (lod >= 2) {
+      const by2 = variant === 1 ? -38 : variant === 2 ? -30 : -30;
+      const rr5 = variant === 1 ? 9 : variant === 2 ? 13 : 14;
+      for (let i = 0; i < 9; i++) {
+        const a = Math.PI * (0.95 + i * 0.09) + hueShift;
+        const rj = rr5 * (0.55 + hash(i * 3 + variant, 141) * 0.5);
+        const lx = Math.cos(a) * rj, ly = by2 + Math.sin(a) * rj * 0.9;
+        g.fillStyle = i % 3 === 2
+          ? hsl(deep[0] + hs, deep[1], deep[2] + 4, 0.5)
+          : hsl(lit[0] + hs, lit[1], lit[2] + (i % 2 ? 4 : 0), 0.45);
+        g.beginPath();
+        g.arc(lx, ly, 1.5 + hash(i, variant + 143) * 1.3, 0, Math.PI * 2);
+        g.fill();
+      }
     }
     if (season === 0 && pal.blossom && lod) { // spring blossom dots
       g.fillStyle = pal.blossom;
@@ -4588,7 +5009,7 @@ const Renderer = (() => {
      freshly-rebaked new-season world, while ~40 season emblems sweep through. */
   let visSeason = -1;
   let seasonFadeC = null;
-  const seasonFade = { a: 0 };
+  const seasonFade = { a: 0, hold: false };
   function checkSeasonFlip(state) {
     if (state.season === visSeason) return;
     const first = visSeason < 0;
@@ -4600,7 +5021,7 @@ const Renderer = (() => {
     seasonFadeC.getContext('2d').drawImage(canvas, 0, 0);   // capture the old-season frame
     Tween.kill(seasonFade);
     seasonFade.a = 1;
-    Tween.to(seasonFade, { a: 0 }, 2.2, Ease.quadOut);
+    seasonFade.hold = true; // fade starts once the progressive ground rebake lands
     emblems.length = 0;
     for (let i = 0; i < 40; i++) {
       emblems.push({
@@ -4613,6 +5034,10 @@ const Renderer = (() => {
     }
   }
   function drawSeasonFade(dt) {
+    if (seasonFade.hold && !bakeJob.active) { // new-season ground is in — crossfade
+      seasonFade.hold = false;
+      Tween.to(seasonFade, { a: 0 }, 2.2, Ease.quadOut);
+    }
     if (seasonFade.a > 0.01 && seasonFadeC) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = seasonFade.a;
@@ -4847,16 +5272,20 @@ const Renderer = (() => {
     if (!state) return;
     time += dt;
     fdt = dt;
+    dynRes(dt);                          // resolution step (if any) lands before drawing
     Tween.update(dt);                    // all fx motion advances first (§2)
     runTimers(dt);
     checkSeasonFlip(state);              // captures the old-season frame BEFORE drawing
     clampCam();
     computeSun(state);
     lightN = 0;
-    LOD = cam.z >= 0.5 ? 1 : 0;          // sprite detail level for this frame
+    // sprite LOD matched to on-screen scale (cam.z × dpr): LOD2 bakes at 3x so
+    // close zoom on a DPR-3 screen samples down instead of stretching a 2x bake
+    LOD = cam.z < 0.5 ? 0 : (cam.z * dpr > 2.05 ? 2 : 1);
     stormK += ((state.weather === 'storm' ? 1 : 0) - stormK) * Math.min(1, dt * 2);
     if (stormK < 0.01) stormK = 0;
-    Atlas.season(state.season);          // drop bakes when the season turns
+    Atlas.season(state.season);          // retire bakes when the season turns
+    Atlas.tick();                        // refill the per-frame rebake budget
     trackParcelSales(state);             // fence-build + sign-fall ceremony on new land
     trackPlacements(state);              // drop-in ceremony on new buildings
     if (time > fxSweepAt) { fxSweepAt = time + 2; sweepFx(state); }
@@ -4870,13 +5299,17 @@ const Renderer = (() => {
     // world transform (iso px)
     ctx.setTransform(dpr * cam.z, 0, 0, dpr * cam.z, dpr * (vw / 2 - cam.x * cam.z), dpr * (vh / 2 - cam.y * cam.z));
 
-    // ground pass: baked world layer, ONE drawImage.
-    // Nearest sampling when at/below bake scale — 5× cheaper on software raster,
-    // indistinguishable on a supersampled noise ground.
+    // ground pass: baked world layer, ONE drawImage. Mip chain keeps the
+    // sampling scale near 1:1 (cheap nearest, already box-filtered — no far
+    // zoom shimmer); true magnification gets bilinear so close zoom at DPR 3
+    // never goes blocky.
     updateGround(state, pal);
-    const groundScale = dpr * cam.z / GS;
-    if (groundScale <= 1.55) ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(ground.c, ground.minX, ground.minY, ground.w, ground.h);
+    const gsc = dpr * cam.z / GS;
+    let gSrc = ground.c, gEff = gsc;
+    if (ground.mip2 && gsc < 0.3) { gSrc = ground.mip2; gEff = gsc * 4; }
+    else if (ground.mip && gsc < 0.6) { gSrc = ground.mip; gEff = gsc * 2; }
+    ctx.imageSmoothingEnabled = gEff > 1.05;
+    ctx.drawImage(gSrc, ground.minX, ground.minY, ground.w, ground.h);
     ctx.imageSmoothingEnabled = true;
     drawPond(state, dt);
     drawGroundFx(dt);                    // soak stains, furrow reveals, impact rings

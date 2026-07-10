@@ -82,6 +82,10 @@ function check(name, ok, detail) {
     out.fert = G.fertilize(8, 6);
     out.fertCharge = c0 - s.coins; // dynamic: turnip → $8
     s.weather = 'sun'; s.forecast = 'rain';
+    // pin the clock & disarm the midday crow: the page's own rAF loop has been
+    // ticking real time, so t may sit just under 0.5 — a crow would eat the
+    // ripe turnip mid-loop and flake this check on slower machines
+    s.t = 0.02; s._flags.crowDone = true;
     for (let i = 0; i < 40; i++) G.tick(1);
     out.prog = s.tiles[6][8].crop ? s.tiles[6][8].crop.prog : 'gone';
     out.harvest = G.harvest(8, 6);
@@ -316,13 +320,21 @@ function check(name, ok, detail) {
     // quantity scales with RECENT production, not lifetime wealth
     // (sampled: single rolls are random — compare distributions)
     s.stats.earned = 1e7; // rich…
+    // pin the clock: ~12s of sampled ticks must not cross a day, or newDay()
+    // recomputes stats.recent from real harvest counts and un-pins the fixture
+    s.t = 0.05; s.forecast = 'rain';
     const sample = n => { const qs = []; for (let i = 0; i < n; i++) { s.orders = []; s.orderTimer = 0.4; G.tick(0.5); for (const q of Object.values(s.orders[0].reqs)) qs.push(q); } return qs; };
+    // seeded RNG so the sampled distributions are identical every run
+    const realRandom = Math.random;
+    let seed = 42 >>> 0;
+    Math.random = () => { seed = (seed + 0x6D2B79F5) >>> 0; let z = seed; z = Math.imul(z ^ (z >>> 15), z | 1); z ^= z + Math.imul(z ^ (z >>> 7), z | 61); return ((z ^ (z >>> 14)) >>> 0) / 4294967296; };
     s.stats.recent = 0;   // …but idle
-    const idleQ = sample(6);
+    const idleQ = sample(12);
     s.stats.recent = 100; // pumping farm
-    const busyQ = sample(6);
+    const busyQ = sample(12);
+    Math.random = realRandom;
     const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
-    out.richIdleSmall = Math.max(...idleQ) <= 6;
+    out.richIdleSmall = avg(idleQ) < 4.5;
     out.busyBig = avg(busyQ) > avg(idleQ) + 1;
     s.stats.recent = 2;
     return out;
@@ -479,9 +491,9 @@ function check(name, ok, detail) {
     const cards = [...document.querySelectorAll('#sheet-body .item-card')];
     const find = name => cards.find(c => c.textContent.includes(name));
     return {
-      potatoTag: find('Potato').textContent.includes('ripen in time'),   // 70s > 24s left, dies in summer
-      turnipTag: find('Turnip').textContent.includes('ripen in time'),   // 35s > 24s left
-      wheatTag: find('Wheat').textContent.includes('ripen in time'),     // survives summer → no tag
+      potatoTag: find('Potato').textContent.includes('won’t ripen'),   // 70s > 24s left, dies in summer
+      turnipTag: find('Turnip').textContent.includes('won’t ripen'),   // 35s > 24s left
+      wheatTag: find('Wheat').textContent.includes('won’t ripen'),     // survives summer → no tag
       wheatOff: find('Wheat').textContent.includes('off-season'),
       stillPlantable: !find('Potato').classList.contains('disabled'),
     };

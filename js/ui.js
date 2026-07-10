@@ -8,6 +8,8 @@ const UI = (() => {
   const I = window.Icons;
   const REDUCED = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
   const fmt = n => Math.round(n).toLocaleString();
+  // escape user-entered text before it goes through innerHTML (farm names!)
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // gold coin-chip price button (tabindex -1: the card/row is the tap target)
   const chip = (cost, extra) => `<button class="buy${extra ? ' ' + extra : ''}" tabindex="-1">${I.icon('coin')}<span>${fmt(cost)}</span></button>`;
   // idempotent innerHTML writer (renderSheet & updateHud rerun constantly)
@@ -229,6 +231,7 @@ const UI = (() => {
   }
 
   function confirmBox(icon, text, yesLabel, cb) {
+    $('modal-no').style.display = ''; // showAwaySummary hides it; never leak into the next dialog
     $('modal-icon').textContent = icon;
     $('modal-text').textContent = text;
     $('modal-yes').textContent = yesLabel || 'OK';
@@ -386,11 +389,29 @@ const UI = (() => {
 
   // ---------------- sheet framework ----------------
   let sheetHideTimer = null;
+  // Stable-geometry guards: the sheet is bottom-anchored, so content that
+  // shrinks mid-session slides every button down under the user's finger
+  // (rapid "Sell 1" taps used to land on "Sell everything"!).
+  let sheetLockH = 0;       // tallest body height this session — sheet never shrinks while open
+  let marketList = null;    // market row order + membership frozen per open
+  let orderSeen = null;     // orders rendered this session (Map id → snapshot)
+  let orderGone = null;     // ids that left the board this session (id → reason)
+  let sheetHeld = 0;        // pointers currently down inside the sheet
+  let renderQueued = false; // an auto-refresh arrived while a finger was down
+
+  function resetSheetSession() {
+    sheetLockH = 0;
+    $('sheet-body').style.minHeight = '';
+    marketList = null;
+    orderSeen = null;
+    orderGone = null;
+  }
 
   function openSheet(id, tab) {
     sheetOpen = id;
     sheetTab = tab || null;
     if (sheetHideTimer) { clearTimeout(sheetHideTimer); sheetHideTimer = null; }
+    resetSheetSession();
     $('sheet').classList.remove('closing');
     $('sheet-backdrop').classList.remove('closing');
     $('sheet').classList.remove('hidden');
@@ -440,7 +461,7 @@ const UI = (() => {
       b.className = 'sheet-tab' + (t.id === active ? ' active' : '');
       b.innerHTML = (t.icon || '') + '<span></span>';
       b.lastChild.textContent = t.label;
-      b.onclick = () => { SOUNDS.tap(); sheetTab = t.id; renderSheet(); };
+      b.onclick = () => { SOUNDS.tap(); sheetTab = t.id; resetSheetSession(); renderSheet(); };
       bar.appendChild(b);
     }
     requestAnimationFrame(updateTabFade); // after layout
@@ -458,6 +479,13 @@ const UI = (() => {
     else if (sheetOpen === 'log') renderLog(body);
     else if (sheetOpen === 'care') renderCare(body);
     else if (sheetOpen.startsWith('b:')) renderBuilding(body, parseInt(sheetOpen.slice(2), 10));
+    // freeze the tallest height seen this session: a bottom-anchored sheet that
+    // shrinks slides its buttons downward mid-tap (the sell-everything trap)
+    if (sheetOpen) {
+      const h = body.clientHeight;
+      if (h > sheetLockH) sheetLockH = h;
+      if (sheetLockH) body.style.minHeight = sheetLockH + 'px';
+    }
   }
 
   // ---------------- seeds sheet ----------------
@@ -489,7 +517,7 @@ const UI = (() => {
       card.innerHTML = `
         <span class="season-tag">${c.seasons.map(i => I.season(i)).join('')}</span>
         ${off ? '<span class="lock-tag warn">off-season</span>'
-          : wontRipen ? '<span class="lock-tag amber">⚠️ won’t ripen in time</span>'
+          : wontRipen ? '<span class="lock-tag amber">⚠️ won’t ripen</span>'
           : seed === id ? `<span class="owned-tick">${I.icon('check')}</span>`
           : c.regrow ? '<span class="lock-tag regrow">regrows</span>' : ''}
         <span class="plate">${I.item(id)}</span>
@@ -498,7 +526,10 @@ const UI = (() => {
         ${chip(c.seed, off ? 'muted' : '')}`;
       card.onclick = () => {
         if (off) {
+          // warn and select, but never auto-spend the seed on the tapped tile —
+          // the toast literally says it wastes money (drag-planting stays possible)
           toast(`⚠️ ${item.name} grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')} — planting now wastes the seed money!`, 'bad');
+          plantTarget = null;
         }
         seed = id;
         SOUNDS.tap();
@@ -658,11 +689,21 @@ const UI = (() => {
   }
 
   // ---------------- market ----------------
+  // Row order and membership are frozen per sheet-open (marketList): re-sorting
+  // or removing rows while the player rapid-taps "Sell" moves the buttons under
+  // their finger. Sold-out items keep a muted placeholder row until close.
   function renderMarket(body) {
     setSheetHeader(I.icon('scales'), 'Market', 'Prices move daily — sell high!');
     setTabs(null);
     const s = Game.state;
     const items = Object.entries(s.inventory).filter(([, q]) => q > 0);
+    if (!marketList) {
+      marketList = items
+        .sort((a, b) => Game.sellPrice(b[0]) * b[1] - Game.sellPrice(a[0]) * a[1])
+        .map(([id]) => id);
+    } else {
+      for (const [id] of items) if (!marketList.includes(id)) marketList.push(id);
+    }
 
     const hot = s.market.hot;
     const note = document.createElement('div');
@@ -670,7 +711,7 @@ const UI = (() => {
     note.innerHTML = `<div style="font-weight:800;font-size:0.8125rem">${I.icon('flame')} Today's hot item: ${I.item(hot)} <b>${D.ITEMS[hot].name}</b> sells for <b>+50%</b>! Prices change daily.</div>`;
     body.appendChild(note);
 
-    if (!items.length) {
+    if (!marketList.length) {
       const e = document.createElement('div');
       e.className = 'empty-note';
       e.innerHTML = `<div class="empty-art">${I.icon('crate')}</div>Your barn is empty — harvest crops or collect from animals!`;
@@ -684,60 +725,91 @@ const UI = (() => {
     const sellAll = document.createElement('button');
     sellAll.className = 'chunky gold';
     sellAll.style.cssText = 'width:100%;margin-bottom:12px';
-    sellAll.innerHTML = `${I.icon('coin')} Sell everything · +${$$(total)}`;
+    sellAll.disabled = total <= 0;
+    sellAll.innerHTML = total > 0
+      ? `${I.icon('coin')} Sell everything · +${$$(total)}`
+      : `${I.icon('coin')} Everything sold — nice work!`;
     sellAll.onclick = () => {
       const rect = sellAll.getBoundingClientRect();
       confirmBox('⚖️', `Sell your entire inventory for ${$$(total)}?`, 'Sell all', () => {
-        for (const [id, qty] of items) Game.sellItem(id, qty);
+        for (const [id, qty] of Object.entries(s.inventory)) if (qty > 0) Game.sellItem(id, qty);
         coinFlight(rect);
+        marketList = null; // fresh board: collapse to the empty state
         updateHud(); renderSheet();
       });
     };
     body.appendChild(sellAll);
 
-    for (const [id, qty] of items.sort((a, b) => Game.sellPrice(b[0]) * b[1] - Game.sellPrice(a[0]) * a[1])) {
+    for (const id of marketList) {
       const item = D.ITEMS[id];
+      const qty = s.inventory[id] || 0;
       const price = Game.sellPrice(id);
       const mult = s.market.mults[id] * (hot === id ? 1.5 : 1);
       const dir = mult >= 1.12 ? `<span class="price-up">▲ high</span>` : mult <= 0.85 ? `<span class="price-down">▼ low</span>` : 'steady';
       const row = document.createElement('div');
-      row.className = 'row-card';
+      row.className = 'row-card' + (qty ? '' : ' soldout');
+      // both buttons render at every quantity so the tap targets never move
       row.innerHTML = `
         <div class="emoji">${I.item(id, 'lg')}${hot === id ? `<span class="hot-badge">${I.icon('flame')}</span>` : ''}</div>
         <div class="info">
           <div class="name">${item.name} × ${qty}</div>
-          <div class="sub">${$$(price)} each · ${dir}</div>
+          <div class="sub">${qty ? `${$$(price)} each · ${dir}` : 'sold out'}</div>
         </div>
         <div class="actions">
-          <button class="mini">Sell 1 · ${$$(price)}</button>
-          ${qty > 1 ? `<button class="mini gold">All · ${$$(price * qty)}</button>` : ''}
+          <button class="mini" ${qty ? '' : 'disabled'}>Sell 1 · ${$$(price)}</button>
+          <button class="mini gold" ${qty ? '' : 'disabled'}>${qty ? `All · ${$$(price * qty)}` : 'Sold out'}</button>
         </div>`;
       const btns = row.querySelectorAll('button');
       btns[0].onclick = e => { const r = e.currentTarget.getBoundingClientRect(); Game.sellItem(id, 1); coinFlight(r); updateHud(); renderSheet(); };
-      if (btns[1]) btns[1].onclick = e => { const r = e.currentTarget.getBoundingClientRect(); Game.sellItem(id, qty); coinFlight(r); updateHud(); renderSheet(); };
+      btns[1].onclick = e => { const r = e.currentTarget.getBoundingClientRect(); Game.sellItem(id, s.inventory[id] || 0); coinFlight(r); updateHud(); renderSheet(); };
       body.appendChild(row);
     }
   }
 
   // ---------------- orders ----------------
+  // Orders that leave the board mid-view (delivered / skipped / expired) keep a
+  // muted stub card for the rest of the session so the remaining cards' buttons
+  // don't jump up under the player's finger.
+  function orderStub(o, reason) {
+    const card = document.createElement('div');
+    card.className = 'order-card done';
+    const items = Object.entries(o.reqs).map(([id, qty]) =>
+      `<div class="order-item ok">${I.item(id)} ${qty}/${qty}</div>`).join('');
+    const label = reason === 'delivered' ? `✅ Delivered! +${$$(o.paid != null ? o.paid : o.coins)}`
+      : reason === 'skipped' ? '🗑️ Skipped — a new order is on the way'
+      : '⏳ Expired — fresh orders are coming';
+    card.innerHTML = `
+      <div class="order-items">${items}</div>
+      <div class="order-foot"><div class="order-reward">${label}</div></div>`;
+    return card;
+  }
+
   function renderOrders(body) {
     setSheetHeader(I.icon('clipboard'), 'Orders', 'Townsfolk pay a premium for deliveries');
     setTabs(null);
     const s = Game.state;
+    if (!orderSeen) { orderSeen = new Map(); orderGone = {}; }
+    const live = new Map(s.orders.map(o => [o.id, o]));
+    for (const o of s.orders) if (!orderSeen.has(o.id)) orderSeen.set(o.id, o);
     const intro = document.createElement('div');
     intro.className = 'empty-note';
     intro.style.padding = '4px 10px 14px';
     intro.textContent = 'Fill orders to grow your empire!';
     body.appendChild(intro);
 
-    if (!s.orders.length) {
+    if (!orderSeen.size) {
       const e = document.createElement('div');
       e.className = 'empty-note';
       e.innerHTML = `<div class="empty-art">${I.icon('clipboard')}</div>New orders arriving soon…`;
       body.appendChild(e);
     }
 
-    for (const o of s.orders) {
+    for (const snap of orderSeen.values()) {
+      if (!live.has(snap.id)) { // left the board this session — hold its place
+        body.appendChild(orderStub(snap, orderGone[snap.id] || 'expired'));
+        continue;
+      }
+      const o = live.get(snap.id);
       const card = document.createElement('div');
       card.className = 'order-card';
       const items = Object.entries(o.reqs).map(([id, qty]) => {
@@ -766,10 +838,18 @@ const UI = (() => {
           </div>
         </div>`;
       const btns = card.querySelectorAll('button');
-      btns[0].onclick = () => confirmBox('🗑️', 'Skip this order? A new one will arrive soon.', 'Skip', () => { Game.skipOrder(o.id); renderSheet(); });
+      btns[0].onclick = () => confirmBox('🗑️', 'Skip this order? A new one will arrive soon.', 'Skip', () => {
+        if (orderGone) orderGone[o.id] = 'skipped';
+        Game.skipOrder(o.id);
+        renderSheet();
+      });
       btns[1].onclick = e => {
         const r = e.currentTarget.getBoundingClientRect();
-        if (Game.fulfillOrder(o.id)) { coinFlight(r); updateHud(); renderSheet(); }
+        const paid = Game.orderRush(o) ? Math.ceil(o.coins * 1.25 / 5) * 5 : o.coins;
+        if (Game.fulfillOrder(o.id)) {
+          if (orderGone) { orderGone[o.id] = 'delivered'; o.paid = paid; }
+          coinFlight(r); updateHud(); renderSheet();
+        }
       };
       body.appendChild(card);
     }
@@ -1126,7 +1206,7 @@ const UI = (() => {
     const stats = document.createElement('div');
     stats.className = 'order-card';
     stats.innerHTML = `
-      <div style="font-weight:900;font-size:0.9375rem;margin-bottom:6px">👑 ${s.farmName} — Year ${s.year} · ${diffDef.emoji} ${diffDef.name}</div>
+      <div style="font-weight:900;font-size:0.9375rem;margin-bottom:6px">👑 ${esc(s.farmName)} — Year ${s.year} · ${diffDef.emoji} ${diffDef.name}</div>
       <div style="font-weight:800;font-size:0.8125rem;line-height:1.9">
         💰 Farm value: <b>${$$(Game.farmValue())}</b> · lifetime earned: <b>${$$(s.stats.earned)}</b><br>
         ⭐ Reputation: <b>level ${s.level}</b> (+${Math.round(D.repBonus(s.level) * 100)}% sell prices)<br>
@@ -1254,6 +1334,7 @@ const UI = (() => {
       s.settings.bigText = !s.settings.bigText;
       applyTextScale();
       SOUNDS.tap();
+      resetSheetSession(); // the type scale changed — remeasure the sheet
       renderSheet();
     };
     body.appendChild(bigRow);
@@ -1419,8 +1500,14 @@ const UI = (() => {
     const { x, y } = tileFromScreen(sx, sy);
 
     if (tool === 'auto') {
+      const canWasFull = Game.state.can.water >= D.CAN_TIERS[Game.state.can.tier].cap;
       const r = Game.smartAction(x, y);
-      handleSmartResult(r, x, y);
+      // a well tap refills the can; when there was nothing to refill, open the
+      // well's panel instead (info + the sell-back row — otherwise unreachable)
+      if (r.act === 'well' && canWasFull) {
+        const t = Game.tileAt(x, y);
+        if (t && t.obj && t.obj.t === 'b') { openSheet('b:' + t.obj.i); SOUNDS.tap(); }
+      } else handleSmartResult(r, x, y);
     } else if (tool === 'plant') {
       const t = Game.tileAt(x, y);
       if (t && t.k === 'soil' && !t.crop && !t.obj) {
@@ -1448,8 +1535,10 @@ const UI = (() => {
     if (t.obj && t.obj.t === 'b') {
       const b = Game.state.buildings[t.obj.i];
       if (!b) return;
-      if (b.type === 'well') Game.refillCan();
-      else { showBuildingCoverage(b); openSheet('b:' + t.obj.i); SOUNDS.tap(); }
+      if (b.type === 'well') {
+        // refill when there's room; a tap on an idle well opens its panel
+        if (!Game.refillCan()) { openSheet('b:' + t.obj.i); SOUNDS.tap(); }
+      } else { showBuildingCoverage(b); openSheet('b:' + t.obj.i); SOUNDS.tap(); }
     } else if (!Game.isUnlocked(x, y)) {
       const p = Game.parcelAt(x, y);
       if (p >= 0) handleSmartResult({ act: 'parcel', index: p }, x, y);
@@ -1614,7 +1703,22 @@ const UI = (() => {
     $('sheet-close').onclick = () => { SOUNDS.tap(); closeSheet(); };
     $('sheet-backdrop').onclick = closeSheet;
     $('sheet-tabs').addEventListener('scroll', updateTabFade, { passive: true });
+    window.addEventListener('resize', updateTabFade);
     $('goal-chip').onclick = () => updateGoalChip();
+
+    // pause the 0.5s live-refresh while a finger is down inside the sheet —
+    // rebuilding innerHTML replaces the very button being pressed (dropped taps)
+    $('sheet').addEventListener('pointerdown', () => { sheetHeld++; }, true);
+    const sheetRelease = () => {
+      if (!sheetHeld) return;
+      sheetHeld = 0;
+      // let the tap's click event land on the old DOM first, then catch up
+      if (renderQueued) setTimeout(() => {
+        if (renderQueued && !sheetHeld && sheetOpen) { renderQueued = false; renderSheet(); }
+      }, 60);
+    };
+    document.addEventListener('pointerup', sheetRelease, true);
+    document.addEventListener('pointercancel', sheetRelease, true);
 
     $('build-ok').onclick = () => {
       const ghost = Renderer.getGhost();
@@ -1646,7 +1750,9 @@ const UI = (() => {
     // dawn of a season's last day: banner + auto-open the Season Care sheet
     Game.on('care', info => {
       toast(`⏳ Last day of ${info.season}! ${info.n} crop${info.n > 1 ? 's' : ''} won't survive ${info.next} — here's the rescue list (also in the ⚙️ Menu).`, 'bad');
-      openSheet('care');
+      // don't clobber a sheet the player is using (typing a farm code, mid-
+      // purchase…) — the toast already points at the Menu entry
+      if (!sheetShowing()) openSheet('care');
     });
 
     updateHud();
@@ -1660,7 +1766,10 @@ const UI = (() => {
       refreshAcc = 0;
       updateAmbience();
       updateHud();
-      if (sheetOpen && (sheetOpen.startsWith('b:') || sheetOpen === 'orders' || sheetOpen === 'care')) renderSheet();
+      if (sheetOpen && (sheetOpen.startsWith('b:') || sheetOpen === 'orders' || sheetOpen === 'care')) {
+        if (sheetHeld) renderQueued = true; // never rebuild under a finger
+        else renderSheet();
+      }
     }
   }
 
