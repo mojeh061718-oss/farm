@@ -75,6 +75,7 @@ const UI = (() => {
     $('season-emoji').textContent = D.SEASONS[s.season].emoji;
     $('day-label').textContent = 'Day ' + s.day;
     $('weather-emoji').textContent = D.WEATHERS[s.weather].emoji;
+    $('forecast').textContent = '→' + D.WEATHERS[s.forecast].emoji;
     $('dayfill').style.width = (s.t * 100) + '%';
     $('water-fill').style.width = (s.can.water / D.CAN_TIERS[s.can.tier].cap * 100) + '%';
 
@@ -150,22 +151,20 @@ const UI = (() => {
     const s = Game.state;
     const grid = document.createElement('div');
     grid.className = 'card-grid';
-    const entries = Object.entries(D.CROPS).sort((a, b) => a[1].level - b[1].level);
+    const entries = Object.entries(D.CROPS).sort((a, b) => a[1].seed - b[1].seed);
     for (const [id, c] of entries) {
       const item = D.ITEMS[id];
-      const locked = c.level > s.level;
       const off = !Game.seasonOK(id);
       const card = document.createElement('div');
-      card.className = 'item-card' + (locked ? ' locked' : off ? ' disabled' : '');
+      card.className = 'item-card' + (off ? ' disabled' : '');
       card.innerHTML = `
         <span class="season-tag">${c.seasons.map(i => D.SEASONS[i].emoji).join('')}</span>
-        ${locked ? `<span class="lock-tag">Lv ${c.level}</span>` : ''}
+        ${c.regrow ? '<span class="lock-tag" style="background:#43a047">♻️ regrows</span>' : ''}
         <div class="emoji">${item.emoji}</div>
         <div class="name">${item.name}</div>
-        <div class="sub">${c.grow}s · sells ~${item.base} 🪙</div>
+        <div class="sub">${c.grow}s${c.regrow ? ' · then ' + c.regrow + 's' : ''} · sells ~${item.base} 🪙</div>
         <div class="price">${c.seed} 🪙</div>`;
       card.onclick = () => {
-        if (locked) { toast(`Reach level ${c.level} to unlock ${item.name}!`, 'bad'); return; }
         if (off) { toast(`${item.name} only grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')}${Game.hasBuilding('greenhouse') ? '' : ' — or build a Greenhouse'}!`, 'bad'); return; }
         seed = id;
         SOUNDS.tap();
@@ -198,20 +197,18 @@ const UI = (() => {
     if (sheetTab === 'build') {
       const grid = document.createElement('div');
       grid.className = 'card-grid';
-      const entries = Object.entries(D.BUILDINGS).sort((a, b) => a[1].level - b[1].level);
+      const entries = Object.entries(D.BUILDINGS).sort((a, b) => a[1].cost - b[1].cost);
       for (const [id, b] of entries) {
-        const locked = b.level > s.level;
+        const broke = s.coins < b.cost;
         const card = document.createElement('div');
-        card.className = 'item-card' + (locked ? ' locked' : '');
+        card.className = 'item-card' + (broke ? ' disabled' : '');
         card.innerHTML = `
-          ${locked ? `<span class="lock-tag">Lv ${b.level}</span>` : ''}
           <div class="emoji">${b.emoji}</div>
           <div class="name">${b.name}</div>
           <div class="sub">${b.desc}</div>
           <div class="price">${b.cost.toLocaleString()} 🪙</div>`;
         card.onclick = () => {
-          if (locked) { toast(`Reach level ${b.level} to unlock the ${b.name}!`, 'bad'); return; }
-          if (s.coins < b.cost) { toast('Not enough coins!', 'bad'); return; }
+          if (s.coins < b.cost) { toast(`Save up ${b.cost.toLocaleString()} coins for the ${b.name}!`, 'bad'); return; }
           SOUNDS.tap();
           startBuild(id);
         };
@@ -221,21 +218,19 @@ const UI = (() => {
     }
 
     if (sheetTab === 'animals') {
-      const entries = Object.entries(D.ANIMALS).sort((a, b) => a[1].level - b[1].level);
+      const entries = Object.entries(D.ANIMALS).sort((a, b) => a[1].cost - b[1].cost);
       for (const [id, a] of entries) {
-        const locked = a.level > s.level;
         const homes = Game.buildingsOf(a.home).filter(e => Game.animalsIn(e.i).length < e.b.capacity);
         const row = document.createElement('div');
-        row.className = 'row-card' + (locked ? ' locked' : '');
+        row.className = 'row-card';
         row.innerHTML = `
           <div class="emoji">${a.emoji}</div>
           <div class="info">
-            <div class="name">${a.name} ${locked ? `· 🔒 Lv ${a.level}` : ''}</div>
-            <div class="sub">Makes ${D.ITEMS[a.product].emoji} ${D.ITEMS[a.product].name} every ${a.prodTime}s · needs a ${D.BUILDINGS[a.home].name}</div>
+            <div class="name">${a.name}</div>
+            <div class="sub">Makes ${D.ITEMS[a.product].emoji} ${D.ITEMS[a.product].name} (~${D.ITEMS[a.product].base} 🪙) every ${a.prodTime}s · lives in a ${D.BUILDINGS[a.home].name}</div>
           </div>
           <div class="actions"><button class="mini gold">${a.cost.toLocaleString()} 🪙</button></div>`;
         row.querySelector('button').onclick = () => {
-          if (locked) { toast(`Reach level ${a.level} first!`, 'bad'); return; }
           if (!homes.length) { toast(`You need a ${D.BUILDINGS[a.home].name} with free space!`, 'bad'); return; }
           if (Game.buyAnimal(id, homes[0].i)) { updateHud(); renderSheet(); }
         };
@@ -248,6 +243,15 @@ const UI = (() => {
         t => `Holds ${t.cap} water · waters ${t.area}×${t.area}`, () => Game.buyCanTier()));
       body.appendChild(toolRow('⛏️', 'Hoe', D.HOE_TIERS, s.hoe.tier,
         t => `Tills ${t.area}×${t.area} at once`, () => Game.buyHoeTier()));
+      const fert = document.createElement('div');
+      fert.className = 'row-card';
+      fert.innerHTML = `
+        <div class="emoji">✨</div>
+        <div class="info">
+          <div class="name">Fertilizer · ${D.FERT_COST} 🪙 per use</div>
+          <div class="sub">Use the ✨ tool on growing crops: +25% growth speed and a 45% chance of a double harvest.</div>
+        </div>`;
+      body.appendChild(fert);
     }
 
     if (sheetTab === 'land') {
@@ -255,16 +259,16 @@ const UI = (() => {
       D.PARCELS.forEach((p, i) => {
         if (s.unlockedParcels.includes(i)) return;
         anyForSale = true;
-        const locked = s.level < p.level;
+        const broke = s.coins < p.cost;
         const row = document.createElement('div');
-        row.className = 'row-card' + (locked ? ' locked' : '');
+        row.className = 'row-card';
         row.innerHTML = `
           <div class="emoji">🚧</div>
           <div class="info">
             <div class="name">Land parcel · ${p.w}×${p.h} tiles</div>
-            <div class="sub">${locked ? `Unlocks at level ${p.level}` : 'Ready to farm!'}</div>
+            <div class="sub">${broke ? 'Keep saving — every tile is an opportunity!' : 'Ready to farm!'}</div>
           </div>
-          <div class="actions"><button class="mini gold" ${locked ? 'disabled' : ''}>${p.cost.toLocaleString()} 🪙</button></div>`;
+          <div class="actions"><button class="mini gold">${p.cost.toLocaleString()} 🪙</button></div>`;
         row.querySelector('button').onclick = () => {
           if (Game.buyParcel(i)) { updateHud(); renderSheet(); }
         };
@@ -275,24 +279,22 @@ const UI = (() => {
   }
 
   function toolRow(icon, name, tiers, cur, describe, buy) {
-    const s = Game.state;
     const next = tiers[cur + 1];
     const row = document.createElement('div');
     row.className = 'row-card';
     if (!next) {
       row.innerHTML = `
         <div class="emoji">${icon}</div>
-        <div class="info"><div class="name">${tiers[cur].name}</div><div class="sub">${describe(tiers[cur])} · MAX level!</div></div>`;
+        <div class="info"><div class="name">${tiers[cur].name}</div><div class="sub">${describe(tiers[cur])} · fully upgraded!</div></div>`;
       return row;
     }
-    const locked = s.level < next.level;
     row.innerHTML = `
       <div class="emoji">${icon}</div>
       <div class="info">
         <div class="name">${name}: ${tiers[cur].name} → ${next.name}</div>
-        <div class="sub">${describe(next)}${locked ? ` · 🔒 Lv ${next.level}` : ''}</div>
+        <div class="sub">${describe(next)}</div>
       </div>
-      <div class="actions"><button class="mini gold" ${locked ? 'disabled' : ''}>${next.cost.toLocaleString()} 🪙</button></div>`;
+      <div class="actions"><button class="mini gold">${next.cost.toLocaleString()} 🪙</button></div>`;
     row.querySelector('button').onclick = () => { if (buy()) { updateHud(); renderSheet(); } };
     return row;
   }
@@ -478,18 +480,15 @@ const UI = (() => {
     const grid = document.createElement('div');
     grid.className = 'card-grid';
     for (const [id, a] of options) {
-      const locked = a.level > s.level;
       const full = residents.length >= b.capacity;
       const card = document.createElement('div');
-      card.className = 'item-card' + (locked ? ' locked' : full ? ' disabled' : '');
+      card.className = 'item-card' + (full ? ' disabled' : '');
       card.innerHTML = `
-        ${locked ? `<span class="lock-tag">Lv ${a.level}</span>` : ''}
         <div class="emoji">${a.emoji}</div>
         <div class="name">${a.name}</div>
         <div class="sub">${D.ITEMS[a.product].emoji} every ${a.prodTime}s</div>
         <div class="price">${a.cost.toLocaleString()} 🪙</div>`;
       card.onclick = () => {
-        if (locked) { toast(`Reach level ${a.level} first!`, 'bad'); return; }
         if (Game.buyAnimal(id, index)) { updateHud(); renderSheet(); }
       };
       grid.appendChild(card);
@@ -561,14 +560,16 @@ const UI = (() => {
     $('sheet-title').textContent = '⚙️ Menu';
     setTabs(null);
     const s = Game.state;
+    const diffDef = D.DIFFICULTIES.find(d => d.id === s.diff) || D.DIFFICULTIES[1];
 
     const stats = document.createElement('div');
     stats.className = 'order-card';
     stats.innerHTML = `
-      <div style="font-weight:900;font-size:15px;margin-bottom:6px">👑 Farm Empire — Year ${s.year}</div>
+      <div style="font-weight:900;font-size:15px;margin-bottom:6px">👑 ${s.farmName} — Year ${s.year} · ${diffDef.emoji} ${diffDef.name}</div>
       <div style="font-weight:800;font-size:13px;line-height:1.9">
-        💰 Farm value: <b>${Game.farmValue().toLocaleString()} 🪙</b><br>
-        🧺 Crops harvested: <b>${s.stats.harvested.toLocaleString()}</b><br>
+        💰 Farm value: <b>${Game.farmValue().toLocaleString()} 🪙</b> · lifetime earned: <b>${Math.floor(s.stats.earned).toLocaleString()}</b><br>
+        ⭐ Reputation: <b>level ${s.level}</b> (+${Math.round(D.repBonus(s.level) * 100)}% sell prices)<br>
+        🧺 Crops harvested: <b>${s.stats.harvested.toLocaleString()}</b> · ✨ fertilized: <b>${s.stats.fertilized}</b><br>
         🐔 Animals: <b>${s.animals.length}</b> · 🏠 Buildings: <b>${s.buildings.length}</b><br>
         🚧 Land parcels: <b>${s.unlockedParcels.length}/${D.PARCELS.length}</b> · 📋 Orders done: <b>${s.stats.orders}</b>
       </div>`;
@@ -602,8 +603,7 @@ const UI = (() => {
     reset.querySelector('button').onclick = () => {
       confirmBox('⚠️', 'Really erase your farm and start over?\nThis cannot be undone!', 'Erase', () => {
         Game.resetGame();
-        closeSheet();
-        updateHud();
+        location.reload(); // back to the setup screen
       });
     };
     body.appendChild(reset);
@@ -746,7 +746,8 @@ const UI = (() => {
     } else {
       const n = Game.applyTool(tool, x, y, seed);
       if (n === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad');
-      if (!n || n === 'empty') tapFallback(x, y);
+      if (n === 'broke') toast(`Fertilizer costs ${D.FERT_COST} coins per crop!`, 'bad');
+      if (!n || n === 'empty' || n === 'broke') tapFallback(x, y);
     }
     updateHud();
   }
@@ -779,9 +780,7 @@ const UI = (() => {
         break;
       case 'parcel': {
         const p = D.PARCELS[r.index];
-        const s = Game.state;
-        if (s.level < p.level) toast(`🔒 This land unlocks at level ${p.level}!`, 'bad');
-        else confirmBox('🚧', `Buy this ${p.w}×${p.h} parcel of land for ${p.cost.toLocaleString()} coins?`, 'Buy land', () => {
+        confirmBox('🚧', `Buy this ${p.w}×${p.h} parcel of land for ${p.cost.toLocaleString()} coins?`, 'Buy land', () => {
           if (Game.buyParcel(r.index)) updateHud();
         });
         break;
@@ -815,14 +814,49 @@ const UI = (() => {
     updateHud();
   }
 
+  // ---------------- new farm setup ----------------
+  function showSetup(onDone) {
+    const s = Game.state;
+    $('setup').classList.remove('hidden');
+    const cards = $('diff-cards');
+    cards.innerHTML = '';
+    let chosen = 'classic';
+    for (const d of D.DIFFICULTIES) {
+      const card = document.createElement('button');
+      card.className = 'diff-card' + (d.id === chosen ? ' selected' : '');
+      card.innerHTML = `
+        <span class="d-emoji">${d.emoji}</span>
+        <span class="d-info">
+          <span class="d-name">${d.name}</span><br>
+          <span class="d-blurb">${d.blurb}</span>
+        </span>
+        <span class="d-coins">${d.coins.toLocaleString()} 🪙</span>`;
+      card.onclick = () => {
+        chosen = d.id;
+        SOUNDS.tap();
+        cards.querySelectorAll('.diff-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      };
+      cards.appendChild(card);
+    }
+    $('setup-start').onclick = () => {
+      const name = $('farm-name').value.trim() || 'My Farm';
+      Game.applySetup(name, chosen);
+      $('setup').classList.add('hidden');
+      SOUNDS.levelup();
+      toast(`🌱 Welcome to ${Game.state.farmName}! Tap a grassy tile to till it.`);
+      updateHud();
+      onDone && onDone();
+    };
+  }
+
   // ---------------- level up splash ----------------
   function showLevelUp(level) {
     SOUNDS.levelup();
     $('levelup-num').textContent = level;
-    const unlocks = D.unlocksAt(level);
-    $('levelup-unlocks').innerHTML = unlocks.length
-      ? 'Unlocked:<br>' + unlocks.map(u => `<span class="unlock">${u}</span>`).join('')
-      : 'Keep growing your empire!';
+    const bonus = Math.round(D.repBonus(level) * 100);
+    $('levelup-unlocks').innerHTML =
+      `Your farm's reputation is growing!<br><span class="unlock">⚖️ All goods now sell for +${bonus}%</span>`;
     $('levelup').classList.remove('hidden');
     setTimeout(() => $('levelup').classList.add('hidden'), 2600);
     $('levelup').onclick = () => $('levelup').classList.add('hidden');
@@ -848,6 +882,7 @@ const UI = (() => {
         SOUNDS.tap();
         const t = b.dataset.tool;
         if (t === 'plant') { plantTarget = null; openSheet('seeds'); }
+        if (t === 'fert' && tool !== 'fert') toast(`✨ Tap growing crops to fertilize (${D.FERT_COST} 🪙): faster growth + double-harvest chance!`);
         setTool(t);
       });
     });
@@ -894,5 +929,5 @@ const UI = (() => {
     }
   }
 
-  return { init, update, toast, updateHud, showAwaySummary, get tool() { return tool; } };
+  return { init, update, toast, updateHud, showAwaySummary, showSetup, get tool() { return tool; } };
 })();

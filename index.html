@@ -24,7 +24,7 @@
   </div>
   <div class="pill" id="pill-clock">
     <span id="season-emoji">🌸</span><span id="day-label">Day 1</span>
-    <span id="weather-emoji">☀️</span>
+    <span id="weather-emoji">☀️</span><span id="forecast" title="Tomorrow's forecast">→⛅</span>
     <div class="daybar"><div id="dayfill"></div></div>
   </div>
 </div>
@@ -53,6 +53,7 @@
   <button class="tool-btn" data-tool="hoe" title="Till soil">⛏️<label>Till</label></button>
   <button class="tool-btn" data-tool="plant" title="Plant seeds">🌱<label>Plant</label></button>
   <button class="tool-btn" data-tool="water" title="Water">💧<label>Water</label><div class="water-gauge"><div id="water-fill"></div></div></button>
+  <button class="tool-btn" data-tool="fert" title="Fertilize">✨<label>Fert</label></button>
   <button class="tool-btn" data-tool="harvest" title="Harvest">🧺<label>Harvest</label></button>
 </div>
 
@@ -89,6 +90,20 @@
   </div>
 </div>
 
+<!-- ===== New farm setup ===== -->
+<div id="setup" class="hidden">
+  <div id="setup-card">
+    <div class="setup-logo">🌾</div>
+    <h1>Harvest Empire</h1>
+    <p class="setup-tag">Turn a patch of dirt into a farming empire.<br>Everything is for sale from day one — if you can afford it, it's yours.</p>
+    <label class="setup-label" for="farm-name">Name your farm</label>
+    <input id="farm-name" type="text" maxlength="24" placeholder="Sunny Hollow Farm" autocomplete="off">
+    <label class="setup-label">Starting capital</label>
+    <div id="diff-cards"></div>
+    <button id="setup-start" class="chunky green">Start farming 🚜</button>
+  </div>
+</div>
+
 <!-- ===== Toasts ===== -->
 <div id="toasts"></div>
 
@@ -96,7 +111,7 @@
 <div id="levelup" class="hidden">
   <div class="levelup-inner">
     <div class="levelup-star">⭐</div>
-    <h1>Level <span id="levelup-num">2</span>!</h1>
+    <h1>Reputation <span id="levelup-num">2</span>!</h1>
     <div id="levelup-unlocks"></div>
   </div>
 </div>

@@ -128,9 +128,22 @@ const Renderer = (() => {
   function inAnyParcel(x, y) { return Game.parcelAt(x, y) >= 0; }
 
   function drawDecor(state, pal) {
+    // a small pond on the western edge
+    shadow(1 * T, 7.6 * T, T * 1.15, T * 0.75);
+    ctx.fillStyle = '#4aa3d8';
+    ctx.beginPath(); ctx.ellipse(1 * T, 7.5 * T, T * 1.1, T * 0.72, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#63b9e8';
+    ctx.beginPath(); ctx.ellipse(0.9 * T, 7.4 * T, T * 0.8, T * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.beginPath();
+    ctx.ellipse(0.7 * T + Math.sin(time) * 3, 7.2 * T, 12, 4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    emoji('🦆', 1.3 * T + Math.sin(time * 0.6) * 14, 7.5 * T + Math.cos(time * 0.5) * 6, 15);
+
     for (let y = 0; y < D.WORLD_H; y++) {
       for (let x = 0; x < D.WORLD_W; x++) {
         if (inAnyParcel(x, y)) continue;
+        if (x <= 2 && y >= 6 && y <= 9) continue; // pond area
         const h = hash(x, y);
         const cx = x * T + T / 2, cy = y * T + T / 2;
         if (h < 0.38) drawTree(cx, cy, pal, h, state.season);
@@ -226,10 +239,10 @@ const Renderer = (() => {
     ctx.font = '900 16px Nunito, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const locked = state.level < p.level;
-    ctx.fillText(locked ? '🔒 Lv ' + p.level : p.cost.toLocaleString() + ' 🪙', cx, cy - 18);
+    const affordable = state.coins >= p.cost;
+    ctx.fillText(p.cost.toLocaleString() + ' 🪙', cx, cy - 18);
     ctx.font = '800 11px Nunito, system-ui, sans-serif';
-    ctx.fillText(locked ? 'Keep growing!' : 'Tap to buy land', cx, cy - 2);
+    ctx.fillText(affordable ? 'Tap to buy land!' : 'For sale', cx, cy - 2);
   }
 
   // ---------------- soil & crops ----------------
@@ -255,6 +268,16 @@ const Renderer = (() => {
       ctx.fillStyle = 'rgba(120,190,255,.10)';
       rr(x * T + 4, y * T + 4, T - 8, T - 8, 10);
       ctx.fill();
+    }
+    if (tile.crop && tile.crop.fert && !tile.crop.dead) { // fertilizer sparkle
+      ctx.fillStyle = 'rgba(255, 214, 80, .9)';
+      for (let i = 0; i < 3; i++) {
+        const a = time * 1.5 + i * 2.1 + x * 3 + y;
+        const sx = x * T + T / 2 + Math.cos(a) * 20;
+        const sy = y * T + T / 2 + Math.sin(a * 1.3) * 14;
+        const r = 1.5 + Math.sin(time * 4 + i) * 0.8;
+        ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.5, r), 0, Math.PI * 2); ctx.fill();
+      }
     }
   }
 
@@ -411,11 +434,43 @@ const Renderer = (() => {
         if (mature) {
           ctx.fillStyle = col;
           ctx.beginPath(); ctx.ellipse(2, 4, 12, 10, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,.15)';
+          ctx.strokeStyle = def.stripe || 'rgba(0,0,0,.15)';
           ctx.lineWidth = 2;
           for (const a of [-6, 0, 6]) { ctx.beginPath(); ctx.moveTo(a + 2, -4); ctx.quadraticCurveTo(a + 2, 4, a + 2, 12); ctx.stroke(); }
           ctx.fillStyle = '#4e6b1e';
           ctx.fillRect(0, -8, 4, 5);
+        }
+        break;
+      }
+      case 'trellis': {
+        // wooden trellis with a climbing vine and hanging clusters
+        ctx.strokeStyle = '#8a5a2e';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-12, 10); ctx.lineTo(-12, -18); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(12, 10); ctx.lineTo(12, -18); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-15, -14); ctx.lineTo(15, -14); ctx.stroke();
+        ctx.strokeStyle = leaf;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 10);
+        ctx.quadraticCurveTo(-10, -4, -12, -14);
+        ctx.moveTo(0, 10);
+        ctx.quadraticCurveTo(10, -4, 12, -14);
+        ctx.stroke();
+        ctx.fillStyle = leaf;
+        for (const [lx, ly] of [[-9, -8], [9, -8], [-4, -14], [5, -15], [0, -2]]) {
+          ctx.beginPath(); ctx.ellipse(lx, ly, 5, 3.5, lx * 0.05, 0, Math.PI * 2); ctx.fill();
+        }
+        if (mature) { // grape clusters
+          ctx.fillStyle = col;
+          for (const [gx, gy] of [[-8, -6], [8, -7]]) {
+            for (let i = 0; i < 6; i++) {
+              const px2 = gx + (i % 2) * 4 - 2, py2 = gy + Math.floor(i / 2) * 4;
+              ctx.beginPath(); ctx.arc(px2, py2, 2.6, 0, Math.PI * 2); ctx.fill();
+            }
+          }
+          ctx.fillStyle = 'rgba(255,255,255,.3)';
+          ctx.beginPath(); ctx.arc(-9, -7, 1.2, 0, Math.PI * 2); ctx.arc(7, -8, 1.2, 0, Math.PI * 2); ctx.fill();
         }
         break;
       }
@@ -452,6 +507,7 @@ const Renderer = (() => {
     if (b.type === 'well') { drawWell(px, py); }
     else if (b.type === 'sprinkler') { drawSprinkler(px, py, state); }
     else if (b.type === 'scarecrow') { drawScarecrow(px, py); }
+    else if (b.type === 'drone') { drawDrone(px, py); }
     else if (b.type === 'greenhouse') { drawGreenhouse(px, py, w, h); }
     else drawBarnLike(px, py, w, h, def);
 
@@ -568,6 +624,36 @@ const Renderer = (() => {
     ctx.fill();
   }
 
+  function drawDrone(px, py) {
+    const cx = px + T / 2, cy = py + T / 2;
+    // landing pad
+    ctx.fillStyle = '#78909c';
+    rr(px + 8, py + 8, T - 16, T - 16, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#546e7a';
+    ctx.lineWidth = 2;
+    rr(px + 8, py + 8, T - 16, T - 16, 8);
+    ctx.stroke();
+    ctx.strokeStyle = '#ffca28';
+    ctx.beginPath(); ctx.arc(cx, cy + 4, 12, 0, Math.PI * 2); ctx.stroke();
+    // hovering drone
+    const hy = cy - 14 + Math.sin(time * 2.2) * 4;
+    shadow(cx, cy + 12, 10 + Math.sin(time * 2.2) * 2, 4);
+    ctx.fillStyle = '#eceff1';
+    rr(cx - 8, hy - 4, 16, 9, 4);
+    ctx.fill();
+    ctx.fillStyle = '#29b6f6';
+    ctx.beginPath(); ctx.arc(cx, hy + 1, 3, 0, Math.PI * 2); ctx.fill();
+    // spinning rotors
+    ctx.strokeStyle = 'rgba(70,90,100,.75)';
+    ctx.lineWidth = 2;
+    const spin = Math.sin(time * 26) * 7;
+    for (const side of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(cx + side * 11 - spin, hy - 7); ctx.lineTo(cx + side * 11 + spin, hy - 7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + side * 11, hy - 7); ctx.lineTo(cx + side * 8, hy - 2); ctx.stroke();
+    }
+  }
+
   function drawGreenhouse(px, py, w, h) {
     shadow(px + w / 2, py + h - 8, w * 0.42, 8);
     ctx.fillStyle = 'rgba(178, 227, 245, .75)';
@@ -625,6 +711,36 @@ const Renderer = (() => {
     // prune stale entries
     if (animalAnim.size > state.animals.length) {
       for (const k of animalAnim.keys()) if (k >= state.animals.length) animalAnim.delete(k);
+    }
+  }
+
+  // ---------------- ambient life ----------------
+  function drawAmbient(state) {
+    // butterflies in spring/summer, drifting leaves in fall (world space)
+    if (state.season === 0 || state.season === 1) {
+      for (let i = 0; i < 5; i++) {
+        const seed = i * 217.7;
+        const bx = ((seed * 3 + time * 26 + Math.sin(time * 0.9 + i * 2) * 60) % (D.WORLD_W * T));
+        const by = ((seed * 7) % (D.WORLD_H * T * 0.8)) + Math.sin(time * 2.4 + i) * 24 + T;
+        const flap = Math.abs(Math.sin(time * 9 + i * 3));
+        ctx.fillStyle = ['#ff8fb3', '#ffd54f', '#b39ddb', '#80deea', '#ffab91'][i];
+        ctx.beginPath();
+        ctx.ellipse(bx - 3 * flap, by, 4 * flap + 1, 3, -0.5, 0, Math.PI * 2);
+        ctx.ellipse(bx + 3 * flap, by, 4 * flap + 1, 3, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (state.season === 2) {
+      ctx.fillStyle = 'rgba(200, 120, 40, .8)';
+      for (let i = 0; i < 8; i++) {
+        const seed = i * 133.3;
+        const lx = ((seed * 5 + time * 34 + Math.sin(time * 1.4 + i) * 30) % (D.WORLD_W * T));
+        const ly = ((seed * 11 + time * 46) % (D.WORLD_H * T));
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.rotate(time * 2 + i);
+        ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
     }
   }
 
@@ -789,6 +905,7 @@ const Renderer = (() => {
     state.buildings.forEach((b, i) => drawBuilding(state, b, i));
 
     drawAnimals(state);
+    drawAmbient(state);
     drawGhost(state);
     drawFx(dt);
 

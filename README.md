@@ -1,26 +1,37 @@
 # 🌾 Harvest Empire
 
-A beautiful 2D mobile farming-empire game that runs in any browser — no install, no build step.
-Till, plant, water and harvest in seconds, then grow from four dirt plots into a sprawling farm
-empire with animals, artisan goods, and a whole valley of land.
+A beautiful 2D farming-empire game that runs in any browser — no install, no build step, and
+**no artificial gates**: you pick your starting capital, and from minute one everything in the
+game is for sale. If you can afford it, it's yours. Money is the only ladder.
 
-## ✨ Features
+## ✨ What makes it tick
 
-- **Fast, satisfying farming** — crops grow in 35s–150s. Tap to till/plant/water/harvest
-  (smart "Auto" mode picks the right action), or select a tool and **drag to paint** whole rows.
-- **Seasons & weather that matter** — spring, summer, fall and winter each have their own crops.
-  Rain waters for free, heatwaves dry your fields 3× faster, storms flatten unprotected crops,
-  crows steal ripe harvests, and winter frost kills anything that isn't winter-hardy.
-- **Equipment & upgrades** — upgrade your hoe and watering can (bigger area, bigger tank), place
-  sprinklers, scarecrows, a feed mill, and eventually a greenhouse that beats the seasons.
-- **Farm animals** — chickens, cows, sheep and pigs. Feed them, keep them happy (happy animals
-  produce faster and sometimes double), and collect eggs, milk, wool and truffles.
-- **Build an empire** — a dynamic market with daily prices and hot items, delivery orders with
-  premium payouts, a bakery and creamery for high-value artisan goods, and 9 land parcels to buy.
-- **Progression** — XP levels unlock new crops, animals, buildings and tools; a goal chain guides
-  you from your first turnip to a farming empire.
-- **Mobile-first** — touch controls (tap, drag, pinch-zoom), autosaves locally, and grants
-  offline progress while you're away.
+- **Start with a stake, not a grind** — name your farm and choose your starting capital:
+  🌤️ *Cozy* (6,000 coins, gentle weather), 🌾 *Classic* (3,000), or ⛈️ *Tycoon* (1,500, harsher
+  weather, but +10% sell prices). No levels to wait for, no unlock walls — strategy decides
+  what you can afford next.
+- **Fast, satisfying farming** — 18 crops growing in 35s–150s, including **multi-harvest crops**
+  (strawberries, tomatoes, peppers, grapes) that regrow after every pick. Smart "Auto" tap does
+  the right thing; select a tool and **drag to paint** whole rows.
+- **Fertilizer** — ✨ 20 coins per crop: +25% growth speed and a 45% chance of a double harvest.
+- **Seasons & weather with teeth** — every season has its own crops and palette. Rain waters for
+  free, heatwaves dry fields 3× faster, storms flatten unprotected crops, crows steal ripe
+  harvests, winter frost kills anything that isn't winter-hardy. The HUD shows **tomorrow's
+  forecast** so you can plan around it.
+- **Six animals** — chickens, ducks, cows, goats, sheep and pigs. Feed them (with coins, or free
+  grain once you own a Feed Mill), keep them happy for faster production and double yields.
+- **A real production economy** — 12 buildings and 13 artisan recipes: bakery (bread → berry
+  cake), creamery (cheese, butter, yogurt), juice press, loom house (wool → quilts worth 1,500).
+  Raw goods are fine; processed goods build empires.
+- **Automation end-game** — sprinklers water every dawn, and the 🤖 **Harvest Drone**
+  auto-harvests *and replants* a 5×5 field every morning. Fully automated plots are the goal.
+- **A living market** — prices drift daily, a rotating hot item pays +50%, and a delivery-order
+  board pays a premium that scales with your success.
+- **Reputation, not gates** — XP levels are pure upside: each level adds +1% to every sale
+  (up to +30%). Nothing is ever locked behind them.
+- **9 land parcels** — from 1,000 to 60,000 coins. Own the whole valley.
+- **Mobile-first** — touch controls (tap, drag-paint, pinch-zoom), autosave, offline progress
+  with a welcome-back summary, day/night cycle, ambient butterflies and falling leaves.
 
 ## ▶️ Play it
 
@@ -41,27 +52,28 @@ phone and "Add to Home Screen" for a full-screen, app-like experience.
 | Action | How |
 |---|---|
 | Till / plant / water / harvest | Tap tiles in **Auto** mode — it does the right thing |
-| Work fast | Pick a tool (Till/Plant/Water/Harvest) and drag across tiles |
+| Work fast | Pick a tool (Till/Plant/Water/Fert/Harvest) and drag across tiles |
 | Refill the watering can | Tap the **Well** |
 | Pan / zoom | Drag in Auto mode / pinch (mouse-wheel on desktop) |
 | Buy seeds | Tap tilled soil, or the Plant tool |
 | Animals | Tap a Coop/Barn to feed, collect and buy |
 | Sell goods | ⚖️ Market — prices change daily, hot items pay +50% |
-| Big payouts | 📋 Orders — deliver goods for premium coins & XP |
+| Big payouts | 📋 Orders — deliver goods for premium coins |
 | Expand | Tap a "for sale" sign or Shop → Land |
 
-**Tips:** wheat feeds animals for free once you own a Feed Mill · scarecrows protect a 5×5 area
-from crows *and* storms · plant winter kale (or build a greenhouse) before winter hits · pumpkins
-+ a bakery = pumpkin pie, the most valuable good in the game.
+**Tips:** regrowing crops + a drone + sprinklers = a self-running money printer · wheat feeds
+animals for free once you own a Feed Mill · scarecrows protect a 5×5 area from crows *and*
+storms · plant winter kale and frostberries (or build a greenhouse) before winter · wool → cloth
+→ quilt multiplies value at every step.
 
 ## 🗂 Project structure
 
 ```
-index.html      app shell & UI overlays
+index.html      app shell & UI overlays (incl. farm-setup screen)
 css/style.css   mobile-first UI styling
-js/data.js      all game data: crops, animals, buildings, recipes, weather, goals
-js/game.js      simulation: time, seasons, weather events, economy, save/load
-js/render.js    canvas renderer: terrain, crops, buildings, animals, weather, day/night
+js/data.js      all game data: crops, animals, buildings, recipes, weather, difficulties, goals
+js/game.js      simulation: time, seasons, weather events, economy, automation, save/load
+js/render.js    canvas renderer: terrain, crops, buildings, animals, weather, day/night, ambience
 js/ui.js        touch input, panels, toasts, sounds (WebAudio)
 js/main.js      bootstrap & game loop
 ```

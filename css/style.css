@@ -168,17 +168,21 @@ button { font-family: inherit; border: none; cursor: pointer; color: inherit; ba
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 6px;
+  gap: 5px;
   background: rgba(62, 44, 24, .88);
-  padding: 7px;
+  padding: 6px;
   border-radius: 22px;
   box-shadow: var(--shadow);
   z-index: 20;
+  max-width: calc(100vw - 12px);
+}
+@media (max-width: 380px) {
+  .tool-btn { width: 47px; height: 58px; font-size: 20px; }
 }
 
 .tool-btn {
   position: relative;
-  width: 58px; height: 62px;
+  width: 52px; height: 60px;
   border-radius: 16px;
   background: rgba(255,255,255,.09);
   font-size: 23px;
@@ -488,6 +492,79 @@ button { font-family: inherit; border: none; cursor: pointer; color: inherit; ba
 .levelup-inner h1 { font-size: 28px; font-weight: 900; color: #7a4f00; margin: 6px 0 10px; }
 #levelup-unlocks { font-size: 14px; font-weight: 800; color: #5d4520; line-height: 1.7; }
 #levelup-unlocks .unlock { background: #fff; border-radius: 12px; padding: 4px 12px; margin: 3px; display: inline-block; border: 1.5px solid #ecd9a8; }
+
+/* ============ New farm setup ============ */
+#setup {
+  position: absolute; inset: 0;
+  z-index: 80;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, rgba(38, 70, 30, .55), rgba(18, 34, 14, .75));
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: 16px;
+  overflow-y: auto;
+}
+#setup-card {
+  background: var(--panel);
+  border-radius: 28px;
+  padding: 26px 22px 22px;
+  width: min(400px, 94vw);
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(10, 20, 5, .5);
+  animation: pop-in .35s cubic-bezier(.2,.9,.3,1.2);
+}
+.setup-logo { font-size: 54px; line-height: 1; margin-bottom: 4px; }
+#setup-card h1 {
+  font-size: 30px; font-weight: 900;
+  background: linear-gradient(180deg, #6cbf45, #2e7d32);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+.setup-tag { font-size: 13px; font-weight: 700; color: #8a7a5e; line-height: 1.5; margin-bottom: 16px; }
+.setup-label {
+  display: block;
+  text-align: left;
+  font-size: 12px; font-weight: 900;
+  color: #97876a;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 12px 2px 6px;
+}
+#farm-name {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid #e0d3b3;
+  background: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  outline: none;
+}
+#farm-name:focus { border-color: #7cb342; }
+#diff-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.diff-card {
+  display: flex; align-items: center; gap: 12px;
+  background: #fff;
+  border: 2.5px solid #e8dcc0;
+  border-radius: 16px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .1s, border-color .15s, background .15s;
+}
+.diff-card:active { transform: scale(.98); }
+.diff-card.selected { border-color: #4caf50; background: #f2fbef; }
+.diff-card .d-emoji { font-size: 26px; }
+.diff-card .d-info { flex: 1; }
+.diff-card .d-name { font-weight: 900; font-size: 15px; }
+.diff-card .d-blurb { font-size: 11px; font-weight: 700; color: #97876a; line-height: 1.35; }
+.diff-card .d-coins { font-weight: 900; font-size: 14px; color: #8a6100; white-space: nowrap; }
+#setup-start { width: 100%; font-size: 17px; padding: 14px; }
 
 /* ============ Animations ============ */
 @keyframes fade-in { from { opacity: 0; } }

@@ -9,7 +9,7 @@
   UI.init(canvas);
 
   if (loadResult.fresh) {
-    Game.toast('🌱 Welcome to your farm! Tap a grassy tile to till it.');
+    UI.showSetup(); // choose farm name & starting capital
   } else if (loadResult.away && (loadResult.away.crops > 0 || loadResult.away.produce > 0)) {
     UI.showAwaySummary(loadResult.away);
   }

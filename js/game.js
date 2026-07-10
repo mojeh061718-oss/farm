@@ -3,7 +3,7 @@
 
 const Game = (() => {
   const D = DATA;
-  const SAVE_KEY = 'harvest-empire-save-v1';
+  const SAVE_KEY = 'harvest-empire-save-v2';
 
   let state = null;
   const listeners = {};
@@ -21,6 +21,8 @@ const Game = (() => {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const rnd = Math.random;
   const pick = arr => arr[Math.floor(rnd() * arr.length)];
+
+  function diff() { return D.DIFFICULTIES.find(d => d.id === state.diff) || D.DIFFICULTIES[1]; }
 
   function rollWeather(season) {
     const table = D.WEATHER_TABLE[season];
@@ -69,8 +71,11 @@ const Game = (() => {
     }
 
     state = {
-      v: 1,
-      coins: 150,
+      v: 2,
+      farmName: 'My Farm',
+      diff: 'classic',
+      setupDone: false,
+      coins: 3000,
       xp: 0,
       level: 1,
       now: 0,             // total gameplay seconds
@@ -89,7 +94,7 @@ const Game = (() => {
       orderTimer: 20,
       unlockedParcels: [0],
       goalIndex: 0,
-      stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0 },
+      stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0, fertilized: 0, earned: 0 },
       settings: { sound: true },
       lastSaved: Date.now(),
       _flags: {},
@@ -101,15 +106,24 @@ const Game = (() => {
     placeBuildingRaw('well', 7, 5);
     for (const [x, y] of [[9, 7], [10, 7], [9, 8], [10, 8]]) state.tiles[y][x].k = 'soil';
 
-    state.orders.push(makeOrder(), makeOrder());
     return state;
+  }
+
+  // called from the setup screen: farm name + starting capital / difficulty
+  function applySetup(name, diffId) {
+    state.farmName = (name || 'My Farm').slice(0, 24);
+    state.diff = diffId;
+    state.coins = (D.DIFFICULTIES.find(d => d.id === diffId) || D.DIFFICULTIES[1]).coins;
+    state.setupDone = true;
+    state.orders.push(makeOrder(), makeOrder());
+    save();
   }
 
   function placeBuildingRaw(type, x, y) {
     const def = D.BUILDINGS[type];
     const b = { type, x, y };
     if (def.capacity) b.capacity = def.capacity;
-    if (type === 'bakery' || type === 'creamery') b.queue = [];
+    if (['bakery', 'creamery', 'press', 'loom'].includes(type)) b.queue = [];
     state.buildings.push(b);
     const idx = state.buildings.length - 1;
     for (let dy = 0; dy < def.h; dy++)
@@ -131,9 +145,11 @@ const Game = (() => {
     if (!raw) { newGame(); return { fresh: true }; }
     try {
       const st = JSON.parse(raw);
-      if (!st || st.v !== 1 || !st.tiles) { newGame(); return { fresh: true }; }
+      if (!st || st.v !== 2 || !st.tiles || !st.setupDone) { newGame(); return { fresh: true }; }
       state = st;
       state._flags = state._flags || {};
+      state.stats.fertilized = state.stats.fertilized || 0;
+      state.stats.earned = state.stats.earned || 0;
       const elapsed = Math.min((Date.now() - (state.lastSaved || Date.now())) / 1000, 4 * 3600);
       let away = null;
       if (elapsed > 45) away = fastForward(elapsed);
@@ -147,7 +163,6 @@ const Game = (() => {
   function resetGame() {
     try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
     newGame();
-    save();
   }
 
   // simulate time that passed while the game was closed (gentle: no disasters)
@@ -176,7 +191,7 @@ const Game = (() => {
     return { crops, produce };
   }
 
-  // ---------------- xp / level ----------------
+  // ---------------- reputation ----------------
   function addXp(n) {
     state.xp += n;
     while (state.xp >= D.xpForLevel(state.level)) {
@@ -191,32 +206,36 @@ const Game = (() => {
     const base = D.ITEMS[item].base;
     let m = state.market.mults[item] || 1;
     if (state.market.hot === item) m *= 1.5;
+    m *= (1 + D.repBonus(state.level)) * diff().sellBonus;
     return Math.max(1, Math.round(base * m));
   }
 
+  // items an order may reasonably ask for: crops in season, products of owned
+  // animals, and recipes of owned buildings
   function availableItems() {
     const out = [];
-    for (const [id, c] of Object.entries(D.CROPS)) if (c.level <= state.level) out.push(id);
+    for (const id of Object.keys(D.CROPS)) if (seasonOK(id)) out.push(id);
     for (const a of state.animals) if (!out.includes(D.ANIMALS[a.type].product)) out.push(D.ANIMALS[a.type].product);
-    for (const [id, r] of Object.entries(D.RECIPES)) if (hasBuilding(r.building) && !out.includes(r.out)) out.push(r.out);
-    return out;
+    for (const [, r] of Object.entries(D.RECIPES)) if (hasBuilding(r.building) && !out.includes(r.out)) out.push(r.out);
+    return out.length ? out : ['turnip', 'wheat'];
   }
 
   function makeOrder() {
     const pool = availableItems();
-    const n = 1 + Math.floor(rnd() * Math.min(3, Math.max(1, Math.floor(state.level / 3) + 1)));
+    const wealth = 1 + Math.min(6, state.stats.earned / 4000); // orders grow with your empire
+    const n = 1 + Math.floor(rnd() * Math.min(3, 1 + wealth / 2));
     const reqs = {};
     let total = 0;
     for (let i = 0; i < n; i++) {
       const item = pick(pool);
-      const qty = 2 + Math.floor(rnd() * (2 + state.level * 0.5));
+      const qty = Math.max(2, Math.round((2 + rnd() * 3) * (0.7 + wealth * 0.25)));
       reqs[item] = (reqs[item] || 0) + qty;
     }
     for (const [item, qty] of Object.entries(reqs)) total += D.ITEMS[item].base * qty;
     return {
       id: 'o' + Math.floor(rnd() * 1e9),
       reqs,
-      coins: Math.ceil(total * 1.55 / 5) * 5,
+      coins: Math.ceil(total * 1.6 / 5) * 5,
       xp: Math.max(5, Math.ceil(total / 8)),
     };
   }
@@ -235,11 +254,12 @@ const Game = (() => {
       if (state.inventory[item] <= 0) delete state.inventory[item];
     }
     state.coins += order.coins;
+    state.stats.earned += order.coins;
     addXp(order.xp);
     state.stats.orders++;
     state.orders.splice(i, 1);
     state.orderTimer = 30;
-    toast(`Order complete! +${order.coins} 🪙`, 'good');
+    toast(`Order complete! +${order.coins.toLocaleString()} 🪙`, 'good');
     emit('sound', 'coin');
     checkGoal();
     return true;
@@ -260,6 +280,7 @@ const Game = (() => {
     state.inventory[item] -= qty;
     if (state.inventory[item] <= 0) delete state.inventory[item];
     state.coins += gain;
+    state.stats.earned += gain;
     state.stats.sold += qty;
     addXp(Math.ceil(qty / 2));
     emit('sound', 'coin');
@@ -282,11 +303,10 @@ const Game = (() => {
     const t = tileAt(x, y);
     const def = D.CROPS[cropId];
     if (!t || !def || t.k !== 'soil' || t.crop || t.obj) return false;
-    if (def.level > state.level) return false;
     if (state.coins < def.seed) { toast('Not enough coins for seeds!', 'bad'); return false; }
     if (!seasonOK(cropId)) { toast(`${D.ITEMS[cropId].name} won't grow in ${D.SEASONS[state.season].name}!`, 'bad'); return false; }
     state.coins -= def.seed;
-    t.crop = { id: cropId, prog: 0, water: 0, dead: false };
+    t.crop = { id: cropId, prog: 0, water: 0, dead: false, fert: false, regrown: false };
     if (state.weather === 'rain' || state.weather === 'storm') t.crop.water = 1;
     state.stats.planted++;
     checkGoal();
@@ -305,19 +325,48 @@ const Game = (() => {
     return true;
   }
 
-  function harvest(x, y) {
+  function fertilize(x, y) {
     const t = tileAt(x, y);
-    if (!t || !t.crop || t.crop.dead || t.crop.prog < 1) return false;
-    const id = t.crop.id;
-    const def = D.CROPS[id];
-    t.crop = null;
-    state.inventory[id] = (state.inventory[id] || 0) + 1;
-    addXp(def.xp);
-    state.stats.harvested++;
-    fx('float', (x + .5) * D.TILE, y * D.TILE, `+1 ${D.ITEMS[id].emoji}`, '#fff');
-    fx('burst', (x + .5) * D.TILE, (y + .4) * D.TILE, null, def.color);
+    if (!t || !t.crop || t.crop.dead || t.crop.fert || t.crop.prog >= 1) return false;
+    if (state.coins < D.FERT_COST) return 'broke';
+    state.coins -= D.FERT_COST;
+    t.crop.fert = true;
+    state.stats.fertilized++;
+    fx('burst', (x + .5) * D.TILE, (y + .4) * D.TILE, null, '#ffd54f');
     checkGoal();
     return true;
+  }
+
+  function harvestYield(crop) {
+    // fertilizer and luck can double the harvest
+    const doubleChance = crop.fert ? 0.45 : 0.08;
+    return rnd() < doubleChance ? 2 : 1;
+  }
+
+  function harvest(x, y, silent) {
+    const t = tileAt(x, y);
+    if (!t || !t.crop || t.crop.dead || t.crop.prog < 1) return 0;
+    const id = t.crop.id;
+    const def = D.CROPS[id];
+    const n = harvestYield(t.crop);
+    state.inventory[id] = (state.inventory[id] || 0) + n;
+    addXp(def.xp);
+    state.stats.harvested++;
+
+    if (def.regrow && seasonOK(id)) { // multi-harvest crops grow back
+      t.crop.prog = 0;
+      t.crop.regrown = true;
+      t.crop.fert = false;
+    } else {
+      t.crop = null;
+    }
+
+    if (!silent) {
+      fx('float', (x + .5) * D.TILE, y * D.TILE, `+${n} ${D.ITEMS[id].emoji}`, n > 1 ? '#ffe082' : '#fff');
+      fx('burst', (x + .5) * D.TILE, (y + .4) * D.TILE, null, def.color);
+    }
+    checkGoal();
+    return n;
   }
 
   function clearDead(x, y) {
@@ -363,6 +412,10 @@ const Game = (() => {
       }
       if (count) emit('sound', 'water');
       if (empty && !count) return 'empty';
+    } else if (tool === 'fert') {
+      const r = fertilize(x, y);
+      if (r === 'broke') return 'broke';
+      if (r === true) { count = 1; emit('sound', 'plant'); }
     } else if (tool === 'plant') {
       if (seed && plant(x, y, seed)) { count = 1; emit('sound', 'plant'); }
     } else if (tool === 'harvest') {
@@ -432,7 +485,6 @@ const Game = (() => {
   function buyParcel(index) {
     const p = D.PARCELS[index];
     if (!p || state.unlockedParcels.includes(index)) return false;
-    if (state.level < p.level) { toast(`Reach level ${p.level} to buy this land!`, 'bad'); return false; }
     if (state.coins < p.cost) { toast('Not enough coins!', 'bad'); return false; }
     state.coins -= p.cost;
     state.unlockedParcels.push(index);
@@ -451,6 +503,26 @@ const Game = (() => {
       }
   }
 
+  // drones auto-harvest and replant a 5x5 area each dawn
+  function runDrones() {
+    let harvested = 0, replanted = 0;
+    for (const b of state.buildings) {
+      if (b.type !== 'drone') continue;
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++) {
+          const x = b.x + dx, y = b.y + dy;
+          const t = tileAt(x, y);
+          if (!t || !t.crop || t.crop.dead || t.crop.prog < 1) continue;
+          const id = t.crop.id;
+          harvested += harvest(x, y, true);
+          if (!tileAt(x, y).crop && state.coins >= D.CROPS[id].seed && seasonOK(id)) {
+            if (plant(x, y, id)) replanted++;
+          }
+        }
+    }
+    if (harvested) toast(`🤖 Drones harvested ${harvested} crop${harvested > 1 ? 's' : ''}${replanted ? ` and replanted ${replanted}` : ''}!`, 'good');
+  }
+
   // ---------------- animals ----------------
   function buildingsOf(homeType) {
     return state.buildings.map((b, i) => ({ b, i })).filter(e => e.b.type === homeType);
@@ -462,7 +534,6 @@ const Game = (() => {
     const def = D.ANIMALS[type];
     const b = state.buildings[bIdx];
     if (!def || !b || b.type !== def.home) return false;
-    if (def.level > state.level) return false;
     if (animalsIn(bIdx).length >= b.capacity) { toast('This building is full!', 'bad'); return false; }
     if (state.coins < def.cost) { toast('Not enough coins!', 'bad'); return false; }
     state.coins -= def.cost;
@@ -536,7 +607,7 @@ const Game = (() => {
 
   function readyIn(bIdx) { return animalsIn(bIdx).filter(a => a.prodProg >= 1).length; }
 
-  // ---------------- processing (bakery / creamery) ----------------
+  // ---------------- processing (bakery / creamery / press / loom) ----------------
   function canCraft(recipeId) {
     const r = D.RECIPES[recipeId];
     return Object.entries(r.in).every(([item, qty]) => (state.inventory[item] || 0) >= qty);
@@ -584,7 +655,6 @@ const Game = (() => {
   function buyCanTier() {
     const next = D.CAN_TIERS[state.can.tier + 1];
     if (!next) return false;
-    if (state.level < next.level) { toast(`Reach level ${next.level} first!`, 'bad'); return false; }
     if (state.coins < next.cost) { toast('Not enough coins!', 'bad'); return false; }
     state.coins -= next.cost;
     state.can.tier++;
@@ -597,7 +667,6 @@ const Game = (() => {
   function buyHoeTier() {
     const next = D.HOE_TIERS[state.hoe.tier + 1];
     if (!next) return false;
-    if (state.level < next.level) { toast(`Reach level ${next.level} first!`, 'bad'); return false; }
     if (state.coins < next.cost) { toast('Not enough coins!', 'bad'); return false; }
     state.coins -= next.cost;
     state.hoe.tier++;
@@ -615,7 +684,7 @@ const Game = (() => {
     const [cur, need] = g.check(state);
     if (cur >= need) {
       state.coins += g.reward;
-      toast(`${g.icon} Goal complete: ${g.title}! +${g.reward} 🪙`, 'good');
+      toast(`${g.icon} Goal complete: ${g.title}! +${g.reward.toLocaleString()} 🪙`, 'good');
       emit('sound', 'goal');
       state.goalIndex++;
       emit('goal');
@@ -638,8 +707,9 @@ const Game = (() => {
     state._flags.crowDone = false;
     state._flags.frostDone = false;
 
-    // sprinklers water every dawn
+    // sprinklers water every dawn, then drones harvest & replant
     for (const b of state.buildings) if (b.type === 'sprinkler') sprinkle(b);
+    runDrones();
 
     // hungry animals lose happiness
     for (const a of state.animals) if (state.now >= a.fedUntil) a.happiness = clamp(a.happiness - 12, 0, 100);
@@ -648,14 +718,14 @@ const Game = (() => {
     for (const id of Object.keys(state.market.mults)) {
       state.market.mults[id] = clamp(state.market.mults[id] * (0.82 + rnd() * 0.36), 0.6, 1.6);
     }
-    state.market.hot = pick(availableItems());
+    state.market.hot = pick(Object.keys(D.ITEMS));
 
     // storms can flatten unprotected crops
     if (state.weather === 'storm' && !state._offline) {
       let smashed = 0;
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
-        if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12) { t.crop.dead = true; smashed++; }
+        if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12 * diff().eventMult) { t.crop.dead = true; smashed++; }
       }
       if (smashed) toast(`⛈️ The storm destroyed ${smashed} crop${smashed > 1 ? 's' : ''}! Scarecrows protect nearby plots.`, 'bad');
     }
@@ -665,7 +735,7 @@ const Game = (() => {
 
   function middayEvents() {
     // crows steal a mature crop on clear days if unprotected
-    if ((state.weather === 'sun' || state.weather === 'cloud') && !state._offline && rnd() < 0.3) {
+    if ((state.weather === 'sun' || state.weather === 'cloud') && !state._offline && rnd() < 0.3 * diff().eventMult) {
       const targets = [];
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
@@ -682,7 +752,7 @@ const Game = (() => {
 
   function nightfallEvents() {
     // winter frost kills non-winter crops unless you own a greenhouse
-    if (state.season === 3 && !hasBuilding('greenhouse') && !state._offline && rnd() < 0.4) {
+    if (state.season === 3 && !hasBuilding('greenhouse') && !state._offline && rnd() < 0.4 * diff().eventMult) {
       let frozen = 0;
       for (const row of state.tiles) for (const t of row) {
         if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3)) { t.crop.dead = true; frozen++; }
@@ -693,7 +763,7 @@ const Game = (() => {
 
   // ---------------- main tick ----------------
   function tick(dt) {
-    if (!state) return;
+    if (!state || !state.setupDone) return;
     state.now += dt;
 
     // time of day
@@ -713,7 +783,10 @@ const Game = (() => {
       if (raining) c.water = 1;
       else c.water = Math.max(0, c.water - dt / drain);
       if (c.prog < 1 && c.water > 0 && seasonOK(c.id)) {
-        c.prog = Math.min(1, c.prog + dt / D.CROPS[c.id].grow);
+        const def = D.CROPS[c.id];
+        const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
+        const speed = c.fert ? 1.25 : 1;
+        c.prog = Math.min(1, c.prog + (dt * speed) / growTime);
       }
     }
 
@@ -726,7 +799,7 @@ const Game = (() => {
     }
 
     // order refill
-    if (state.orders.length < 3) {
+    if (state.orders.length < 4) {
       state.orderTimer -= dt;
       if (state.orderTimer <= 0) {
         state.orders.push(makeOrder());
@@ -738,6 +811,7 @@ const Game = (() => {
 
   // ---------------- derived info for UI ----------------
   function farmValue() {
+    if (!state) return 0;
     let v = state.coins;
     for (const [item, qty] of Object.entries(state.inventory)) v += D.ITEMS[item].base * qty;
     for (const b of state.buildings) v += D.BUILDINGS[b.type].cost;
@@ -749,14 +823,14 @@ const Game = (() => {
   return {
     get state() { return state; },
     on, emit, toast,
-    newGame, load, save, resetGame,
+    newGame, applySetup, load, save, resetGame,
     tick,
     // world queries
     tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK,
     buildingsOf, animalsIn, readyIn, feedCostFor, canCraft, canFulfill,
     currentGoal, sellPrice, availableItems, farmValue,
     // actions
-    smartAction, applyTool, till, plant, water, harvest, clearDead, refillCan,
+    smartAction, applyTool, till, plant, water, fertilize, harvest, clearDead, refillCan,
     canPlaceBuilding, placeBuilding, buyParcel,
     buyAnimal, feedAnimal, feedAll, collectBuilding,
     startRecipe, collectRecipes,
