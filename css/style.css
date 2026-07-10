@@ -56,8 +56,13 @@
 html, body {
   width: 100%; height: 100%;
   overflow: hidden;
+}
+@supports (height: 100dvh) {
+  body { height: 100dvh; } /* track iOS Safari's dynamic viewport (toolbar collapse) */
+}
+html, body {
   font-family: ui-rounded, "SF Pro Rounded", Nunito, "Segoe UI", system-ui, sans-serif;
-  background: #5cb14e;
+  background: #241a10; /* dark earth — never a green bar if the visual viewport outgrows the canvas */
   color: var(--ink);
   user-select: none;
   -webkit-user-select: none;

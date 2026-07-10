@@ -188,13 +188,17 @@ const Renderer = (() => {
     bakeSprites();
     resize();
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+    // iOS Safari: the visual viewport grows when the toolbar collapses — track it
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
   }
 
   let gradeCanvas = null; // pre-composed vignette+grain overlay (rebuilt on resize)
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2.0); // capped at 2.0
-    vw = window.innerWidth;
-    vh = window.innerHeight;
+    // size to the canvas's actual CSS box (body tracks 100dvh), not the layout viewport
+    vw = canvas.clientWidth || window.innerWidth;
+    vh = canvas.clientHeight || window.innerHeight;
     canvas.width = Math.round(vw * dpr);
     canvas.height = Math.round(vh * dpr);
     lm.width = Math.max(1, Math.round(vw * dpr / 2));   // half-res light layer
