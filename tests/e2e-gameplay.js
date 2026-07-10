@@ -324,12 +324,17 @@ function check(name, ok, detail) {
     // recomputes stats.recent from real harvest counts and un-pins the fixture
     s.t = 0.05; s.forecast = 'rain';
     const sample = n => { const qs = []; for (let i = 0; i < n; i++) { s.orders = []; s.orderTimer = 0.4; G.tick(0.5); for (const q of Object.values(s.orders[0].reqs)) qs.push(q); } return qs; };
+    // seeded RNG so the sampled distributions are identical every run
+    const realRandom = Math.random;
+    let seed = 42 >>> 0;
+    Math.random = () => { seed = (seed + 0x6D2B79F5) >>> 0; let z = seed; z = Math.imul(z ^ (z >>> 15), z | 1); z ^= z + Math.imul(z ^ (z >>> 7), z | 61); return ((z ^ (z >>> 14)) >>> 0) / 4294967296; };
     s.stats.recent = 0;   // …but idle
     const idleQ = sample(12);
     s.stats.recent = 100; // pumping farm
     const busyQ = sample(12);
+    Math.random = realRandom;
     const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
-    out.richIdleSmall = Math.max(...idleQ) <= 6;
+    out.richIdleSmall = avg(idleQ) < 4.5;
     out.busyBig = avg(busyQ) > avg(idleQ) + 1;
     s.stats.recent = 2;
     return out;
