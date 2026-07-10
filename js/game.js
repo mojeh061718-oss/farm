@@ -112,7 +112,7 @@ const Game = (() => {
       usedNames: [],
       produced: {},
       stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0, fertilized: 0, earned: 0, lost: 0, recent: 0, prodMark: 0 },
-      settings: { sound: true },
+      settings: { sound: false },
       lastSaved: Date.now(),
       _flags: { deaths: { dry: 0, rot: 0, season: 0 } },
     };
@@ -236,6 +236,9 @@ const Game = (() => {
       b.queue = b.queue.map(j => j.left != null ? j
         : { r: j.r, left: Math.max(0, (j.done || 0) - state.now), legacy: true });
     }
+    // sound became opt-in — quiet existing farms once (the menu can re-enable)
+    state.settings = state.settings || { sound: false };
+    if (!state._flags.soundOptIn) { state._flags.soundOptIn = true; state.settings.sound = false; }
     // greenhouse became an area effect — tell the player once
     if (!state._flags.ghAreaNotice && state.buildings.some(b => b && b.type === 'greenhouse')) {
       state._flags.ghAreaNotice = true;
