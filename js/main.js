@@ -26,16 +26,20 @@
   Renderer.centerOn(p0.x + p0.w / 2, p0.y + p0.h / 2);
 
   let last = performance.now();
+  let frameErrs = 0;
   function frame(now) {
+    requestAnimationFrame(frame); // schedule first: one bad frame must never kill the loop
     let dt = (now - last) / 1000;
     last = now;
     dt = Math.min(dt, 0.25); // ignore long frame gaps (tab hidden)
 
-    Game.tick(dt);
-    Renderer.render(Game.state, dt);
-    UI.update(dt);
-
-    requestAnimationFrame(frame);
+    try {
+      Game.tick(dt);
+      Renderer.render(Game.state, dt);
+      UI.update(dt);
+    } catch (e) {
+      if (frameErrs++ < 3) console.error('frame error (recovered):', e);
+    }
   }
   requestAnimationFrame(frame);
 
