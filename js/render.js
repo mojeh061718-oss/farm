@@ -652,7 +652,7 @@ const Renderer = (() => {
   // stretched toward lower-right; long at dawn/dusk, short at noon, gone at night.
   function shadow(x, y, w, h) {
     const a = SUN.shadowAlpha;
-    if (a < 0.02) return;
+    if (a < 0.02 || w <= 0 || h <= 0) return; // spawn/bounce scales can overshoot negative for a frame
     const len = w * SUN.stretch;
     ctx.fillStyle = `rgba(${SUN.shadowCol},${a})`;
     ctx.beginPath();
