@@ -58,7 +58,7 @@ function check(name, ok, detail) {
     fertGrapes: DATA.fertCost('grapes'),
     slotCosts: DATA.SLOT_COSTS,
   }));
-  check('wheat $6 / $16 / 40s', nums.wheatSeed === 6 && nums.wheatBase === 16 && nums.wheatGrow === 40, nums);
+  check('wheat $6 / $22 / 40s', nums.wheatSeed === 6 && nums.wheatBase === 22 && nums.wheatGrow === 40, nums);
   check('pepper regrows in 45s', nums.pepperRegrow === 45, nums.pepperRegrow);
   check('cow milks every 100s', nums.cowProd === 100, nums.cowProd);
   check('pig costs $2,400', nums.pigCost === 2400, nums.pigCost);
@@ -214,20 +214,48 @@ function check(name, ok, detail) {
     s.xp = 0;
     G.sellItem('turnip', 4);
     out.xpBulk = s.xp;
-    // market memory: dumping crashes the price by 1 - qty*0.004 (floor 0.55)
+    // market memory: each dump crashes the stored multiplier MULTIPLICATIVELY
+    // (per-sale crash factor ≥0.55; the multiplier itself floors at 0.05).
+    // Pin the start point: daily drift may have pushed the mult above 1.
+    s.market.mults.turnip = 1;
     const m0 = s.market.mults.turnip;
     G.sellItem('turnip', 50);
-    out.crashOk = Math.abs(s.market.mults.turnip - Math.max(0.55, m0 * (1 - 50 * 0.004))) < 1e-9;
+    out.crashOk = Math.abs(s.market.mults.turnip - Math.max(0.05, m0 * (1 - 50 * 0.004))) < 1e-9;
     const m1 = s.market.mults.turnip;
-    s.inventory.turnip = 500;
-    G.sellItem('turnip', 500); // huge dump → floor
-    out.floorOk = s.market.mults.turnip === Math.max(0.55, m1 * 0.55) || s.market.mults.turnip === 0.55;
+    s.inventory.turnip = 2500;
+    G.sellItem('turnip', 500); // one sale caps at −45%…
+    out.below55 = Math.abs(s.market.mults.turnip - m1 * 0.55) < 1e-9 && s.market.mults.turnip < 0.55;
+    for (let i = 0; i < 4; i++) G.sellItem('turnip', 500); // …but repeat dumps keep digging
+    out.hardFloor = s.market.mults.turnip === 0.05;
     out.dumpToldFlag = !!s._flags.dumpTold;
+    // processed goods are exempt — artisan chains hold their price
+    s.inventory.cheese = 300;
+    const mc = s.market.mults.cheese;
+    G.sellItem('cheese', 300);
+    out.processedHeld = s.market.mults.cheese === mc;
+    // daily drift climbs a deep crash back toward normal in ~5-8 days
+    // (clear the field first: the day crossings below must not fire season-care
+    // events, which would auto-open the care sheet mid-suite)
+    for (const row of s.tiles) for (const t of row) t.crop = null;
+    s.market.mults.turnip = 0.05;
+    const realRandom = Math.random;
+    let sd = 7 >>> 0;
+    Math.random = () => { sd = (sd + 0x6D2B79F5) >>> 0; let z = sd; z = Math.imul(z ^ (z >>> 15), z | 1); z ^= z + Math.imul(z ^ (z >>> 7), z | 61); return ((z ^ (z >>> 14)) >>> 0) / 4294967296; };
+    let recoverDays = null;
+    for (let day = 1; day <= 10; day++) {
+      s.t = 1 - 0.001;
+      G.tick(0.01 * DATA.DAY_LEN); // cross the day boundary
+      if (recoverDays === null && s.market.mults.turnip >= 0.6) recoverDays = day;
+    }
+    Math.random = realRandom;
+    out.recoverDays = recoverDays;
     return out;
   });
   check('sell XP is per-item (0.5), not per-call', econ.xpSingles === 2 && econ.xpBulk === 2, econ);
-  check('market memory: dumps crash the price', econ.crashOk === true, econ);
-  check('market memory: crash floors at 0.55×', econ.floorOk === true, econ);
+  check('market memory: dumps crash the price multiplicatively', econ.crashOk === true, econ);
+  check('repeat dumps dig below 0.55× down to the 0.05× floor', econ.below55 === true && econ.hardFloor === true, econ);
+  check('processed goods never crash (artisan exemption)', econ.processedHeld === true, econ);
+  check('a deep crash drifts back to ≥0.6× in days, not overnight (~5-10)', econ.recoverDays !== null && econ.recoverDays >= 4 && econ.recoverDays <= 10, econ);
   check('first big dump explains itself (hint flag)', econ.dumpToldFlag === true, econ);
 
   // ================= animal name pool =================
@@ -291,7 +319,7 @@ function check(name, ok, detail) {
     let total = 0;
     for (const [item, qty] of Object.entries(o1.reqs)) total += G.sellPrice(item) * qty;
     out.payoutOk = o1.coins === Math.ceil(total * 1.25 / 5) * 5;
-    out.deadlineOk = Math.abs((o1.expires - o1.posted) - 3 * DATA.DAY_LEN) < 1e-6;
+    out.deadlineOk = (o1.expires - o1.posted) >= 3 * DATA.DAY_LEN - 1e-6;
     out.smallQty = Object.values(o1.reqs).every(q => q <= 5); // recent=0 → small board
     // drain pending goal rewards so fulfil deltas are pure order payouts
     s.stats.orders = 10; s.stats.earned = 1e6; s.stats.collected = 10; G.checkGoal();
@@ -320,6 +348,7 @@ function check(name, ok, detail) {
     out.refreshSoon = s.orderTimer <= 8;
     // quantity scales with RECENT production, not lifetime wealth
     // (sampled: single rolls are random — compare distributions)
+    s.produced = {}; // pool-only picks: the produced set varies run-to-run
     s.stats.earned = 1e7; // rich…
     // pin the clock: ~12s of sampled ticks must not cross a day, or newDay()
     // recomputes stats.recent from real harvest counts and un-pins the fixture
@@ -341,7 +370,7 @@ function check(name, ok, detail) {
     return out;
   });
   check('order payout = live prices × 1.25 (rounded to $5)', orders.hasOrder && orders.payoutOk, orders);
-  check('orders expire 3 days after posting', orders.deadlineOk, orders);
+  check('orders live at least 3 days after posting', orders.deadlineOk, orders);
   check('rush delivery (≤1 day) pays +25%', orders.rushEligible && orders.rushPaid, orders);
   check('late delivery pays face value', orders.flatPaid, orders);
   check('expired orders vanish without penalty and refresh', orders.expired && orders.noPenalty && orders.refreshSoon, orders);

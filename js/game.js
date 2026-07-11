@@ -108,6 +108,8 @@ const Game = (() => {
       orderTimer: 20,
       unlockedParcels: [0],
       goalIndex: 0,
+      goalCursor: 0,
+      daily: null, // generated on the first tick (or by regenDaily)
       feedCredits: 0,
       usedNames: [],
       produced: {},
@@ -167,6 +169,16 @@ const Game = (() => {
     return h.toString(16).padStart(8, '0');
   }
 
+  function mulberry32(a) { // tiny seeded RNG — deterministic daily/seasonal picks
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const seedFrom = str => parseInt(fnv(str), 16) >>> 0;
+
   function validSave(st) {
     return st && st.v === 3 && Array.isArray(st.tiles) && st.tiles.length === D.WORLD_H
       && Number.isFinite(st.coins) && st.setupDone;
@@ -222,9 +234,12 @@ const Game = (() => {
     for (const k of Object.keys(state.inventory || {})) state.produced[k] = 1;
     state.stats.recent = state.stats.recent || 0;
     state.stats.prodMark = state.stats.prodMark || 0;
-    // orders gain deadlines
+    // ---- 3.0 additive migrations ----
+    state.goalCursor = state.goalCursor || 0;
+    if (!state.daily) regenDaily();
+    // orders gain deadlines (floored so slow items are never impossible)
     for (const o of state.orders || []) {
-      if (o.expires == null) o.expires = state.now + 3 * D.DAY_LEN;
+      if (o.expires == null) o.expires = state.now + orderWindow(o.reqs || {});
       if (o.posted == null) o.posted = state.now;
     }
     // craft queues: absolute `done` timestamps → remaining seconds; jobs
@@ -363,10 +378,30 @@ const Game = (() => {
   }
 
   // ---------------- market & orders ----------------
+  // Market Day: every mid-season day, 2-3 deterministic items sell +50%
+  let mdCache = null; // { key, items } — recomputed per season
+  function marketDayItems() {
+    if (!state || state.day !== Math.ceil(D.SEASON_DAYS / 2)) return [];
+    const key = state.year + '-' + state.season;
+    if (!mdCache || mdCache.key !== key) {
+      const rng = mulberry32(seedFrom(key));
+      const ids = Object.keys(D.ITEMS);
+      const items = [];
+      const n = 2 + Math.floor(rng() * 2);
+      while (items.length < n) {
+        const id = ids[Math.floor(rng() * ids.length)];
+        if (!items.includes(id)) items.push(id);
+      }
+      mdCache = { key, items };
+    }
+    return mdCache.items;
+  }
+
   function sellPrice(item) {
     const base = D.ITEMS[item].base;
     let m = state.market.mults[item] || 1;
     if (state.market.hot === item) m *= 1.5;
+    if (marketDayItems().includes(item)) m *= 1.5;
     m *= (1 + D.repBonus(state.level)) * diff().sellBonus;
     return Math.max(1, Math.round(base * m));
   }
@@ -395,32 +430,58 @@ const Game = (() => {
     return out.length ? out : ['turnip', 'wheat'];
   }
 
+  // seconds to produce one unit of an item: crop grow time, animal prodTime,
+  // or recipe time + its slowest input (one level deep)
+  function timeToProduce(id, depth) {
+    if (D.CROPS[id]) return D.CROPS[id].grow;
+    for (const a of Object.values(D.ANIMALS)) if (a.product === id) return a.prodTime;
+    if (depth > 1) return 0;
+    const r = Object.values(D.RECIPES).find(r => r.out === id);
+    if (!r) return 0;
+    let slowest = 0;
+    for (const inId of Object.keys(r.in)) slowest = Math.max(slowest, timeToProduce(inId, (depth || 0) + 1));
+    return r.time + slowest;
+  }
+
+  // deadline window for a set of requirements: never less than 3 days, never
+  // less than 3× the slowest item's production time (no impossible orders)
+  function orderWindow(reqs) {
+    let need = 0;
+    for (const id of Object.keys(reqs)) need = Math.max(need, timeToProduce(id, 0));
+    return Math.max(3 * D.DAY_LEN, 3 * need);
+  }
+
   function makeOrder() {
     const pool = availableItems();
+    // 70% of picks come from what this farm has actually produced — orders ask
+    // for things the player demonstrably makes (fresh farms fall back to pool)
+    const producedPool = Object.keys(state.produced || {}).filter(id => D.ITEMS[id]);
     // quantities scale with RECENT production (decayed daily harvest+collect),
     // not lifetime wealth — a slumping or fresh farm gets small orders again
     const scale = 1 + Math.min(6, (state.stats.recent || 0) / 10);
     const n = 1 + Math.floor(rnd() * Math.min(3, 1 + scale / 2));
     const reqs = {};
     for (let i = 0; i < n; i++) {
-      const item = pick(pool);
+      const item = producedPool.length && rnd() < 0.7 ? pick(producedPool) : pick(pool);
       const qty = Math.max(2, Math.round((2 + rnd() * 3) * (0.7 + scale * 0.25)));
       reqs[item] = (reqs[item] || 0) + qty;
     }
     // payout rides the player's LIVE prices (market, reputation, difficulty)
-    // so a delivery always beats spot-selling by ~25%
+    // so a delivery always beats spot-selling by ~25%; productive farms get a
+    // fatter ticket (up to +30%), not just bigger asks
     let total = 0, baseTotal = 0;
     for (const [item, qty] of Object.entries(reqs)) {
       total += sellPrice(item) * qty;
       baseTotal += D.ITEMS[item].base * qty;
     }
+    total *= 1 + Math.min(0.3, (state.stats.recent || 0) / 40);
     return {
       id: 'o' + Math.floor(rnd() * 1e9),
       reqs,
       coins: Math.ceil(total * 1.25 / 5) * 5,
       xp: Math.max(5, Math.ceil(baseTotal / 8)),
       posted: state.now,
-      expires: state.now + 3 * D.DAY_LEN,
+      expires: state.now + orderWindow(reqs),
     };
   }
 
@@ -448,6 +509,7 @@ const Game = (() => {
     state.stats.earned += payout;
     addXp(order.xp);
     state.stats.orders++;
+    dailyProgress('orders');
     state.orders.splice(i, 1);
     state.orderTimer = 30;
     toast(`Order complete! +${D.$(payout)}${rush ? ' ⚡ RUSH +25%!' : ''}`, 'good');
@@ -463,6 +525,9 @@ const Game = (() => {
     state.orderTimer = Math.min(state.orderTimer, 25);
   }
 
+  // artisan goods hold their price — the incentive to run processing chains
+  const PROCESSED = new Set(Object.values(D.RECIPES).map(r => r.out));
+
   function sellItem(item, qty) {
     const have = state.inventory[item] || 0;
     qty = Math.min(qty, have);
@@ -474,12 +539,15 @@ const Game = (() => {
     state.stats.earned += gain;
     state.stats.sold += qty;
     addXp(qty * 0.5); // fractional — selling 1-at-a-time earns exactly the same
-    // market memory: dumping a pile crashes that price (daily drift recovers it)
-    const crash = Math.max(0.55, 1 - qty * 0.004);
-    state.market.mults[item] = Math.max(0.55, (state.market.mults[item] || 1) * crash);
-    if (crash <= 0.85 && !state._flags.dumpTold && !state._offline) {
-      state._flags.dumpTold = true;
-      toast(`📉 Dumping ${qty} ${D.ITEMS[item].name} at once crashed its price! It recovers over a few days.`, 'bad');
+    // market memory: dumping a pile crashes that price MULTIPLICATIVELY — repeat
+    // dumps keep digging (down to 0.05×), so dump-selling can't print money
+    if (!PROCESSED.has(item)) {
+      const crash = Math.max(0.55, 1 - qty * 0.004); // one sale costs at most −45%
+      state.market.mults[item] = Math.max(0.05, (state.market.mults[item] || 1) * crash);
+      if (crash <= 0.85 && !state._flags.dumpTold && !state._offline) {
+        state._flags.dumpTold = true;
+        toast(`📉 Dumping ${qty} ${D.ITEMS[item].name} at once crashed its price! It recovers over a few days.`, 'bad');
+      }
     }
     emit('sound', 'coin');
     checkGoal();
@@ -523,6 +591,7 @@ const Game = (() => {
     state.can.water--;
     t.crop.water = 1;
     state.stats.watered++;
+    dailyProgress('water');
     fx('water', x + .5, y + .35, null, '#4a90b8');
     checkGoal();
     return true;
@@ -557,6 +626,7 @@ const Game = (() => {
     if (state.produced) state.produced[id] = 1;
     addXp(def.xp);
     state.stats.harvested++;
+    dailyProgress('harvest', id, n);
 
     if (def.regrow && seasonOK(id, x, y)) { // multi-harvest crops grow back
       t.crop.prog = 0;
@@ -913,6 +983,7 @@ const Game = (() => {
     }
     a.fedUntil = state.now + D.DAY_LEN * 1.2;
     if (!a.sick) a.happiness = clamp(a.happiness + 8, 0, 100);
+    dailyProgress('feed');
     return true;
   }
 
@@ -936,6 +1007,7 @@ const Game = (() => {
       n += bonus;
       gainXp += Math.ceil(D.ITEMS[def.product].base / 8);
       state.stats.collected++;
+      dailyProgress('collect', def.product, bonus);
     }
     if (n && b) {
       addXp(gainXp);
@@ -1050,6 +1122,98 @@ const Game = (() => {
     return true;
   }
 
+  // ---------------- daily tasks & streak ----------------
+  // Three tasks a day, generated from the LOCAL calendar date — a real-world
+  // reason to come back. Clearing all three grows a streak; day 7 pays big.
+  const dateStr = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function todayLocal() { return dateStr(new Date()); } // single date source — tests shim Date
+  function dayBefore(date) { // 'YYYY-MM-DD' minus one day, local calendar
+    const [y, m, d] = date.split('-').map(Number);
+    return dateStr(new Date(y, m - 1, d - 1));
+  }
+
+  function inSeasonCrops() {
+    return Object.keys(D.CROPS).filter(id => D.CROPS[id].seasons.includes(state.season));
+  }
+
+  function regenDaily(date) {
+    date = date || todayLocal();
+    const rng = mulberry32(seedFrom('daily|' + date));
+    const sc = 1 + Math.min(3, (state.stats.recent || 0) / 12); // gentle size scaling
+    const crops = inSeasonCrops();
+    const crop = crops[Math.floor(rng() * crops.length)] || 'turnip';
+    const pay = () => 5 * Math.round((60 + rng() * 40 + Math.min(50, (state.stats.recent || 0) * 2)) / 5);
+    const menu = [
+      { kind: 'harvest', item: crop, need: Math.round(4 * sc) },
+      { kind: 'water', need: Math.round(5 * sc) },
+      { kind: 'orders', need: (state.stats.recent || 0) > 20 ? 2 : 1 },
+    ];
+    if (state.animals.length) {
+      menu.push({ kind: 'feed', need: state.animals.length });
+      menu.push({ kind: 'collect', need: Math.round(2 * sc) });
+    }
+    for (let i = menu.length - 1; i > 0; i--) { // seeded shuffle → 3 distinct kinds
+      const j = Math.floor(rng() * (i + 1));
+      [menu[i], menu[j]] = [menu[j], menu[i]];
+    }
+    const prev = state.daily || {};
+    state.daily = {
+      date,
+      tasks: menu.slice(0, 3).map(t => Object.assign(t, { n: 0, reward: pay(), claimed: false })),
+      streak: prev.streak || 0,
+      lastClaimDate: prev.lastClaimDate || null,
+    };
+    // a skipped day already broke the streak — show the truth at rollover
+    if (state.daily.lastClaimDate && state.daily.lastClaimDate !== date
+      && state.daily.lastClaimDate !== dayBefore(date)) state.daily.streak = 0;
+    return state.daily;
+  }
+
+  function ensureDaily() {
+    if (!state.daily || state.daily.date !== todayLocal()) regenDaily(todayLocal());
+  }
+
+  // progress hook — called from harvest / water / fulfillOrder / feed / collect
+  function dailyProgress(kind, item, n) {
+    const d = state.daily;
+    if (!d || state._offline) return;
+    for (const t of d.tasks) {
+      if (t.kind !== kind || t.claimed) continue;
+      if (t.item && t.item !== item) continue;
+      t.n = Math.min(t.need, (t.n || 0) + (n || 1));
+    }
+  }
+
+  function dailyClaimable() {
+    return state.daily ? state.daily.tasks.filter(t => !t.claimed && t.n >= t.need).length : 0;
+  }
+
+  function claimDaily(i) {
+    const d = state.daily;
+    const t = d && d.tasks[i];
+    if (!t || t.claimed || t.n < t.need) return false;
+    t.claimed = true;
+    state.coins += t.reward;
+    emit('sound', 'coin');
+    toast(`✅ Daily task done: +${D.$(t.reward)}`, 'good');
+    if (d.tasks.every(x => x.claimed)) {
+      // full clear: the streak only continues off yesterday's full clear
+      d.streak = d.lastClaimDate === dayBefore(d.date) ? (d.streak || 0) + 1 : 1;
+      d.lastClaimDate = d.date;
+      if (d.streak % 7 === 0) { // weekly jackpot, then the count keeps climbing
+        const prize = inSeasonCrops().sort((a, b) => D.ITEMS[b].base - D.ITEMS[a].base)[0] || 'turnip';
+        state.coins += 1200;
+        state.inventory[prize] = (state.inventory[prize] || 0) + 3;
+        toast(`🔥 ${d.streak}-day streak! Bonus: +${D.$(1200)} and 3 ${D.ITEMS[prize].name}!`, 'good');
+      } else {
+        toast(`🔥 All tasks cleared — streak: ${d.streak} day${d.streak > 1 ? 's' : ''}!`, 'good');
+      }
+      emit('sound', 'goal');
+    }
+    checkGoal();
+    return true;
+  }
+
   // ---------------- upgrades ----------------
   function buyCanTier() {
     const next = D.CAN_TIERS[state.can.tier + 1];
@@ -1082,9 +1246,21 @@ const Game = (() => {
     return state.goalsDone;
   }
 
+  // the HUD chip shows the cursor-th incomplete goal; tapping it cycles so a
+  // hard goal never blocks the player from seeing (and chasing) later ones
   function currentGoal() {
     const done = goalsDoneList();
-    return D.GOALS.find(g => !done.includes(g.id)) || null;
+    const todo = D.GOALS.filter(g => !done.includes(g.id));
+    if (!todo.length) return null;
+    return todo[(state.goalCursor || 0) % todo.length];
+  }
+
+  function cycleGoal() {
+    const done = goalsDoneList();
+    const todo = D.GOALS.filter(g => !done.includes(g.id));
+    if (todo.length < 2) return;
+    state.goalCursor = ((state.goalCursor || 0) % todo.length) + 1;
+    if (state.goalCursor >= todo.length) state.goalCursor = 0;
   }
 
   function checkGoal() {
@@ -1191,12 +1367,22 @@ const Game = (() => {
       }
     }
 
-    // market drift + hot item + fuel price
+    // market drift + hot item + fuel price — crashed prices climb back toward
+    // normal (+0.08/day below 0.6×), so a deep dump recovers in ~5-8 days
     for (const id of Object.keys(state.market.mults)) {
-      state.market.mults[id] = clamp(state.market.mults[id] * (0.82 + rnd() * 0.36), 0.6, 1.6);
+      const m = state.market.mults[id];
+      state.market.mults[id] = clamp(m * (0.82 + rnd() * 0.36) + (m < 0.6 ? 0.08 : 0), 0.05, 1.6);
     }
     state.market.hot = pick(Object.keys(D.ITEMS));
     state.market.fuelPrice = Math.round(clamp(state.market.fuelPrice * (0.9 + rnd() * 0.2), D.FUEL.min, D.FUEL.max) * 10) / 10;
+
+    // mid-season Market Day banner
+    const md = marketDayItems();
+    if (md.length && !state._offline) {
+      const names = md.map(id => D.ITEMS[id].name);
+      const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1] : names[0];
+      toast(`🎪 Market Day! ${list} sell +50% today`, 'good');
+    }
 
     // storms can flatten unprotected crops
     if (state.weather === 'storm' && !state._offline) {
@@ -1364,6 +1550,13 @@ const Game = (() => {
       }
     }
 
+    // daily tasks follow the real-world local date (~1×/sec rollover check)
+    state._flags.dailyTimer = (state._flags.dailyTimer || 0) + dt;
+    if (state._flags.dailyTimer >= 1) {
+      state._flags.dailyTimer = 0;
+      ensureDaily();
+    }
+
     // one-shot notices deferred from load (UI listeners weren't attached yet)
     if (state._flags.pendingToast && !state._offline && state.now >= (state._flags.quietUntil || 0)) {
       const msg = state._flags.pendingToast;
@@ -1403,8 +1596,9 @@ const Game = (() => {
     // world queries
     tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK, greenhouseAt,
     buildingsOf, animalsIn, readyIn, feedCostFor, canCraft, canFulfill,
-    currentGoal, sellPrice, fuelPrice, availableItems, farmValue, ownsPoweredGear,
-    atRiskCrops, runningJobs, orderRush,
+    currentGoal, cycleGoal, sellPrice, fuelPrice, availableItems, farmValue, ownsPoweredGear,
+    atRiskCrops, runningJobs, orderRush, marketDayItems,
+    todayLocal, regenDaily, claimDaily, dailyClaimable,
     // actions
     smartAction, applyTool, till, plant, water, fertilize, harvest, clearDead, dig, refillCan,
     harvestAtRisk, digAtRisk,

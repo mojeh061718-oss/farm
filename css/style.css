@@ -949,6 +949,19 @@ button.mini:active, #sheet-close:active {
 .fx-coin .ic { width: 100%; height: 100%; vertical-align: 0; filter: drop-shadow(0 2px 3px rgba(20,14,6,.35)); }
 @keyframes pill-pop { 45% { transform: scale(1.12); } }
 
+/* ---- 3.0: daily tasks, Market Day, armed-seed indicator ---- */
+.daily-head { display: flex; align-items: center; justify-content: space-between; }
+.streak-flame { font-size: 0.75rem; font-weight: 800; color: #c05a13; }
+.daily-row.claimed { opacity: .62; }
+.md-tag { font-size: 0.6875rem; font-weight: 800; color: #8a4bb0; white-space: nowrap; }
+.md-badge { background: #f3e6fa; border-radius: 50%; text-align: center; }
+.seed-badge {
+  position: absolute; right: 3px; top: 3px;
+  font-size: 0.75rem; line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(20,14,6,.4));
+}
+
 /* ---- keyframes ---- */
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out-full { to { opacity: 0; } }

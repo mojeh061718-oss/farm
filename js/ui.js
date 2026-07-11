@@ -360,28 +360,32 @@ const UI = (() => {
     $('wallet-fuel').classList.toggle('hidden', !showFuel);
     if (showFuel) $('wallet-fuel-amt').textContent = s.fuel.toFixed(1);
 
-    const fulfillable = s.orders.filter(o => Game.canFulfill(o)).length;
+    // orders badge counts deliverable orders + claimable daily tasks
+    const fulfillable = s.orders.filter(o => Game.canFulfill(o)).length + Game.dailyClaimable();
     $('orders-badge').classList.toggle('hidden', fulfillable === 0);
     $('orders-badge').textContent = fulfillable;
 
-    const invCount = Object.values(s.inventory).reduce((a, b) => a + b, 0);
-    $('market-badge').classList.toggle('hidden', invCount === 0);
-    $('market-badge').textContent = invCount > 99 ? '99+' : invCount;
+    // distinct sellable item TYPES (unit counts pinned the badge at 99+)
+    const invTypes = Object.keys(s.inventory).filter(k => s.inventory[k] > 0).length;
+    $('market-badge').classList.toggle('hidden', invTypes === 0);
+    $('market-badge').textContent = invTypes > 99 ? '99+' : invTypes;
 
     $('menu-badge').classList.toggle('hidden', !Game.backupDue()); // backup nudge dot
 
     updateGoalChip();
   }
 
-  let lastGoalId = null;
+  let lastGoalsDone = null;
   function updateGoalChip() {
     const g = Game.currentGoal();
     const chipEl = $('goal-chip');
-    if (!g) { chipEl.classList.add('hidden'); lastGoalId = null; return; }
+    if (!g) { chipEl.classList.add('hidden'); lastGoalsDone = null; return; }
     const wasVisible = !chipEl.classList.contains('hidden');
     chipEl.classList.remove('hidden');
-    if (wasVisible && lastGoalId && g.id !== lastGoalId) celebrateGoal(chipEl);
-    lastGoalId = g.id;
+    // celebrate only on a real completion — never when the chip merely cycles
+    const doneN = (Game.state.goalsDone || []).length;
+    if (wasVisible && lastGoalsDone != null && doneN > lastGoalsDone) celebrateGoal(chipEl);
+    lastGoalsDone = doneN;
     const [cur, need] = g.check(Game.state);
     setIcon($('goal-icon'), I.fromEmoji(g.icon));
     $('goal-title').textContent = g.title;
@@ -435,6 +439,11 @@ const UI = (() => {
       bd.classList.remove('closing');
     }, 225);
     flushToasts(); // messages parked while the sheet was up
+    if (pendingLevelUp != null) { // deferred level-up splash lands now
+      const lvl = pendingLevelUp;
+      pendingLevelUp = null;
+      setTimeout(() => showLevelUp(lvl), 260);
+    }
   }
 
   // sheet header: icon plate + title + one-line promise
@@ -708,6 +717,13 @@ const UI = (() => {
     }
 
     const hot = s.market.hot;
+    const md = Game.marketDayItems();
+    if (md.length) {
+      const fair = document.createElement('div');
+      fair.className = 'order-card md-banner';
+      fair.innerHTML = `<div style="font-weight:800;font-size:0.8125rem">🎪 <b>Market Day!</b> ${md.map(id => `${I.item(id)} <b>${D.ITEMS[id].name}</b>`).join(', ')} sell for <b>+50%</b> today only!</div>`;
+      body.appendChild(fair);
+    }
     const note = document.createElement('div');
     note.className = 'order-card';
     note.innerHTML = `<div style="font-weight:800;font-size:0.8125rem">${I.icon('flame')} Today's hot item: ${I.item(hot)} <b>${D.ITEMS[hot].name}</b> sells for <b>+50%</b>! Prices change daily.</div>`;
@@ -746,15 +762,16 @@ const UI = (() => {
       const item = D.ITEMS[id];
       const qty = s.inventory[id] || 0;
       const price = Game.sellPrice(id);
-      const mult = s.market.mults[id] * (hot === id ? 1.5 : 1);
+      const onMd = md.includes(id);
+      const mult = s.market.mults[id] * (hot === id ? 1.5 : 1) * (onMd ? 1.5 : 1);
       const dir = mult >= 1.12 ? `<span class="price-up">▲ high</span>` : mult <= 0.85 ? `<span class="price-down">▼ low</span>` : 'steady';
       const row = document.createElement('div');
       row.className = 'row-card' + (qty ? '' : ' soldout');
       // both buttons render at every quantity so the tap targets never move
       row.innerHTML = `
-        <div class="emoji">${I.item(id, 'lg')}${hot === id ? `<span class="hot-badge">${I.icon('flame')}</span>` : ''}</div>
+        <div class="emoji">${I.item(id, 'lg')}${hot === id ? `<span class="hot-badge">${I.icon('flame')}</span>` : onMd ? '<span class="hot-badge md-badge">🎪</span>' : ''}</div>
         <div class="info">
-          <div class="name">${item.name} × ${qty}</div>
+          <div class="name">${item.name} × ${qty}${onMd ? ' <span class="md-tag">🎪 +50%</span>' : ''}</div>
           <div class="sub">${qty ? `${$$(price)} each · ${dir}` : 'sold out'}</div>
         </div>
         <div class="actions">
@@ -786,10 +803,51 @@ const UI = (() => {
     return card;
   }
 
+  // "Today" section: the 3 daily tasks + streak flame, at the top of Orders
+  function dailyLabel(t) {
+    const NAMES = {
+      harvest: n => `Harvest ${n} ${t.item ? D.ITEMS[t.item].name : 'crops'}`,
+      water: n => `Water ${n} crop${n > 1 ? 's' : ''}`,
+      orders: n => `Fulfill ${n} order${n > 1 ? 's' : ''}`,
+      feed: n => `Feed all ${n} animal${n > 1 ? 's' : ''}`,
+      collect: n => `Collect ${n} animal product${n > 1 ? 's' : ''}`,
+    };
+    return (NAMES[t.kind] || (n => `${t.kind} × ${n}`))(t.need);
+  }
+  const DAILY_ICONS = { harvest: 'basket', water: 'drop', orders: 'clipboard', feed: 'hen', collect: 'crate' };
+
+  function renderDaily(body) {
+    const d = Game.state.daily;
+    if (!d) return;
+    const head = document.createElement('div');
+    head.className = 'section-label daily-head';
+    head.innerHTML = `Today's tasks <span class="streak-flame">🔥 ${d.streak || 0} day streak</span>`;
+    body.appendChild(head);
+    d.tasks.forEach((t, i) => {
+      const pct = Math.round(Math.min(1, (t.n || 0) / t.need) * 100);
+      const row = document.createElement('div');
+      row.className = 'row-card daily-row' + (t.claimed ? ' claimed' : '');
+      row.innerHTML = `
+        <div class="emoji">${t.kind === 'harvest' && t.item ? I.item(t.item, 'lg') : I.icon(DAILY_ICONS[t.kind] || 'check')}</div>
+        <div class="info">
+          <div class="name">${dailyLabel(t)}</div>
+          <div class="sub">${t.claimed ? '✅ claimed' : `${Math.min(t.n || 0, t.need)} / ${t.need}`}</div>
+          <div class="minibar"><div style="width:${pct}%"></div></div>
+        </div>
+        <div class="actions"><button class="mini gold" ${!t.claimed && (t.n || 0) >= t.need ? '' : 'disabled'}>${t.claimed ? 'Done' : `Claim ${$$(t.reward)}`}</button></div>`;
+      row.querySelector('button').onclick = e => {
+        const r = e.currentTarget.getBoundingClientRect();
+        if (Game.claimDaily(i)) { coinFlight(r); updateHud(); renderSheet(); }
+      };
+      body.appendChild(row);
+    });
+  }
+
   function renderOrders(body) {
     setSheetHeader(I.icon('clipboard'), 'Orders', 'Townsfolk pay a premium for deliveries');
     setTabs(null);
     const s = Game.state;
+    renderDaily(body);
     if (!orderSeen) { orderSeen = new Map(); orderGone = {}; }
     const live = new Map(s.orders.map(o => [o.id, o]));
     for (const o of s.orders) if (!orderSeen.has(o.id)) orderSeen.set(o.id, o);
@@ -1406,9 +1464,25 @@ const UI = (() => {
   }
 
   // ---------------- tools ----------------
+  // tiny overlay on the Plant button showing which seed is armed
+  function updateSeedBadge() {
+    const btn = document.querySelector('.tool-btn[data-tool="plant"]');
+    if (!btn) return;
+    let b = btn.querySelector('.seed-badge');
+    if (!b) {
+      b = document.createElement('span');
+      b.className = 'seed-badge';
+      btn.appendChild(b);
+    }
+    const show = tool === 'plant' && seed && D.ITEMS[seed];
+    b.textContent = show ? D.ITEMS[seed].emoji : '';
+    b.classList.toggle('hidden', !show);
+  }
+
   function setTool(t) {
     tool = t;
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+    updateSeedBadge();
   }
 
   // ---------------- pointer input ----------------
@@ -1654,7 +1728,10 @@ const UI = (() => {
   }
 
   // ---------------- level up splash ----------------
+  // never splash over an open sheet — park it until the sheet closes
+  let pendingLevelUp = null;
   function showLevelUp(level) {
+    if (sheetShowing()) { pendingLevelUp = Math.max(pendingLevelUp || 0, level); return; }
     SOUNDS.levelup();
     $('levelup-num').textContent = level;
     const bonus = Math.round(D.repBonus(level) * 100);
@@ -1742,9 +1819,29 @@ const UI = (() => {
     $('btn-menu').onclick = () => { SOUNDS.tap(); openSheet('menu'); };
     $('sheet-close').onclick = () => { SOUNDS.tap(); closeSheet(); };
     $('sheet-backdrop').onclick = closeSheet;
+    // tapping the dark backdrop of a confirm = Cancel (never the destructive OK)
+    $('modal-backdrop').addEventListener('click', e => {
+      if (e.target !== e.currentTarget) return;
+      const no = $('modal-no');
+      if (no.style.display !== 'none') no.click(); // away-summary hides Cancel — keep it modal
+    });
+    // desktop: Escape closes the top-most layer (modal > splash > sheet > build)
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (!$('modal-backdrop').classList.contains('hidden')) {
+        const no = $('modal-no');
+        if (no.style.display !== 'none') no.click();
+      } else if (!$('levelup').classList.contains('hidden')) {
+        $('levelup').classList.add('hidden');
+      } else if (sheetShowing()) {
+        closeSheet();
+      } else if (buildType) {
+        endBuild();
+      }
+    });
     $('sheet-tabs').addEventListener('scroll', updateTabFade, { passive: true });
     window.addEventListener('resize', updateTabFade);
-    $('goal-chip').onclick = () => updateGoalChip();
+    $('goal-chip').onclick = () => { SOUNDS.tap(); Game.cycleGoal(); updateGoalChip(); };
 
     // pause the 0.5s live-refresh while a finger is down inside the sheet —
     // rebuilding innerHTML replaces the very button being pressed (dropped taps)
