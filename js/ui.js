@@ -1855,22 +1855,20 @@ const UI = (() => {
             <h1 class="tp-masthead">The Valley Herald</h1>
             <div class="tp-rule"></div>
             <h2 class="tp-headline">THE GOLDEN GIANT BLOOMS AGAIN</h2>
-            <div class="tp-subhead">Elders insist the old story is true — “the brightest thing a field has ever held.”</div>
+            <div class="tp-subhead">“I planted turnips,” says Harlan Voss. “I got the whole sky.” — The Toni Variety returns after a generation</div>
             <div class="tp-cols">
-              <p><span class="tp-lede">VALLEY COUNTY —</span> Word reached this paper before dawn on Tuesday: a sunflower taller than a barn door, brighter than the noon sun, standing in a plain dirt field where yesterday there was nothing remarkable at all.</p>
-              <p>The farmer — who asked that his name be kept out of print, “so folks don’t come tramping my fences” — swears he planted that row himself, seed by seed, same as every spring. “It came up ordinary,” he told this reporter, hat in his hands. “Ordinary leaves. Ordinary green. I watered it like the rest and thought nothing of it. And then this morning it wasn’t ordinary anymore.”</p>
-              <h3 class="tp-crosshead">THE ELDERS’ TALE</h3>
-              <p>Every county has its stories, but this one is older than the county. The elders tell it like this: once in a great while, the big man upstairs leans over the rail of heaven with a single seed in his hand — and he lets it go. No one can say where it will land. No prayer can steer it. It falls where it falls, into a rich man’s orchard or a poor man’s mud, and it comes up wearing the plainest disguise a seed can wear. You will not know her from a turnip, they say, until the day she decides to be known.</p>
-              <p>And there is never more than one. Ask the elders why and they shrug like it is the most obvious thing in the world: “The sun doesn’t come up twice, does it?” One flower, one field, one farmer at a time — and not another until she is gathered in and gone.</p>
+              <p><span class="tp-lede">VALLEY COUNTY —</span> The Toni sunflower stands again. It rose Tuesday in a turnip row on the Voss place, and men who never left their fields have driven forty miles to look at it.</p>
+              <p>No man planted it. The elders tell it plain: the seed falls from the hand of the big man upstairs, and no prayer steers it. It lands where it lands. That is the whole of the law.</p>
+              <p>Harlan Voss, 34, swears it came up ordinary. “It looked like every turnip in the row,” he said. “I near pulled it twice. Then one morning it rose, and I understood I had never grown anything before in my life.”</p>
               <figure class="tp-figure">
                 ${TONI_ENGRAVING}
                 <figcaption>Artist’s rendering. No photograph has ever done it justice.</figcaption>
               </figure>
-              <p>But whichever field she lands in wants for nothing, ever after. The rain comes when it is needed. The sun stays soft. The frost walks around the fenceline like a polite guest. Those who have stood beneath her swear the ground itself is happier — that everything planted near her grows kind and tall, season upon season, as if the land had somewhere decided it was loved.</p>
-              <h3 class="tp-crosshead">PRAYERS AT NIGHT</h3>
-              <p>Most farmers in this county put it in their prayers all the same — not for rain, not for prices — just for the chance that the seed might fall on their acre. Widow Halloran, who farms forty rows east of the creek, keeps a lamp in her window for it. “My mother prayed for it, and hers before her,” she said. “Nobody I ever knew got it. You pray anyway. That’s the whole of farming, isn’t it?”</p>
-              <p>The old-timers call it a myth, and say so loudly at the feed store. The elders only smile at that. The myth, they say, is the part folks wrote down wrong: the flower is real, she is called the Toni Variety, and she is the biggest and brightest thing that has ever grown out of plain dirt — and once she has stood in your field, no story anyone tells you about her will ever again seem tall enough.</p>
-              <p class="tp-note">This paper could not confirm the account by press time. The photograph our man brought back would not develop.</p>
+              <p>There is only ever one. Not one to a county — one to the world. When it stands in a man’s field, it stands in no other.</p>
+              <h3 class="tp-crosshead">THE BLESSED GROUND</h3>
+              <p>The field that holds her wants for nothing. Rain comes when the ground asks. The sun stays soft. Frost keeps out at the fence line as if told to. Everything near her thrives, and no plow may touch that land while she stands. She is the biggest and brightest thing ever to come out of plain dirt.</p>
+              <p>Farmers here put her in their prayers at night. Not for rain. Not for prices. Just for the chance.</p>
+              <p class="tp-note">You cannot hunt her. You can only keep your rows and hope, and know her when she rises.</p>
             </div>
             <button id="toni-flip" class="tp-btn">— flip the page —</button>
           </div>
