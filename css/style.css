@@ -1074,6 +1074,16 @@ button.mini:active, #sheet-close:active {
 }
 .tp-cols p { margin-bottom: 0.8em; text-indent: 1.4em; }
 .tp-cols p:first-child { text-indent: 0; }
+.tp-crosshead {
+  text-align: center;
+  font-size: 0.8125rem;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  margin: 10px 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(60, 40, 10, .35);
+}
+.tp-note { font-style: italic; opacity: .8; }
 .tp-lede { font-variant: small-caps; font-weight: 700; letter-spacing: .04em; }
 .tp-figure {
   break-inside: avoid;
