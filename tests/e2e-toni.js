@@ -40,12 +40,11 @@ function check(name, ok, detail) {
 
   // ---- rarity constants (exact spec values) ----
   const rare = await page.evaluate(() => DATA.TONI);
-  check('rarity: dawn 1/2000, action 1/30000, seed 1/25',
-    Math.abs(rare.dawnChance - 1 / 2000) < 1e-12
-    && Math.abs(rare.actionChance - 1 / 30000) < 1e-12
+  check('rarity: plant roll 1/30000, glowing seed 1/25',
+    Math.abs(rare.plantChance - 1 / 30000) < 1e-12
     && Math.abs(rare.seedChance - 1 / 25) < 1e-12, rare);
 
-  // ---- action roll spawns (Math.random at the moment of the roll) ----
+  // ---- the roll lives on the seed: planting can BE the seed ----
   const act = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     s.coins += 50000;
@@ -53,43 +52,49 @@ function check(name, ok, detail) {
     s.t = 0.1; s.weather = 'sun'; s.forecast = 'sun';
     s._flags.crowDone = true;
     document.getElementById('toasts').innerHTML = '';
-    G.plant(9, 7, 'turnip');
-    s.tiles[7][9].crop.water = 0.2;
+    G.plant(9, 7, 'turnip');             // the bystander crop the blessing tests use
+    s.tiles[7][9].crop.water = 1;
     const mr = Math.random;
-    Math.random = () => 0;               // the 1/30000 roll must hit
-    G.water(9, 7);
+    Math.random = () => 0;               // the 1/30000 plant roll must hit
+    G.plant(10, 8, 'turnip');
     Math.random = mr;
     const t = s.tonis[0];
     out.spawned = s.tonis.length === 1 && !!t;
+    out.atTile = t && t.x === 10 && t.y === 8;
+    out.seedGone = !s.tiles[8][10].crop; // the seed was never a turnip at all
     out.unlocked = t && G.isUnlocked(t.x, t.y);
     out.noBuilding = t && !s.tiles[t.y][t.x].obj;
     out.fresh = t && t.seen === false && t.day >= 1;
     out.toasts = document.getElementById('toasts').textContent;
     return out;
   });
-  check('common action can spawn a toni (unlocked, building-free tile, seen=false)',
-    act.spawned && act.unlocked && act.noBuilding && act.fresh, act);
+  check('planting a seed can spawn the toni AT that tile (seed consumed, seen=false)',
+    act.spawned && act.atTile && act.seedGone && act.unlocked && act.noBuilding && act.fresh, act);
   check('no announcement toast on spawn — found by eye only', act.toasts === '', act.toasts);
 
-  // ---- dawn roll spawns; offline fast-forward NEVER spawns ----
+  // ---- two coexist; offline plants NEVER roll ----
   const dawn = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     const mr = Math.random;
-    s.t = 0.999; s.forecast = 'sun'; s.day = 2;
-    Math.random = () => 0;               // dawn roll hits
-    G.tick(0.5);
+    Math.random = () => 0;
+    G.spawnToni();                       // test helper: second toni, random free tile
     out.afterDawn = s.tonis.length;      // 2
     out.distinct = new Set(s.tonis.map(t => t.x + '|' + t.y)).size === s.tonis.length;
-    s.t = 0.1;
-    G.fastForward(DATA.DAY_LEN, 3600);   // one offline day — rolls must be skipped
-    out.afterOffline = s.tonis.length;
+    // offline guard: even a certain roll must not spawn during fast-forward
+    G.buyParcel(1);
+    G.till(14, 8);
+    s._offline = true;
+    G.plant(14, 8, 'turnip');
+    s._offline = false;
+    s.tiles[8][14].crop = null;          // leave no fixture residue
+    out.afterOffline = s.tonis.length;   // still 2
     Math.random = mr;
-    DATA.TONI.dawnChance = 0;            // stability for the loops below
-    DATA.TONI.actionChance = 0;
+    DATA.TONI.plantChance = 0;           // stability for the loops below
+    G.fastForward(DATA.DAY_LEN, 3600);   // ripens the blessed turnip for the block below
     return out;
   });
-  check('dawn roll can spawn a second toni (two coexist on distinct tiles)', dawn.afterDawn === 2 && dawn.distinct, dawn);
-  check('offline fast-forward never spawns (dawn + action rolls gated)', dawn.afterOffline === 2, dawn);
+  check('two tonis coexist on distinct tiles', dawn.afterDawn === 2 && dawn.distinct, dawn);
+  check('offline planting never spawns (roll gated by _offline)', dawn.afterOffline === 2, dawn);
 
   // ---- blessing: pins, love-speed growth, frozen-snapshot replant ----
   const bless = await page.evaluate(() => {
@@ -317,7 +322,7 @@ function check(name, ok, detail) {
   await page.reload();
   await page.waitForTimeout(900);
   const loaded = await page.evaluate(f => {
-    DATA.TONI.dawnChance = 0; DATA.TONI.actionChance = 0; // fresh page — re-pin
+    DATA.TONI.plantChance = 0; // fresh page — re-pin
     const out = {};
     out.persisted = JSON.stringify(Game.state.tonis) === f.json;
     out.seenTrue = Game.state.tonis[0].seen === true;

@@ -102,13 +102,6 @@ const Game = (() => {
     return t;
   }
 
-  // a whisper of a chance on any common action — live play only. Math.random
-  // is read AT the roll (live property lookup, not the cached `rnd` binding):
-  // nothing seeded, nothing deterministic — and tests can stub exactly one roll.
-  function maybeToni() {
-    if (!state._offline && Math.random() < D.TONI.actionChance) spawnToni();
-  }
-
   // the parcel a toni stands on is blessed while the toni exists (it never
   // dies). Rect list memoized off the tonis array — recomputed only when a
   // toni appears or a different save is adopted, so zero-toni farms pay
@@ -723,7 +716,14 @@ const Game = (() => {
     if (state.weather === 'rain' || state.weather === 'storm') t.crop.water = 1;
     state.stats.planted++;
     fx('plant', x + .5, y + .5, null, def.color);
-    maybeToni();
+    // any seed, cheapest or priciest, might be the one He dropped: the roll
+    // happens ONLY here, at planting, and the flower grows from this very
+    // tile. Math.random read at the roll — nothing seeded, nothing scheduled.
+    if (!state._offline && Math.random() < D.TONI.plantChance) {
+      t.crop = null; // the seed was never a turnip at all
+      addToni(x, y);
+      fx('toni', x + .5, y + .5);
+    }
     checkGoal();
     return true;
   }
@@ -737,7 +737,6 @@ const Game = (() => {
     state.stats.watered++;
     dailyProgress('water');
     fx('water', x + .5, y + .35, null, '#4a90b8');
-    maybeToni();
     checkGoal();
     return true;
   }
@@ -791,7 +790,6 @@ const Game = (() => {
       fx('float', x + .5, y, `+${n} ${D.ITEMS[id].emoji}`, n > 1 ? '#ffe082' : '#fff');
       fx('harvest', x + .5, y + .4, null, def.color, { n, id });
     }
-    maybeToni();
     checkGoal();
     return n;
   }
@@ -1168,7 +1166,6 @@ const Game = (() => {
       addXp(gainXp);
       emit('sound', 'harvest');
       fx('float', b.x + 1, b.y, `+${n} 📦`, '#fff');
-      maybeToni();
       checkGoal();
     }
     return n;
@@ -1505,10 +1502,6 @@ const Game = (() => {
     state.forecast = rollWeather(state.day === D.SEASON_DAYS ? (state.season + 1) % 4 : state.season);
     state._flags.crowDone = false;
     state._flags.frostDone = false;
-
-    // once in a great while, a seed falls from the rail of heaven (live dawns
-    // only; Math.random read at the roll — see maybeToni)
-    if (!state._offline && Math.random() < D.TONI.dawnChance) spawnToni();
 
     // drones harvest & replant first, THEN sprinklers water — so freshly
     // replanted crops don't spend their first day dry
