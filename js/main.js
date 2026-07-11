@@ -12,8 +12,11 @@
     UI.showSetup(); // choose farm name & starting capital
   } else if (loadResult.recovered) {
     UI.toast('🛡️ Your save was damaged — restored from a safety snapshot!', 'good');
-  } else if (loadResult.away && (loadResult.away.crops > 0 || loadResult.away.produce > 0)) {
-    UI.showAwaySummary(loadResult.away);
+  } else if (loadResult.away) {
+    const a = loadResult.away; // digest shows when ANYTHING happened — losses included
+    if (a.crops > 0 || a.produce > 0 || a.droneHarvest > 0 || a.expiredOrders > 0 || a.lost > 0) {
+      UI.showAwaySummary(a);
+    }
   }
 
   // ask the browser to protect our storage from eviction

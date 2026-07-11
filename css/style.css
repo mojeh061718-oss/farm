@@ -173,6 +173,7 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
   .pill { padding: 4px 6px 4px 5px; }
   .xpbar { width: 18px; }
   #forecast { display: none; } /* today's weather stays; tomorrow's hint yields */
+  #pill-clock { gap: 3px; font-size: 0.6875rem; } /* "D10/10" still fits */
 }
 
 /* ============ Goal chip ============ */
@@ -265,6 +266,9 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
 }
 /* market badge = "goods to sell" (gold); red stays exclusively for orders */
 .btn-badge.gold { background: linear-gradient(180deg, var(--gold-4), var(--gold-5)); color: var(--gold-ink); }
+/* menu badge = "backup overdue": a quiet gold dot, not a red alarm */
+.btn-badge.dot { min-width: 13px; width: 13px; height: 13px; padding: 0; background: linear-gradient(180deg, var(--gold-4), var(--gold-5)); }
+.row-card.backup-due { box-shadow: 0 0 0 2px var(--gold-4) inset; }
 
 /* ============ Toolbar ============ */
 /* full-width dock: fills the screen edge and the iOS home-indicator band,
@@ -944,6 +948,19 @@ button.mini:active, #sheet-close:active {
 }
 .fx-coin .ic { width: 100%; height: 100%; vertical-align: 0; filter: drop-shadow(0 2px 3px rgba(20,14,6,.35)); }
 @keyframes pill-pop { 45% { transform: scale(1.12); } }
+
+/* ---- 3.0: daily tasks, Market Day, armed-seed indicator ---- */
+.daily-head { display: flex; align-items: center; justify-content: space-between; }
+.streak-flame { font-size: 0.75rem; font-weight: 800; color: #c05a13; }
+.daily-row.claimed { opacity: .62; }
+.md-tag { font-size: 0.6875rem; font-weight: 800; color: #8a4bb0; white-space: nowrap; }
+.md-badge { background: #f3e6fa; border-radius: 50%; text-align: center; }
+.seed-badge {
+  position: absolute; right: 3px; top: 3px;
+  font-size: 0.75rem; line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(20,14,6,.4));
+}
 
 /* ---- keyframes ---- */
 @keyframes fade-in { from { opacity: 0; } }

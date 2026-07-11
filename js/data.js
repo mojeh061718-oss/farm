@@ -6,8 +6,8 @@ const DATA = (() => {
   // ---- World / time ----
   const WORLD_W = 20;         // tiles
   const WORLD_H = 15;
-  const DAY_LEN = 84;         // real seconds per in-game day (slower, calmer cycle)
-  const SEASON_DAYS = 6;      // days per season
+  const DAY_LEN = 120;        // real seconds per in-game day (slower, calmer cycle)
+  const SEASON_DAYS = 10;     // days per season
   const NIGHT_START = 0.87;   // fraction of day when night falls
   const WILT_DAYS = 1.5;      // days a bone-dry crop survives before dying
   const ROT_DAYS = 2;         // days a ripe crop lasts before rotting in the field
@@ -52,25 +52,25 @@ const DATA = (() => {
 
   // ---- Items (everything sellable / storable) ----
   const ITEMS = {
-    // crops
-    turnip:     { name: 'Turnip',      emoji: '🥬', base: 17 },
-    wheat:      { name: 'Wheat',       emoji: '🌾', base: 16 },
-    carrot:     { name: 'Carrot',      emoji: '🥕', base: 27 },
-    potato:     { name: 'Potato',      emoji: '🥔', base: 40 },
-    rice:       { name: 'Rice',        emoji: '🍚', base: 54 },
-    garlic:     { name: 'Garlic',      emoji: '🧄', base: 70 },
+    // crops — single-harvest values buffed +40-80% so regrow crops don't dominate
+    turnip:     { name: 'Turnip',      emoji: '🥬', base: 26 },
+    wheat:      { name: 'Wheat',       emoji: '🌾', base: 22 },
+    carrot:     { name: 'Carrot',      emoji: '🥕', base: 42 },
+    potato:     { name: 'Potato',      emoji: '🥔', base: 62 },
+    rice:       { name: 'Rice',        emoji: '🍚', base: 84 },
+    garlic:     { name: 'Garlic',      emoji: '🧄', base: 110 },
     strawberry: { name: 'Strawberry',  emoji: '🍓', base: 36 },
     tomato:     { name: 'Tomato',      emoji: '🍅', base: 44 },
     pepper:     { name: 'Pepper',      emoji: '🫑', base: 62 },
-    corn:       { name: 'Corn',        emoji: '🌽', base: 98 },
-    melon:      { name: 'Melon',       emoji: '🍉', base: 165 },
-    sunflower:  { name: 'Sunflower',   emoji: '🌻', base: 128 },
+    corn:       { name: 'Corn',        emoji: '🌽', base: 145 },
+    melon:      { name: 'Melon',       emoji: '🍉', base: 265 },
+    sunflower:  { name: 'Sunflower',   emoji: '🌻', base: 200 },
     grapes:     { name: 'Grapes',      emoji: '🍇', base: 88 },
-    cabbage:    { name: 'Cabbage',     emoji: '🥗', base: 132 },
-    yam:        { name: 'Yam',         emoji: '🍠', base: 150 },
-    pumpkin:    { name: 'Pumpkin',     emoji: '🎃', base: 190 },
-    kale:       { name: 'Winter Kale', emoji: '🥦', base: 95 },
-    frostberry: { name: 'Frostberry',  emoji: '🫐', base: 196 },
+    cabbage:    { name: 'Cabbage',     emoji: '🥗', base: 215 },
+    yam:        { name: 'Yam',         emoji: '🍠', base: 240 },
+    pumpkin:    { name: 'Pumpkin',     emoji: '🎃', base: 300 },
+    kale:       { name: 'Winter Kale', emoji: '🥦', base: 150 },
+    frostberry: { name: 'Frostberry',  emoji: '🫐', base: 320 },
     // animal products
     egg:        { name: 'Egg',         emoji: '🥚', base: 24 },
     duck_egg:   { name: 'Duck Egg',    emoji: '🪺', base: 46 },
@@ -82,7 +82,7 @@ const DATA = (() => {
     // artisan goods
     bread:      { name: 'Bread',       emoji: '🍞', base: 110 },
     cookies:    { name: 'Cookies',     emoji: '🍪', base: 240 },
-    pie:        { name: 'Pumpkin Pie', emoji: '🥧', base: 420 },
+    pie:        { name: 'Pumpkin Pie', emoji: '🥧', base: 460 },   // keeps ~33% margin over buffed pumpkin
     cake:       { name: 'Berry Cake',  emoji: '🍰', base: 780 },
     cheese:     { name: 'Cheese',      emoji: '🧀', base: 140 },
     butter:     { name: 'Butter',      emoji: '🧈', base: 255 },
@@ -90,7 +90,7 @@ const DATA = (() => {
     yogurt:     { name: 'Yogurt',      emoji: '🍦', base: 310 },
     grape_juice:{ name: 'Grape Juice', emoji: '🧃', base: 410 },
     smoothie:   { name: 'Smoothie',    emoji: '🥤', base: 300 },
-    melon_juice:{ name: 'Melon Juice', emoji: '🍹', base: 560 },
+    melon_juice:{ name: 'Melon Juice', emoji: '🍹', base: 690 },   // keeps ~30% margin over buffed melons
     cloth:      { name: 'Fine Cloth',  emoji: '🧵', base: 650 },
     quilt:      { name: 'Wool Quilt',  emoji: '🛏️', base: 1500 },
   };
