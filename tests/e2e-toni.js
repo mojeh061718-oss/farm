@@ -57,6 +57,12 @@ function check(name, ok, detail) {
     const mr = Math.random;
     Math.random = () => 0;               // the 1/1000 plant roll must hit
     G.plant(10, 8, 'turnip');
+    // offline plants never roll — tested here, before anything stands
+    s._offline = true;
+    G.plant(10, 7, 'turnip');
+    s._offline = false;
+    out.offlineNoTag = !!s.tiles[7][10].crop && !s.tiles[7][10].crop.toni;
+    s.tiles[7][10].crop = null;          // leave no fixture residue
     Math.random = mr;
     // total stealth: the crop IS a normal turnip — same id, same timer, no toni yet
     const c0 = s.tiles[8][10].crop;
@@ -77,33 +83,36 @@ function check(name, ok, detail) {
     return out;
   });
   check('tagged seed grows as a NORMAL crop — no toni, no tell at planting', act.hidden && act.toastsAtPlant === '', act);
+  check('offline planting never rolls (gated by _offline)', act.offlineNoTag, act);
   check('at maturity the toni rises AT that tile (crop consumed, rise animation armed, seen=false)',
     act.spawned && act.atTile && act.seedGone && act.rises && act.unlocked && act.noBuilding && act.fresh, act);
   check('no announcement toast on spawn — found by eye only', act.toasts === '', act.toasts);
 
-  // ---- two coexist; offline plants NEVER roll ----
+  // ---- the gate: only one, ever ----
   const dawn = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     const mr = Math.random;
     Math.random = () => 0;
-    G.spawnToni();                       // test helper: second toni, random free tile
-    out.afterDawn = s.tonis.length;      // 2
-    out.distinct = new Set(s.tonis.map(t => t.x + '|' + t.y)).size === s.tonis.length;
-    // offline guard: even a certain roll must not spawn during fast-forward
+    out.gateHelper = G.spawnToni() === null && s.tonis.length === 1;
+    // a stubbed plant roll cannot tag while she stands
     G.buyParcel(1);
     G.till(14, 8);
-    s._offline = true;
     G.plant(14, 8, 'turnip');
-    s._offline = false;
+    out.gateTag = !!s.tiles[8][14].crop && !s.tiles[8][14].crop.toni;
+    // and a tagged crop maturing while she stands quietly ripens as ordinary
+    s.tiles[8][14].crop.toni = true;
+    s.tiles[8][14].crop.water = 1; s.tiles[8][14].crop.prog = 0.99;
+    G.tick(1); G.tick(1);
+    const c14 = s.tiles[8][14].crop;
+    out.gateMature = s.tonis.length === 1 && !!c14 && c14.id === 'turnip' && c14.prog >= 1 && !c14.toni;
     s.tiles[8][14].crop = null;          // leave no fixture residue
-    out.afterOffline = s.tonis.length;   // still 2
     Math.random = mr;
     DATA.TONI.plantChance = 0;           // stability for the loops below
     G.fastForward(DATA.DAY_LEN, 3600);   // ripens the blessed turnip for the block below
     return out;
   });
-  check('two tonis coexist on distinct tiles', dawn.afterDawn === 2 && dawn.distinct, dawn);
-  check('offline planting never spawns (roll gated by _offline)', dawn.afterOffline === 2, dawn);
+  check('the gate: spawnToni refuses a second while one stands', dawn.gateHelper, dawn);
+  check('the gate: no tag while she stands; a pending tag ripens as an ordinary crop', dawn.gateTag && dawn.gateMature, dawn);
 
   // ---- blessing: pins, love-speed growth, frozen-snapshot replant ----
   const bless = await page.evaluate(() => {
@@ -250,7 +259,7 @@ function check(name, ok, detail) {
     out.sellWellBlocked = G.sellBuilding(0) === false && !!s.buildings[0]; // the starter well is inside the blessing
     out.placeBlocked = G.canPlaceBuilding('well', 8, 6) === false;
     out.cropKept = !!s.tiles[7][9].crop;
-    out.toniKept = s.tonis.length === 2;
+    out.toniKept = s.tonis.length === 1;
     out.shovelTool = G.applyTool('shovel', t0.x, t0.y) === 0;
     return out;
   });
@@ -374,36 +383,30 @@ function check(name, ok, detail) {
     seeds: Game.state.inventory.toni_seed || 0,
   }));
   check('harvest step 1: confirm asks, nothing harvested yet',
-    step1.modal && /Are you sure you want to harvest THE Sunflower/.test(step1.text) && step1.tonis === 2 && step1.seeds === 0, step1);
+    step1.modal && /Are you sure you want to harvest THE Sunflower/.test(step1.text) && step1.tonis === 1 && step1.seeds === 0, step1);
   await page.tap('#modal-yes');
   await page.waitForTimeout(250);
   const step2 = await page.evaluate(() => ({
     modal: !document.getElementById('modal-backdrop').classList.contains('hidden'),
     text: document.getElementById('modal-text').textContent,
-    tonis: Game.state.tonis.length, // STILL 2 — the first confirm alone must not harvest
+    tonis: Game.state.tonis.length, // STILL 1 — the first confirm alone must not harvest
   }));
   check('harvest step 2: a second, final confirm — the flower still stands after step 1',
-    step2.modal && /goodbye/.test(step2.text) && /Glowing Seed/.test(step2.text) && step2.tonis === 2, step2);
+    step2.modal && /goodbye/.test(step2.text) && /Glowing Seed/.test(step2.text) && step2.tonis === 1, step2);
   await page.tap('#modal-yes');
   await page.waitForTimeout(250);
   const done = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
-    out.tonis = s.tonis.length;               // 1 left
+    out.tonis = s.tonis.length;               // 0 — she is gone
     out.seeds = s.inventory.toni_seed || 0;   // exactly 1
-    // both tonis were in parcel 0 — the lock lifts only when the LAST one goes
-    out.stillBlessed = G.isBlessed(9, 7);
-    const last = s.tonis[0];
-    if (last) G.harvestToni(last.x, last.y);
-    out.tonisAfter = s.tonis.length;
-    out.seedsAfter = s.inventory.toni_seed || 0;
     out.unblessed = !G.isBlessed(9, 7);
     s._flags.toniWarnUntil = 0;
     out.digWorks = G.dig(9, 7) === true;      // the land wakes
+    s.inventory.toni_seed = 2;                // stock for the seed-flow blocks below
     return out;
   });
-  check('harvest yields exactly 1 Glowing Seed per flower; lock lifts only after the LAST toni',
-    done.tonis === 1 && done.seeds === 1 && done.stillBlessed
-    && done.tonisAfter === 0 && done.seedsAfter === 2 && done.unblessed && done.digWorks, done);
+  check('harvest removes her, yields exactly 1 Glowing Seed; the lock lifts and the land wakes',
+    done.tonis === 0 && done.seeds === 1 && done.unblessed && done.digWorks, done);
 
   // ---- Glowing Seed: unsellable, never listed on the market ----
   await page.tap('#btn-market');
@@ -471,12 +474,36 @@ function check(name, ok, detail) {
     out.newToni = !!t && t.seen === false;
     out.blessedAgain = G.isBlessed(15, 6);
     out.seedsGone = !s.inventory.toni_seed;
+    // gate: with her standing, a Glowing Seed refuses the ground (and is kept)
+    s.inventory.toni_seed = 1;
+    G.till(16, 8);
+    out.seedGated = G.plantToniSeed(16, 8) === false && s.inventory.toni_seed === 1;
+    delete s.inventory.toni_seed;
     return out;
   });
   check('reveal (24/25): an ordinary ripe sunflower + a kind toast — never mockery',
     reveal.consolation && reveal.kindToast && reveal.noToni, reveal);
   check('reveal (1/25): a brand-new Toni on that exact tile — seen=false, parcel blessed & locked again',
     reveal.planted2 && reveal.newToni && reveal.blessedAgain && reveal.seedsGone, reveal);
+  check('the gate: a Glowing Seed refuses the ground while she stands (seed kept)', reveal.seedGated, reveal);
+
+  // ---- developer demo: the real pipeline, compressed to ~10s ----
+  const demo = await page.evaluate(async () => {
+    const G = Game, s = Game.state, out = {};
+    out.gated = G.devToniDemo() === null;        // one stands — demo refuses
+    G.harvestToni(15, 6);                        // clear the stage
+    const coins0 = s.coins;
+    const r = G.devToniDemo();
+    out.started = !!r;
+    out.free = s.coins === coins0;
+    const c = r && s.tiles[r.y][r.x].crop;
+    out.normalCrop = !!c && c.id === 'turnip' && c.toni === true;
+    for (let i = 0; i < 14; i++) G.tick(1);      // ~10s to maturity + transform
+    out.rose = r && !!G.toniAt(r.x, r.y);
+    return out;
+  });
+  check('dev demo: refuses while one stands; then plants a free normal crop that rises in ~10s',
+    demo.gated && demo.started && demo.free && demo.normalCrop && demo.rose, demo);
 
   console.log(errors.length ? '\nJS ERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
   console.log(`\ntoni: ${pass} passed, ${fail} failed${fail ? ' → ' + failures.join(' | ') : ''}`);

@@ -83,7 +83,10 @@ const Game = (() => {
     return null;
   }
 
+  const toniStands = () => !!(state.tonis && state.tonis.length);
+
   function spawnToni() {
+    if (toniStands()) return null; // the land holds only one
     const cand = [];
     for (let y = 0; y < D.WORLD_H; y++)
       for (let x = 0; x < D.WORLD_W; x++)
@@ -175,6 +178,7 @@ const Game = (() => {
     if (!t || !isUnlocked(x, y) || t.k !== 'soil' || t.crop || t.obj) return false;
     if (toniAt(x, y) || sproutAt(x, y)) return false;
     if (isBlessed(x, y)) return toniLockNotice();
+    if (toniStands()) { toast('🌻 The land can only hold one. Harvest the flower that stands before planting this seed.'); return false; }
     if ((state.inventory.toni_seed || 0) < 1) return false;
     state.inventory.toni_seed--;
     if (state.inventory.toni_seed <= 0) delete state.inventory.toni_seed;
@@ -191,7 +195,7 @@ const Game = (() => {
     const sp = state.sprouts[i];
     state.sprouts.splice(i, 1);
     const t = tileAt(sp.x, sp.y);
-    if (Math.random() < D.TONI.seedChance) {
+    if (!toniStands() && Math.random() < D.TONI.seedChance) {
       addToni(sp.x, sp.y); // the story begins again
       fx('toni', sp.x + .5, sp.y + .5);
     } else if (t && !t.crop && !t.obj) {
@@ -199,6 +203,30 @@ const Game = (() => {
       t.crop = { id: 'sunflower', prog: 1, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
       toast('🌻 A beautiful sunflower… but an ordinary one.');
     }
+  }
+
+  // dev preview: the full stealth arc, compressed — a REAL turnip planted on a
+  // free tile, silently tagged, maturing in ~10s so the true pipeline (growth
+  // stages, transformation, rise, paper, blessing, lock) plays end to end.
+  function devToniDemo() {
+    if (toniStands()) { toast('🌻 The land can only hold one — harvest the flower that stands first.'); return null; }
+    let spot = null;
+    for (let y = 0; y < D.WORLD_H && !spot; y++) for (let x = 0; x < D.WORLD_W; x++) {
+      const t = state.tiles[y][x];
+      if (isUnlocked(x, y) && !t.obj && !t.crop && !toniAt(x, y) && !sproutAt(x, y)) { spot = [x, y, t]; break; }
+    }
+    if (!spot) { toast('No free tile for the demo.'); return null; }
+    const [x, y, t] = spot;
+    if (t.k !== 'soil') t.k = 'soil';
+    const had = state.coins;
+    state.coins = Math.max(state.coins, 100);
+    if (!plant(x, y, 'turnip')) { state.coins = had; return null; }
+    state.coins = had; // the demo is free
+    const c = t.crop;
+    c.toni = true;
+    c.water = 1;
+    c.prog = Math.max(0, 1 - 10 / D.CROPS.turnip.grow); // ripens in ~10s
+    return { x, y };
   }
 
   // ---------------- new game ----------------
@@ -720,7 +748,7 @@ const Game = (() => {
     // happens ONLY here, at planting — and it tells NO ONE. The crop grows
     // exactly as the seed it was planted as (same timer, same sprite); the
     // truth waits for maturity. Math.random read at the roll.
-    if (!state._offline && Math.random() < D.TONI.plantChance) t.crop.toni = true;
+    if (!state._offline && !toniStands() && Math.random() < D.TONI.plantChance) t.crop.toni = true;
     checkGoal();
     return true;
   }
@@ -1652,11 +1680,14 @@ const Game = (() => {
 
       if (c.prog >= 1) {
         if (c.toni) { // the seed was never a turnip at all — she rises now
-          state.tiles[ty][tx].crop = null;
-          const tn = addToni(tx, ty);
-          tn.rise = state.now;
-          fx('toni', tx + .5, ty + .5);
-          continue;
+          if (state.tonis.length) delete c.toni; // …unless one already stands: only one, ever
+          else {
+            state.tiles[ty][tx].crop = null;
+            const tn = addToni(tx, ty);
+            tn.rise = state.now;
+            fx('toni', tx + .5, ty + .5);
+            continue;
+          }
         }
         if (bl) { toniAutoHarvest(tx, ty); continue; } // ripe blessed crops bank themselves
         // ripe crops rot if you leave them standing (never while away)
@@ -1762,7 +1793,7 @@ const Game = (() => {
     tick,
     // world queries
     tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK, greenhouseAt,
-    spawnToni, toniAt, isBlessed, harvestToni, plantToniSeed, sproutAt,
+    spawnToni, toniAt, isBlessed, harvestToni, plantToniSeed, sproutAt, devToniDemo,
     buildingsOf, animalsIn, readyIn, feedCostFor, canCraft, canFulfill,
     currentGoal, cycleGoal, sellPrice, fuelPrice, availableItems, farmValue, ownsPoweredGear,
     atRiskCrops, runningJobs, orderRush, marketDayItems,

@@ -3977,9 +3977,9 @@ const Renderer = (() => {
         toniLeaf(g, -1.8, -38, 12, -46, 4, leafL, vein);
         toniLeaf(g, -2, -92, 10, -101, 3.6, leafL, vein);
       }
-      toniPetals(g, H.x, H.y, 16, 7.5, 27, 4.6, 0.94, 0.19, '#ffb400', lod ? '#ffce33' : null, false);
-      toniPetals(g, H.x, H.y, 13, 6.5, 22, 4.6, 0.94, 0.42, '#ffe24a', '#fff3a0', false);
-      toniCore(g, H.x - 0.8, H.y + 1, 10, 0.94, lod);
+      toniPetals(g, H.x, H.y, 18, 8.5, 33, 5.6, 0.94, 0.19, '#ffcc00', lod ? '#ffe600' : null, false);
+      toniPetals(g, H.x, H.y, 15, 7.5, 27, 5.4, 0.94, 0.42, '#fff200', '#fbff7a', false);
+      toniCore(g, H.x - 0.8, H.y + 1, 12, 0.94, lod);
     } else if (style === 'B') {
       // ---- The Willowy Giant: slender S-curve, head nodding to one side ----
       toniStem(g, 0, 3, -10, -40, -6, -72, 2.6, 1.9, stemD);       // lower bow
