@@ -487,6 +487,7 @@ const UI = (() => {
     else if (sheetOpen === 'log') renderLog(body);
     else if (sheetOpen === 'care') renderCare(body);
     else if (sheetOpen === 'compendium') renderCompendium(body);
+    else if (sheetOpen === 'realtor') renderRealtor(body);
     else if (sheetOpen.startsWith('b:')) renderBuilding(body, parseInt(sheetOpen.slice(2), 10));
     // freeze the tallest height seen this session: a bottom-anchored sheet that
     // shrinks slides its buttons downward mid-tap (the sell-everything trap)
@@ -611,7 +612,7 @@ const UI = (() => {
     if (sheetTab === 'build') {
       const grid = document.createElement('div');
       grid.className = 'card-grid';
-      const entries = Object.entries(D.BUILDINGS).sort((a, b) => a[1].cost - b[1].cost);
+      const entries = Object.entries(D.BUILDINGS).filter(([, b]) => !b.decor).sort((a, b) => a[1].cost - b[1].cost);
       for (const [id, b] of entries) {
         const broke = s.coins < b.cost;
         const card = document.createElement('div');
@@ -955,6 +956,53 @@ const UI = (() => {
 
   // ---------------- season care sheet ----------------
   // opened automatically at dawn of a season's last day; lists every planted
+  // Realtor — buy whole new farms (small → massive) and hop between the ones you own
+  function renderRealtor(body) {
+    const s = Game.state;
+    setSheetHeader(I.icon('shop'), 'Realtor', 'Buy new land — hop between your farms anytime');
+    setTabs(null);
+
+    const yours = document.createElement('div');
+    yours.className = 'section-label';
+    yours.textContent = '🏡 Your farms';
+    body.appendChild(yours);
+    for (const f of Game.ownedFarms()) {
+      const row = document.createElement('div');
+      row.className = 'row-card' + (f.active ? ' backup-due' : '');
+      row.innerHTML = `
+        <div class="emoji">${f.active ? '📍' : '🌾'}</div>
+        <div class="info"><div class="name">${esc(f.label)}${f.active ? ' — you are here' : ''}</div><div class="sub">${f.w} × ${f.h} tiles</div></div>
+        <div class="actions"><button class="mini${f.active ? '' : ' gold'}"${f.active ? ' disabled' : ''}>${f.active ? 'Current' : 'Visit →'}</button></div>`;
+      if (!f.active) row.querySelector('button').onclick = () => { SOUNDS.tap(); Game.switchFarm(f.i); closeSheet(); };
+      body.appendChild(row);
+    }
+
+    const sale = document.createElement('div');
+    sale.className = 'section-label';
+    sale.textContent = '🪧 Land for sale';
+    body.appendChild(sale);
+    const remaining = D.FARM_TEMPLATES.filter(t => !Game.ownsTemplate(t.id));
+    if (!remaining.length) {
+      const e = document.createElement('div');
+      e.className = 'empty-note';
+      e.style.padding = '4px 6px';
+      e.textContent = 'You own every property in the county. A true empire!';
+      body.appendChild(e);
+    }
+    for (const t of D.FARM_TEMPLATES) {
+      const owned = Game.ownsTemplate(t.id);
+      const broke = s.coins < t.price;
+      const row = document.createElement('div');
+      row.className = 'row-card';
+      row.innerHTML = `
+        <div class="emoji">🌄</div>
+        <div class="info"><div class="name">${t.name} <span style="opacity:.65;font-weight:800;font-size:.8em">${t.w}×${t.h}</span></div><div class="sub">${t.blurb}</div></div>
+        <div class="actions"><button class="mini${owned || broke ? '' : ' gold'}"${owned || broke ? ' disabled' : ''}>${owned ? 'Owned' : $$(t.price)}</button></div>`;
+      if (!owned && !broke) row.querySelector('button').onclick = () => { SOUNDS.tap(); if (Game.buyFarm(t.id)) { closeSheet(); updateHud(); } else renderSheet(); };
+      body.appendChild(row);
+    }
+  }
+
   // Compendium — a completion scoreboard for the "touch everything" player
   function renderCompendium(body) {
     const s = Game.state;
@@ -1369,6 +1417,17 @@ const UI = (() => {
       <div class="actions"><button class="mini${atRisk ? ' danger' : ''}">Review</button></div>`;
     care.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('care'); };
     body.appendChild(care);
+
+    // ---- Realtor: buy land / switch farms ----
+    const realtor = document.createElement('div');
+    realtor.className = 'row-card';
+    const farmN = Game.ownedFarms().length;
+    realtor.innerHTML = `
+      <div class="emoji">🏡</div>
+      <div class="info"><div class="name">Realtor</div><div class="sub">${farmN > 1 ? 'Hop between your ' + farmN + ' farms, or buy' : 'Buy'} more land — cozy plots up to massive frontier.</div></div>
+      <div class="actions"><button class="mini gold">Open</button></div>`;
+    realtor.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('realtor'); };
+    body.appendChild(realtor);
 
     // ---- automation & comfort ----
     const comfortLabel = document.createElement('div');
@@ -1796,6 +1855,9 @@ const UI = (() => {
     if (t.obj && t.obj.t === 'b') { // buildings keep their tap behaviors
       const b = Game.state.buildings[t.obj.i];
       if (!b) return;
+      if (D.BUILDINGS[b.type] && D.BUILDINGS[b.type].decor) {
+        toast('🏡 Home sweet home.'); SOUNDS.tap(); return; // decorative — no panel
+      }
       if (b.type === 'well') {
         // refill when there's room; a tap on an idle well opens its panel
         // (info + the sell-back row — otherwise unreachable)
@@ -2178,6 +2240,16 @@ const UI = (() => {
       // purchase…) — the toast already points at the Menu entry
       if (!sheetShowing()) openSheet('care');
     });
+
+    // switching / buying a farm swaps the whole world — recenter and refresh
+    const onFarmChange = () => {
+      closeBubble();
+      const s = Game.state;
+      Renderer.centerOn((s.w || 20) / 2, (s.h || 15) / 2);
+      updateHud(); updateGoalChip();
+    };
+    Game.on('farmswitch', onFarmChange);
+    Game.on('farmbought', onFarmChange);
 
     updateHud();
   }

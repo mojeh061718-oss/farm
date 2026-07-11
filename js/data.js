@@ -156,7 +156,18 @@ const DATA = (() => {
     loom:       { name: 'Loom House',   emoji: '🧵', w: 2, h: 2, cost: 6500,  desc: 'Weaves wool into fine cloth and quilts.', roof: '#7d6a9e', wall: '#b0a4c4', sign: 'LOOM' },
     drone:      { name: 'Harvest Drone',emoji: '🤖', w: 1, h: 1, cost: 7500,  desc: 'Auto-harvests AND replants a 5×5 area every morning. Burns 1 gal of fuel per run.' },
     greenhouse: { name: 'Greenhouse',   emoji: '🪴', w: 2, h: 2, cost: 6000,  desc: 'Shelters a 6×6 zone around it: any crop grows there in any season, and frost never kills. Build several!', roof: '#9cc4d4' },
+    // decorative home — placed on the starting farm, never sold in the Shop
+    farmhouse:  { name: 'Farmhouse',    emoji: '🏡', w: 2, h: 2, cost: 0, decor: true, desc: 'Your homestead — just for the view.', roof: '#b45c3a', wall: '#ecdcb8', sign: 'HOME' },
   };
+
+  // ---- Realtor: whole properties for sale, small → massive (bought outright) ----
+  // Sizes kept moderate so the ground bake stays memory-safe on phones.
+  const FARM_TEMPLATES = [
+    { id: 'meadow',   name: 'Bluebell Meadow',  w: 14, h: 11, price: 12000,  blurb: 'A snug little plot — cozy and quick to fill.' },
+    { id: 'grove',    name: 'Willow Grove',     w: 24, h: 18, price: 45000,  blurb: 'A roomy spread with space for a real operation.' },
+    { id: 'estate',   name: 'Goldfield Estate', w: 30, h: 22, price: 120000, blurb: 'A grand estate — acres of open land.' },
+    { id: 'frontier', name: 'Big Sky Frontier', w: 36, h: 26, price: 300000, blurb: 'Massive frontier land as far as the eye can see.' },
+  ];
 
   // ---- Recipes (processing buildings) ----
   const RECIPES = {
@@ -256,7 +267,7 @@ const DATA = (() => {
     WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, TONI, $,
     SEASONS, WEATHERS, WEATHER_TABLE, DIFFICULTIES,
     ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, BUILDINGS, RECIPES,
-    CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS,
+    CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS, FARM_TEMPLATES,
     xpForLevel, repBonus, fertCost,
   };
 })();

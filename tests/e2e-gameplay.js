@@ -522,10 +522,14 @@ function check(name, ok, detail) {
     document.getElementById('sheet-close').click();
     Renderer.centerOn(15.5, 5.5);
   });
-  await page.waitForTimeout(350);
+  await page.waitForTimeout(700); // let the sheet-close animation (225ms) + a ground re-bake settle before the tap
   const gsp = await page.evaluate(() => Renderer.tileToScreen(15.5, 5.5));
   await page.touchscreen.tap(gsp.x, gsp.y); // soil → seed sheet opens directly
   await page.waitForTimeout(400);
+  // robustness: if the first tap landed mid-settle, tap once more
+  if (await page.evaluate(() => document.querySelectorAll('#sheet-body .item-card').length === 0)) {
+    await page.touchscreen.tap(gsp.x, gsp.y); await page.waitForTimeout(400);
+  }
   const seedTags = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('#sheet-body .item-card')];
     const find = name => cards.find(c => c.textContent.includes(name));
@@ -543,7 +547,10 @@ function check(name, ok, detail) {
   await page.screenshot({ path: path.join(OUT, 'seed-warnings.png') });
   await page.evaluate(() => document.getElementById('sheet-close').click());
 
-  // day pill shows season progress
+  // day pill shows season progress (pin the day so prior real-time ticks can't
+  // have rolled it over — this checks the pill FORMAT, not day progression)
+  await page.evaluate(() => { Game.state.day = DATA.SEASON_DAYS; Game.state.t = 0.05; Game.state._flags.crowDone = true; });
+  await page.waitForTimeout(120);
   const dayPill = await page.evaluate(() => ({
     text: document.getElementById('day-label').textContent,
     want: 'D' + DATA.SEASON_DAYS + '/' + DATA.SEASON_DAYS,

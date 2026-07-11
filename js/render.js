@@ -12,6 +12,7 @@ const Renderer = (() => {
   // active-farm world dimensions — refreshed from Game.state each frame so farms
   // of different sizes render correctly (replaces the old fixed WW/H).
   let WW = DATA.WORLD_W, WH = DATA.WORLD_H;
+  let PARCELS = DATA.PARCELS; // active-farm parcel layout, refreshed each frame
   // isometric diamond tile: 2:1 ratio
   const TW = 96;
   const TH = 48;
@@ -256,7 +257,7 @@ const Renderer = (() => {
   }
 
   function clampCam() {
-    if (typeof Game !== 'undefined' && Game.state) { WW = Game.state.w || D.WORLD_W; WH = Game.state.h || D.WORLD_H; }
+    if (typeof Game !== 'undefined' && Game.state) { WW = Game.state.w || D.WORLD_W; WH = Game.state.h || D.WORLD_H; PARCELS = Game.state.parcels || D.PARCELS; }
     const minX = proj(0, WH).x, maxX = proj(WW, 0).x;
     // vertical bounds hug the DRAWN content: the diorama treeline band above
     // the north corner and the soil-cliff rim below the south corner
@@ -796,7 +797,14 @@ const Renderer = (() => {
   // gameplay zoom (5664×3078 ≈ 70 MB — measured, within a modern phone's
   // canvas budget; DPR-2 devices never pay it). Decided per device at load,
   // independent of dynamic-resolution steps (no rebake when the store steps).
-  const GS = (window.devicePixelRatio || 1) > 2.05 ? 3 : 2;
+  let GS = (window.devicePixelRatio || 1) > 2.05 ? 3 : 2;
+  // ground-bake supersample drops on large farms so the bake canvas stays within
+  // phone memory (a 36×26 world at 3× would be a ~150MB texture)
+  function updateGS() {
+    const base = (window.devicePixelRatio || 1) > 2.05 ? 3 : 2;
+    const area = WW * WH;
+    GS = area > 900 ? Math.min(base, 1.5) : area > 500 ? Math.min(base, 2) : base;
+  }
   const ground = {
     c: null, g: null, mip: null, mg: null, season: -1,
     minX: 0, minY: 0, w: 0, h: 0,
@@ -1408,7 +1416,7 @@ const Renderer = (() => {
 
   function segGate(a, b, state) { // fence-edge crossings of one lane segment
     for (const pi of state.unlockedParcels) {
-      const p = D.PARCELS[pi];
+      const p = PARCELS[pi];
       const edges = [
         { x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y, horiz: true },
         { x0: p.x, y0: p.y + p.h, x1: p.x + p.w, y1: p.y + p.h, horiz: true },
@@ -1814,6 +1822,7 @@ const Renderer = (() => {
     const key = WW + 'x' + WH;
     if (ground._dimKey !== key) {
       ground._dimKey = key;
+      updateGS();            // adapt supersample to the new farm's size
       ground.c = null;       // realloc the bake canvas at the new size
       ground.season = -1;    // force a fresh bake
       if (bakeJob) bakeJob.active = false;
@@ -2107,7 +2116,7 @@ const Renderer = (() => {
     fenceSide(state, p.x, p.y, 0, 1, p.h, -1, 0, snow, age, p.w, i);
   }
   function drawFenceFront(state, i) {      // S + E edges (depth-sorted entity)
-    const p = D.PARCELS[i];
+    const p = PARCELS[i];
     const snow = Game.state && Game.state.season === 3;
     const age = fenceAge(i);
     fenceSide(state, p.x, p.y + p.h, 1, 0, p.w, 0, 1, snow, age, p.w + p.h, i);
@@ -2149,8 +2158,8 @@ const Renderer = (() => {
 
   function drawParcels(state) {
     const snow = state.season === 3;
-    for (let i = 0; i < D.PARCELS.length; i++) {
-      const p = D.PARCELS[i];
+    for (let i = 0; i < PARCELS.length; i++) {
+      const p = PARCELS[i];
       if (state.unlockedParcels.includes(i)) drawFenceBack(state, p, snow, i);
       else drawSurvey(p);
     }
@@ -2159,13 +2168,13 @@ const Renderer = (() => {
   // FOR SALE sign at the parcel's front corner post: smaller, tilted, with a
   // hanging price tag. Briefly replaced by a popping SOLD! board on purchase.
   function signAnchor(index) {
-    const p = D.PARCELS[index];
+    const p = PARCELS[index];
     return proj(p.x + p.w - 0.45, p.y + p.h - 0.32);
   }
 
   function drawSign(state, index, fall, alpha) {
     const c = signAnchor(index);
-    const p = D.PARCELS[index];
+    const p = PARCELS[index];
     shadow(c.x, c.y + 3, 15, 5);
     ctx.save();
     ctx.translate(c.x, c.y);
@@ -2233,7 +2242,7 @@ const Renderer = (() => {
       for (const i of state.unlockedParcels) {
         if (!knownParcels.includes(i)) {
           soldFx.push({ i, age: 0 });
-          const p = D.PARCELS[i];
+          const p = PARCELS[i];
           addBurst(p.x + p.w - 0.45, p.y + p.h - 0.32, '#f2c23e');
           unlockAnim.set(i, time + 0.45);            // fence starts after the camera lands
           signFalls.push({ i, age: 0, dusted: false });
@@ -2828,6 +2837,8 @@ const Renderer = (() => {
     loom:     { mat: 'timber', baseH: 42, roofH: 24, door: 'panel',
                 props: [['spool', 2.22, 1.3], ['spool', 2.3, 1.7], ['crate', 0.5, 2.32]] },
     greenhouse: { baseH: 34, roofH: 22, props: [['crate', 2.2, 1.5]] },
+    farmhouse: { mat: 'siding', baseH: 46, roofH: 32, door: 'panel', chimney: true, awning: ['#7a9b56', '#f4ead2'],
+                props: [['crate', 2.2, 1.4], ['barrel', -0.22, 1.55], ['churn', 2.3, 1.8]] },
   };
 
   function wallPoint(A, B, u, v) { // point along wall edge A->B at height v
@@ -5637,6 +5648,7 @@ const Renderer = (() => {
   function render(state, dt) {
     if (!state) return;
     WW = state.w || D.WORLD_W; WH = state.h || D.WORLD_H; // active-farm dims
+    PARCELS = state.parcels || D.PARCELS;
     time += dt;
     fdt = dt;
     dynRes(dt);                          // resolution step (if any) lands before drawing
@@ -5743,8 +5755,8 @@ const Renderer = (() => {
       pushEnt(b.x + def.w - 1 + b.y + def.h - 1 + 0.62, K_BLDG, i, 0);
     }
 
-    for (let i = 0; i < D.PARCELS.length; i++) {
-      const p = D.PARCELS[i];
+    for (let i = 0; i < PARCELS.length; i++) {
+      const p = PARCELS[i];
       if (p.x > vx1 + 1 || p.x + p.w < vx0 - 1 || p.y > vy1 + 1 || p.y + p.h < vy0 - 1) continue;
       if (!state.unlockedParcels.includes(i)) {
         pushEnt(p.x + p.w + p.y + p.h - 0.6, K_SIGN, i, 0);
