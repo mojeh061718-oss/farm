@@ -39,8 +39,11 @@ function check(name, ok, detail) {
   }
 
   // ---- day pill format ----
-  const pill = await page.evaluate(() => document.getElementById('day-label').textContent);
-  check('day pill shows season progress "D1/6"', pill === 'D1/6', pill);
+  const pill = await page.evaluate(() => ({
+    text: document.getElementById('day-label').textContent,
+    want: 'D1/' + DATA.SEASON_DAYS,
+  }));
+  check('day pill shows season progress "D1/{SEASON_DAYS}"', pill.text === pill.want, pill);
 
   // ---- toolbar has the 7th tool and it fits the viewport ----
   const toolbar = await page.evaluate(() => {

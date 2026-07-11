@@ -173,6 +173,7 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
   .pill { padding: 4px 6px 4px 5px; }
   .xpbar { width: 18px; }
   #forecast { display: none; } /* today's weather stays; tomorrow's hint yields */
+  #pill-clock { gap: 3px; font-size: 0.6875rem; } /* "D10/10" still fits */
 }
 
 /* ============ Goal chip ============ */
@@ -265,6 +266,9 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
 }
 /* market badge = "goods to sell" (gold); red stays exclusively for orders */
 .btn-badge.gold { background: linear-gradient(180deg, var(--gold-4), var(--gold-5)); color: var(--gold-ink); }
+/* menu badge = "backup overdue": a quiet gold dot, not a red alarm */
+.btn-badge.dot { min-width: 13px; width: 13px; height: 13px; padding: 0; background: linear-gradient(180deg, var(--gold-4), var(--gold-5)); }
+.row-card.backup-due { box-shadow: 0 0 0 2px var(--gold-4) inset; }
 
 /* ============ Toolbar ============ */
 /* full-width dock: fills the screen edge and the iOS home-indicator band,

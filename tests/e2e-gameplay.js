@@ -105,7 +105,7 @@ function check(name, ok, detail) {
     out.driedCause = s.tiles[6][11].crop && s.tiles[6][11].crop.deadCause;
     G.till(11, 7);
     G.plant(11, 7, 'turnip');
-    { const c = s.tiles[7][11].crop; c.prog = 1; c.rot = 0.99; c.water = 1; G.tick(2); }
+    { const c = s.tiles[7][11].crop; c.prog = 1; c.rot = 0.999; c.water = 1; G.tick(2); }
     out.rotCause = s.tiles[7][11].crop && s.tiles[7][11].crop.deadCause;
     G.till(11, 8);
     out.offPlant = G.plant(11, 8, 'pumpkin'); // fall crop in spring
@@ -129,7 +129,8 @@ function check(name, ok, detail) {
     const a = s.animals[0];
     a.happiness = 5; a.fedUntil = 0;
     s.forecast = 'rain';
-    for (let i = 0; i < 60; i++) G.tick(1);
+    s.t = 0.9; // hunger bites at newDay — cross one dawn, DATA-relative
+    for (let i = 0; i < Math.ceil(DATA.DAY_LEN * 0.15); i++) G.tick(1);
     out.sick = a.sick;
     out.vet = G.vetAnimal(0);
     out.sellAnimal = G.sellAnimal(0);
@@ -424,7 +425,7 @@ function check(name, ok, detail) {
     let tries = 0;
     while (!s.tiles[10][8].crop.dead && tries < 400) {
       s._flags.frostDone = false;
-      s.t = DATA.NIGHT_START - 0.0001; // just under NIGHT_START — the tick crosses it
+      s.t = DATA.NIGHT_START - 0.005 / DATA.DAY_LEN; // just under NIGHT_START — the tick crosses it
       G.tick(0.01);
       tries++;
     }
@@ -446,20 +447,21 @@ function check(name, ok, detail) {
     const G = Game, s = Game.state, out = {};
     for (const row of s.tiles) for (const t of row) t.crop = null; // clean slate
     s.coins += 500;
-    s.season = 0; s.day = 5; s.t = 0.98; s.weather = 'sun'; s.forecast = 'rain';
+    s.season = 0; s.day = DATA.SEASON_DAYS - 1; s.t = 0.98; s.weather = 'sun'; s.forecast = 'rain';
     G.till(14, 5);
     G.plant(14, 5, 'turnip'); // spring-only → at risk when summer nears
     G.water(14, 5);
     out.atRiskBefore = G.atRiskCrops().length;
-    G.tick(2); // cross dawn into day 6
+    G.tick(0.05 * DATA.DAY_LEN); // cross dawn into the season's last day
     out.day = s.day;
+    out.lastDay = DATA.SEASON_DAYS;
     out.banner = document.getElementById('toasts').textContent; // UI banner toast
     out.sheetTitle = document.getElementById('sheet-title').textContent;
     out.sheetVisible = !document.getElementById('sheet').classList.contains('hidden');
     out.bodyHasTurnip = document.getElementById('sheet-body').textContent.includes('Turnip');
     return out;
   });
-  check('last-day dawn fires the banner toast', care.day === 6 && /Last day of Spring/.test(care.banner), care.banner);
+  check('last-day dawn fires the banner toast', care.day === care.lastDay && /Last day of Spring/.test(care.banner), care.banner);
   check('Season Care sheet auto-opens listing at-risk crops', care.sheetVisible && care.sheetTitle === 'Season care' && care.bodyHasTurnip && care.atRiskBefore === 1, care);
   await page.evaluate(() => document.getElementById('levelup').classList.add('hidden')); // clear any splash
   await page.waitForTimeout(600);
@@ -505,14 +507,17 @@ function check(name, ok, detail) {
   await page.evaluate(() => document.getElementById('sheet-close').click());
 
   // day pill shows season progress
-  const dayPill = await page.evaluate(() => document.getElementById('day-label').textContent);
-  check('day pill reads "D{day}/6"', dayPill === 'D6/6', dayPill);
+  const dayPill = await page.evaluate(() => ({
+    text: document.getElementById('day-label').textContent,
+    want: 'D' + DATA.SEASON_DAYS + '/' + DATA.SEASON_DAYS,
+  }));
+  check('day pill reads "D{day}/{SEASON_DAYS}"', dayPill.text === dayPill.want, dayPill);
 
   // ================= odd jobs streak =================
   const jobs = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     delete s._flags.oddJobsDay; delete s._flags.oddJobsAbs; delete s._flags.oddJobsStreak;
-    const nextDay = () => { s.t = 0.995; s.forecast = 'rain'; G.tick(0.5); };
+    const nextDay = () => { s.t = 0.995; s.forecast = 'rain'; G.tick(0.01 * DATA.DAY_LEN); };
     const work = () => { const c = s.coins; G.workOddJobs(); return s.coins - c; };
     out.day1 = work();          // $40 base
     out.repeatBlocked = !G.workOddJobs();

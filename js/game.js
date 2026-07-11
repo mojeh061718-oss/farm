@@ -258,15 +258,21 @@ const Game = (() => {
     if (!st) { newGame(); return { fresh: true }; }
     adoptState(st);
     if (recovered) save();
-    const elapsed = Math.min((Date.now() - (state.lastSaved || Date.now())) / 1000, 4 * 3600);
+    const realAway = (Date.now() - (state.lastSaved || Date.now())) / 1000;
     let away = null;
-    if (elapsed > 45) away = fastForward(elapsed);
+    if (realAway > 45) {
+      // away time compresses: 1 real hour ≈ 1 in-game day, at most 2.5 days of
+      // sim — crops finish and wait, nothing catastrophic happens overnight
+      const sim = Math.min(Math.min(realAway, 72 * 3600) * (D.DAY_LEN / 3600), 2.5 * D.DAY_LEN);
+      away = fastForward(sim, realAway);
+    }
     return { fresh: false, away, recovered };
   }
 
   // portable save code: HE1.<base64 json>.<checksum>
   function exportCode() {
     if (!state) return null;
+    state._flags.lastBackupAt = Date.now(); // feeds the backup nudge
     save();
     const json = JSON.stringify(state);
     return 'HE1.' + btoa(unescape(encodeURIComponent(json))) + '.' + fnv(json);
@@ -293,12 +299,15 @@ const Game = (() => {
     newGame();
   }
 
-  // simulate time that passed while the game was closed
-  // (kinder than live play: decay runs at half speed, no disasters)
-  function fastForward(elapsed) {
+  // simulate compressed time that passed while the game was closed
+  // (kinder than live play: no thirst, wilt or rot — crops finish and wait)
+  function fastForward(elapsed, realSeconds) {
     state._offline = true;
     const before = readyCounts();
     const lostBefore = state.stats.lost;
+    const harvestedBefore = state.stats.harvested;
+    const orderIds = state.orders.map(o => o.id);
+    const seasonBefore = state.season;
     let remaining = elapsed;
     while (remaining > 0) {
       const step = Math.min(2, remaining);
@@ -306,13 +315,34 @@ const Game = (() => {
       remaining -= step;
     }
     state._offline = false;
+    // a season flipped while away: grace window before off-season wilt resumes
+    if (state.season !== seasonBefore) state._flags.rescueUntil = state.now + 0.75 * D.DAY_LEN;
+    state._flags.quietUntil = state.now + 10; // let the digest breathe — no toast pile-up
     const after = readyCounts();
+    // fold (and zero) unflushed death tallies into the digest so the delayed
+    // flushDeaths toast can't report them a second time
+    const d = state._flags.deaths;
+    const lostBy = { dry: d.dry, rot: d.rot, season: d.season };
+    d.dry = d.rot = d.season = 0;
     return {
-      seconds: elapsed,
+      seconds: realSeconds != null ? realSeconds : elapsed, // real away time
       crops: Math.max(0, after.crops - before.crops),
       produce: Math.max(0, after.produce - before.produce),
-      lost: state.stats.lost - lostBefore,
+      droneHarvest: state.stats.harvested - harvestedBefore, // offline harvests only come from drones
+      expiredOrders: orderIds.filter(id => !state.orders.some(o => o.id === id)).length,
+      lost: Math.max(state.stats.lost - lostBefore, lostBy.dry + lostBy.rot + lostBy.season),
+      lostBy,
     };
+  }
+
+  // backup nudge: the player has never exported a code (and the farm is past
+  // its first days), or the last export is over 7 real days stale
+  let backupNudged = false; // one toast per session, max
+  function backupDue() {
+    if (!state || !state.setupDone) return false;
+    const at = state._flags.lastBackupAt;
+    if (!at) return state.now > 2 * D.DAY_LEN;
+    return Date.now() - at > 7 * 86400 * 1000;
   }
 
   function readyCounts() {
@@ -1129,7 +1159,7 @@ const Game = (() => {
       emit('season');
     }
     // dawn of the season's LAST day: warn about crops that won't make it
-    if (state.day === D.SEASON_DAYS && !state._offline) {
+    if (state.day === D.SEASON_DAYS && !state._offline && state.now >= (state._flags.quietUntil || 0)) {
       const risk = atRiskCrops();
       if (risk.length) {
         emit('care', {
@@ -1150,9 +1180,10 @@ const Game = (() => {
     for (const b of state.buildings) if (b && b.type === 'sprinkler') sprinkle(b);
 
     // hungry animals lose happiness; at rock bottom they fall sick
+    // (half speed while away — an empty trough overnight isn't neglect)
     for (const a of state.animals) {
       if (state.now >= a.fedUntil) {
-        a.happiness = clamp(a.happiness - 12, 0, 100);
+        a.happiness = clamp(a.happiness - (state._offline ? 6 : 12), 0, 100);
         if (a.happiness <= 0 && !a.sick && !state._offline) {
           a.sick = true;
           toast(`🤒 ${a.name} the ${D.ANIMALS[a.type].name.toLowerCase()} is sick from neglect — call the vet!`, 'bad');
@@ -1245,8 +1276,11 @@ const Game = (() => {
 
     const raining = state.weather === 'rain' || state.weather === 'storm';
     const drain = state.weather === 'drought' ? 22 : (state.season === 3 ? 110 : 65); // seconds of moisture
-    const decayMult = state._offline ? 0.5 : 1; // gentler while you're away
     const deaths = state._flags.deaths;
+    // offline: moisture holds and nothing wilts or rots — growth still runs, so
+    // crops finish and wait. A rescue window after an away season-flip pauses
+    // wilt the same way until the player has had time to react.
+    const rescued = state.now < (state._flags.rescueUntil || 0);
 
     // crops: growth, thirst, wilting, rot
     for (let ty = 0; ty < D.WORLD_H; ty++) for (let tx = 0; tx < D.WORLD_W; tx++) {
@@ -1254,12 +1288,14 @@ const Game = (() => {
       if (!c || c.dead) continue;
       const off = !seasonOK(c.id, tx, ty);
       if (raining) c.water = 1;
-      else c.water = Math.max(0, c.water - dt / drain);
+      else if (!state._offline) c.water = Math.max(0, c.water - dt / drain);
 
       // wilting: dry crops and out-of-season crops decline; watered ones recover
       let wilting = false;
-      if (off) { c.wilt = (c.wilt || 0) + (dt * decayMult) / (0.8 * D.DAY_LEN); wilting = true; }
-      else if (c.water <= 0) { c.wilt = (c.wilt || 0) + (dt * decayMult) / (D.WILT_DAYS * D.DAY_LEN); wilting = true; }
+      if (!state._offline && !rescued) {
+        if (off) { c.wilt = (c.wilt || 0) + dt / (0.8 * D.DAY_LEN); wilting = true; }
+        else if (c.water <= 0) { c.wilt = (c.wilt || 0) + dt / (D.WILT_DAYS * D.DAY_LEN); wilting = true; }
+      }
       if (!wilting && c.wilt > 0) c.wilt = Math.max(0, c.wilt - dt / D.DAY_LEN);
       if (c.wilt >= 1) {
         c.dead = true;
@@ -1270,10 +1306,12 @@ const Game = (() => {
       }
 
       if (c.prog >= 1) {
-        // ripe crops rot if you leave them standing
-        c.rot = (c.rot || 0) + (dt * decayMult) / (D.ROT_DAYS * D.DAY_LEN);
-        if (c.rot >= 1) { c.dead = true; c.deadCause = 'rot'; state.stats.lost++; deaths.rot++; }
-      } else if (c.water > 0 && !off) {
+        // ripe crops rot if you leave them standing (never while away)
+        if (!state._offline) {
+          c.rot = (c.rot || 0) + dt / (D.ROT_DAYS * D.DAY_LEN);
+          if (c.rot >= 1) { c.dead = true; c.deadCause = 'rot'; state.stats.lost++; deaths.rot++; }
+        }
+      } else if ((c.water > 0 || state._offline) && !off) {
         const def = D.CROPS[c.id];
         const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
         const speed = c.fert ? 1.25 : 1;
@@ -1285,7 +1323,7 @@ const Game = (() => {
     state._flags.deathTimer = (state._flags.deathTimer || 0) + dt;
     if (state._flags.deathTimer > 5) {
       state._flags.deathTimer = 0;
-      if (!state._offline) flushDeaths();
+      if (!state._offline && state.now >= (state._flags.quietUntil || 0)) flushDeaths();
     }
 
     // animals produce while fed and healthy
@@ -1327,10 +1365,16 @@ const Game = (() => {
     }
 
     // one-shot notices deferred from load (UI listeners weren't attached yet)
-    if (state._flags.pendingToast && !state._offline) {
+    if (state._flags.pendingToast && !state._offline && state.now >= (state._flags.quietUntil || 0)) {
       const msg = state._flags.pendingToast;
       delete state._flags.pendingToast;
       toast(msg, 'good');
+    }
+
+    // one gentle backup reminder per session, never during the digest window
+    if (!backupNudged && !state._offline && state.now >= (state._flags.quietUntil || 0) && backupDue()) {
+      backupNudged = true;
+      toast('💾 It\'s been a while — save a farm backup code from the ⚙️ Menu.');
     }
   }
 
@@ -1352,8 +1396,8 @@ const Game = (() => {
   return {
     get state() { return state; },
     on, emit, toast,
-    newGame, applySetup, load, save, resetGame,
-    exportCode, importCode,
+    newGame, applySetup, load, save, resetGame, fastForward,
+    exportCode, importCode, backupDue,
     workOddJobs, oddJobsAvailable, oddJobsPay,
     tick,
     // world queries

@@ -368,6 +368,8 @@ const UI = (() => {
     $('market-badge').classList.toggle('hidden', invCount === 0);
     $('market-badge').textContent = invCount > 99 ? '99+' : invCount;
 
+    $('menu-badge').classList.toggle('hidden', !Game.backupDue()); // backup nudge dot
+
     updateGoalChip();
   }
 
@@ -1246,12 +1248,16 @@ const UI = (() => {
     body.appendChild(safetyLabel);
 
     const backupRow = document.createElement('div');
-    backupRow.className = 'row-card';
+    const lb = s._flags.lastBackupAt;
+    const lbDays = lb ? Math.floor((Date.now() - lb) / 86400000) : null;
+    const lbTxt = lb == null ? 'never' : lbDays === 0 ? 'today' : lbDays === 1 ? '1 day ago' : `${lbDays} days ago`;
+    backupRow.className = 'row-card' + (Game.backupDue() ? ' backup-due' : '');
     backupRow.innerHTML = `
       <div class="emoji">🔐</div>
       <div class="info">
         <div class="name">Backup this farm</div>
         <div class="sub">Your farm autosaves with 3 rotating safety snapshots. For extra safety, copy a farm code or download a file you can restore anywhere.</div>
+        <div class="sub">Last backup: ${lbTxt}</div>
       </div>
       <div class="actions">
         <button class="mini blue">Copy code</button>
@@ -1260,15 +1266,18 @@ const UI = (() => {
     const [copyBtn, dlBtn] = backupRow.querySelectorAll('button');
     copyBtn.onclick = async () => {
       const code = Game.exportCode();
+      updateHud();
       try {
         await navigator.clipboard.writeText(code);
         toast('🔐 Farm code copied — store it somewhere safe!', 'good');
       } catch (e) {
         window.prompt('Copy your farm code:', code);
       }
+      if (sheetOpen === 'menu') renderSheet(); // refresh the last-backup line
     };
     dlBtn.onclick = () => {
       const code = Game.exportCode();
+      updateHud();
       const a = document.createElement('a');
       a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(code);
       a.download = `${Game.state.farmName.replace(/[^a-z0-9]+/gi, '-')}-day${Game.state.day}-y${Game.state.year}.harvestfarm.txt`;
@@ -1276,6 +1285,7 @@ const UI = (() => {
       a.click();
       a.remove();
       toast('🔐 Backup file downloaded!', 'good');
+      if (sheetOpen === 'menu') renderSheet();
     };
     body.appendChild(backupRow);
 
@@ -1661,16 +1671,46 @@ const UI = (() => {
   }
 
   function showAwaySummary(away) {
-    const h = Math.floor(away.seconds / 3600);
-    const m = Math.round((away.seconds % 3600) / 60);
+    const secs = away.seconds || 0;
+    const h = Math.floor(secs / 3600);
+    const m = Math.round((secs % 3600) / 60);
     const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    let msg = `Welcome back! While you were away (${dur}):\n\n🌾 ${away.crops} crop${away.crops === 1 ? '' : 's'} finished growing\n📦 ${away.produce} animal product${away.produce === 1 ? '' : 's'} ready`;
-    if (away.lost > 0) msg += `\n🥀 ${away.lost} crop${away.lost === 1 ? '' : 's'} were lost — a farm needs its farmer!`;
+    const plural = (v, w) => `${v} ${w}${v === 1 ? '' : 's'}`;
+    const lines = []; // itemized — only what actually happened
+    if (away.crops > 0) lines.push(`🌾 ${plural(away.crops, 'crop')} finished growing`);
+    if (away.produce > 0) lines.push(`📦 ${plural(away.produce, 'animal product')} ready`);
+    if (away.droneHarvest > 0) lines.push(`🤖 drones banked ${plural(away.droneHarvest, 'harvest')}`);
+    if (away.expiredOrders > 0) lines.push(`📋 ${plural(away.expiredOrders, 'order')} expired — fresh ones arrived`);
+    if (away.lost > 0) {
+      const by = away.lostBy || {};
+      const parts = [];
+      if (by.dry) parts.push(`${by.dry} to thirst`);
+      if (by.rot) parts.push(`${by.rot} to rot`);
+      if (by.season) parts.push(`${by.season} to the season change`);
+      lines.push(`🥀 ${plural(away.lost, 'crop')} didn't make it${parts.length ? ` (${parts.join(', ')})` : ''} — easy to replant!`);
+    }
+    const name = Game.state ? Game.state.farmName : 'your farm';
+    const msg = `Welcome back to ${name}!\n\nWhile you were away (${dur}):\n\n`
+      + (lines.length ? lines.join('\n') : 'Your farm rested peacefully.');
     confirmBox('🌙', msg, 'Let\'s farm!');
-    $('modal-no').style.display = 'none';
-    const yes = $('modal-yes');
-    const oldClick = yes.onclick;
-    yes.onclick = () => { $('modal-no').style.display = ''; oldClick(); };
+    const no = $('modal-no'), yes = $('modal-yes');
+    const restore = () => { no.style.display = ''; no.textContent = 'Cancel'; }; // never leak into the next dialog
+    const closeYes = yes.onclick;
+    yes.onclick = () => { restore(); closeYes(); };
+    const risk = Game.state ? Game.atRiskCrops() : [];
+    if (risk.length) {
+      // repurpose Cancel as the one-tap season rescue
+      const ripe = risk.filter(e => e.ripe).length;
+      no.textContent = `Rescue harvest${ripe ? ` (${ripe} ready)` : ''}`;
+      no.onclick = () => {
+        Game.harvestAtRisk();
+        restore();
+        $('modal-backdrop').classList.add('hidden');
+        updateHud();
+      };
+    } else {
+      no.style.display = 'none';
+    }
   }
 
   // ---------------- init ----------------

@@ -232,7 +232,7 @@ function check(name, ok, detail) {
   check('off-season seed pick warns but does not plant/charge the tapped tile',
     !offPick.planted && offPick.coins === preCoins && offPick.warned, offPick);
   // wording no longer wraps over the art: the amber tag stays a single line
-  await page.evaluate(() => { Game.state.day = 6; Game.state.t = 0.6; });
+  await page.evaluate(() => { Game.state.day = DATA.SEASON_DAYS; Game.state.t = 0.6; });
   await page.tap('.tool-btn[data-tool="plant"]');
   await page.waitForTimeout(400);
   const amber = await page.evaluate(() => {
