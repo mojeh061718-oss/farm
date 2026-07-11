@@ -58,11 +58,14 @@ html, body {
   overflow: hidden;
 }
 @supports (height: 100dvh) {
-  body { height: 100dvh; } /* track iOS Safari's dynamic viewport (toolbar collapse) */
+  html, body { height: 100dvh; } /* track iOS Safari's dynamic viewport (toolbar collapse) */
 }
 html, body {
   font-family: ui-rounded, "SF Pro Rounded", Nunito, "Segoe UI", system-ui, sans-serif;
-  background: #241a10; /* dark earth — never a green bar if the visual viewport outgrows the canvas */
+  /* Propagates into the iOS safe area (home indicator / status bar), where the
+     100dvh canvas can't reach. Sky→grass so any exposed strip reads as part of
+     the world, not a dead black bar. */
+  background: linear-gradient(180deg, #a7d3ef 0%, #a7d3ef 22%, #8bbf5a 100%);
   color: var(--ink);
   user-select: none;
   -webkit-user-select: none;

@@ -1069,6 +1069,22 @@ const Game = (() => {
       }
   }
 
+  // every tile covered by a sprinkler (5×5), rebuilt per tick — null on farms
+  // with no sprinklers so ordinary farms pay nothing. Crops on these tiles are
+  // kept watered continuously (true auto-watering), not just at dawn.
+  function sprinkledCells() {
+    let any = false;
+    for (const b of state.buildings) if (b && b.type === 'sprinkler') { any = true; break; }
+    if (!any) return null;
+    const set = new Set();
+    for (const b of state.buildings) {
+      if (!b || b.type !== 'sprinkler') continue;
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++) set.add((b.x + dx) + ',' + (b.y + dy));
+    }
+    return set;
+  }
+
   // drones auto-harvest and replant a 5x5 area each dawn — if they have fuel
   function runDrones() {
     let harvested = 0, replanted = 0, grounded = false;
@@ -1714,7 +1730,11 @@ const Game = (() => {
     if (state.t >= 1) { state.t -= 1; newDay(); }
 
     const raining = state.weather === 'rain' || state.weather === 'storm';
-    const drain = state.weather === 'drought' ? 22 : (state.season === 3 ? 110 : 65); // seconds of moisture
+    // seconds of moisture per watering — tuned so ONE watering lasts well over a
+    // full day (DAY_LEN=120), so you water ~once a day, not two-plus times.
+    // Heatwaves still demand attention; winter holds moisture longest.
+    const drain = state.weather === 'drought' ? 70 : (state.season === 3 ? 260 : 190);
+    const wet = sprinkledCells(); // tiles under a sprinkler stay watered every tick
     const deaths = state._flags.deaths;
     // offline: moisture holds and nothing wilts or rots — growth still runs, so
     // crops finish and wait. A rescue window after an away season-flip pauses
@@ -1735,7 +1755,7 @@ const Game = (() => {
       if (bless) for (const p of bless) if (tx >= p.x && tx < p.x + p.w && ty >= p.y && ty < p.y + p.h) { bl = true; break; }
       if (bl) { c.water = 1; c.wilt = 0; c.rot = 0; } // the blessing: never dry, never failing
       const off = !seasonOK(c.id, tx, ty);
-      if (raining) c.water = 1;
+      if (raining || (wet && wet.has(tx + ',' + ty))) c.water = 1; // rain or a sprinkler keeps it wet
       else if (!state._offline && !bl) c.water = Math.max(0, c.water - dt / drain);
 
       // wilting: dry crops and out-of-season crops decline; watered ones recover
