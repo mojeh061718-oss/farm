@@ -48,16 +48,8 @@
   <button class="round-btn" id="btn-menu" title="Menu" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span class="btn-badge dot hidden" id="menu-badge"></span></button>
 </div>
 
-<!-- ===== Bottom toolbar ===== -->
-<div id="toolbar">
-  <button class="tool-btn active" data-tool="auto" title="Smart tap" aria-label="Smart tap"><svg class="ic" aria-hidden="true"><use href="#i-hand"/></svg><label>Auto</label></button>
-  <button class="tool-btn" data-tool="hoe" title="Till soil" aria-label="Till soil"><svg class="ic" aria-hidden="true"><use href="#i-hoe"/></svg><label>Till</label></button>
-  <button class="tool-btn" data-tool="plant" title="Plant seeds" aria-label="Plant seeds"><svg class="ic" aria-hidden="true"><use href="#i-sprout"/></svg><label>Plant</label></button>
-  <button class="tool-btn" data-tool="water" title="Water" aria-label="Water"><svg class="ic" aria-hidden="true"><use href="#i-drop"/></svg><label>Water</label><div class="water-gauge"><div id="water-fill"></div></div></button>
-  <button class="tool-btn" data-tool="fert" title="Fertilize" aria-label="Fertilize"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg><label>Fert</label></button>
-  <button class="tool-btn" data-tool="harvest" title="Harvest" aria-label="Harvest"><svg class="ic" aria-hidden="true"><use href="#i-basket"/></svg><label>Harvest</label></button>
-  <button class="tool-btn" data-tool="shovel" title="Dig up / un-till" aria-label="Dig"><span class="ic ic-emoji" id="shovel-icon" aria-hidden="true">⛏️</span><label>Dig</label></button>
-</div>
+<!-- ===== Tile action bubble (built by ui.js on tap) ===== -->
+<div id="bubble" class="hidden"></div>
 
 <!-- ===== Build mode bar ===== -->
 <div id="buildbar" class="hidden">

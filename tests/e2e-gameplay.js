@@ -515,8 +515,16 @@ function check(name, ok, detail) {
   check('[Dig up all at-risk] shovels the rest with refunds', careActions.dug === 1 && careActions.refunded === 4 && careActions.allClear, careActions);
 
   // seed sheet: “won’t ripen in time” tag on the last day
-  await page.evaluate(() => { Game.state.t = 1 - 24 / DATA.DAY_LEN; document.getElementById('sheet-close').click(); }); // ~24s left in the day
-  await page.tap('.tool-btn[data-tool="plant"]');
+  await page.evaluate(() => { // ~24s left in the day; (15,5) is empty soil after digAtRisk
+    Game.state.t = 1 - 24 / DATA.DAY_LEN;
+    document.getElementById('sheet-close').click();
+    Renderer.centerOn(15.5, 5.5);
+  });
+  await page.waitForTimeout(350);
+  const gsp = await page.evaluate(() => Renderer.tileToScreen(15.5, 5.5));
+  await page.touchscreen.tap(gsp.x, gsp.y); // soil → bubble
+  await page.waitForTimeout(300);
+  await page.tap('#bubble .act-plant');     // → seed sheet
   await page.waitForTimeout(350);
   const seedTags = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('#sheet-body .item-card')];

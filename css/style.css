@@ -20,7 +20,7 @@
   --parchment:  #f1e4c8;   /* recessed wells */
   --line:       #e2d1ae;
   --line-deep:  #c9b489;
-  --wood-9:     #2e2013;   /* toolbar / toast plate */
+  --wood-9:     #2e2013;   /* toast / wood plate */
   --wood-7:     #4a3522;
   --grass-4:    #64b953;
   --grass-5:    #4ca03f;   /* primary */
@@ -270,62 +270,98 @@ svg.ic { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -
 .btn-badge.dot { min-width: 13px; width: 13px; height: 13px; padding: 0; background: linear-gradient(180deg, var(--gold-4), var(--gold-5)); }
 .row-card.backup-due { box-shadow: 0 0 0 2px var(--gold-4) inset; }
 
-/* ============ Toolbar ============ */
-/* full-width dock: fills the screen edge and the iOS home-indicator band,
-   so there is no dead strip under the tools; buttons flex evenly with gaps */
-#toolbar {
+/* ============ Tile action bubble ============ */
+/* a small cream popup anchored above the tapped tile, listing only what
+   that tile can do right now; the tail points at the tile (flips below
+   when the tile is near the top of the screen) */
+#bubble {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
-  display: flex;
-  justify-content: space-evenly;
-  gap: 6px;
-  background: linear-gradient(180deg, rgba(74,53,34,.92), rgba(46,32,19,.96));
-  padding: 8px 10px calc(8px + var(--sab));
-  border-radius: 20px 20px 0 0;
-  box-shadow: var(--bevel-dark), var(--e2);
-  z-index: 20;
+  z-index: 22;
+  animation: bubble-in .18s cubic-bezier(.34,1.56,.64,1) backwards;
 }
-@media (min-width: 700px) { /* tablets/desktop: centered pill, not a full bar */
-  #toolbar {
-    left: 50%; right: auto;
-    bottom: calc(10px + var(--sab));
-    transform: translateX(-50%);
-    border-radius: 22px;
-    padding: 6px 8px;
-  }
-  .tool-btn { flex: 0 0 56px; }
-}
+#bubble.closing { animation: bubble-out .15s ease forwards; pointer-events: none; }
 
-.tool-btn {
+.bubble-card {
   position: relative;
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 68px;
-  height: 62px;
-  border-radius: 16px;
-  background: rgba(255,255,255,.09);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px;
-  color: #fff;
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 2px 4px;
+  max-width: 292px; /* 4 actions per row; more wrap to a second row */
+  background: linear-gradient(180deg, var(--cream-hi) 0%, #f6ecd4 100%);
+  border: 1.5px solid rgba(88, 62, 32, .5);
+  border-radius: var(--r-l);
+  padding: 9px 10px 7px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6), var(--e2);
 }
-.tool-btn > .ic { width: 25px; height: 25px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
-.tool-btn > .ic-emoji { font-size: 21px; line-height: 25px; text-align: center; }
-.tool-btn label { font-size: 0.75rem; font-weight: 800; pointer-events: none; opacity: .9; white-space: nowrap; }
-.tool-btn.active {
-  background: linear-gradient(180deg, #ffd54f, #ff9800);
-  color: #4c2c00;
-  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.45), inset 0 -3px 0 rgba(0,0,0,.2);
+.bubble-tail {
+  position: absolute;
+  width: 15px; height: 15px;
+  bottom: -8px;
+  background: #f6ecd4;
+  border-right: 1.5px solid rgba(88, 62, 32, .5);
+  border-bottom: 1.5px solid rgba(88, 62, 32, .5);
+  border-bottom-right-radius: 4px;
+  transform: translateX(-50%) rotate(45deg);
+}
+#bubble.below .bubble-tail {
+  bottom: auto; top: -8px;
+  background: var(--cream-hi);
+  transform: translateX(-50%) rotate(225deg);
 }
 
-.water-gauge {
-  position: absolute;
-  bottom: 4px; left: 10px; right: 10px;
-  height: 5px;
-  background: rgba(0,0,0,.4);
-  border-radius: 99px;
-  overflow: hidden;
+.bubble-act {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px;
+  width: 64px;
+  padding: 3px 0 4px;
 }
-#water-fill { height: 100%; width: 100%; background: #4fc3f7; border-radius: 99px; transition: width .25s; }
+.bubble-act .ba-btn {
+  position: relative;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fffdf6, #f3e8cf);
+  border: 1.5px solid rgba(88, 62, 32, .45);
+  box-shadow: var(--bevel), var(--e1);
+  display: flex; align-items: center; justify-content: center;
+}
+.bubble-act .ba-btn .ic { width: 27px; height: 27px; vertical-align: 0; filter: drop-shadow(0 1px 0 rgba(46,32,19,.2)); }
+.bubble-act .ba-btn .ic-emoji { font-size: 1.5rem; line-height: 1; }
+.bubble-act.primary .ba-btn {
+  background: linear-gradient(180deg, #f2fbef, #ddf0cf);
+  border-color: rgba(60, 138, 51, .55);
+}
+.bubble-act .ba-label { font-size: 0.71875rem; font-weight: 800; color: var(--ink); line-height: 1.1; white-space: nowrap; }
+.bubble-act .ba-hint { font-size: 0.625rem; font-weight: 700; color: var(--ink-soft); line-height: 1.15; max-width: 64px; }
+.bubble-act .ba-chip {
+  position: absolute; top: -6px; right: -12px;
+  display: flex; align-items: center; gap: 2px;
+  font-size: 0.6875rem; font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, #4fc3f7, #0288d1);
+  color: #fff;
+  border: 1.5px solid #fff;
+  box-shadow: 0 1px 3px rgba(46,32,19,.3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bubble-act .ba-chip.gold {
+  background: linear-gradient(180deg, var(--gold-4), var(--gold-5));
+  color: var(--gold-ink);
+}
+.bubble-act .ba-chip .ic { width: 11px; height: 11px; vertical-align: 0; }
+.bubble-act:disabled .ba-btn {
+  background: linear-gradient(180deg, #efe6d0, #e2d3b2);
+  box-shadow: var(--well);
+}
+.bubble-act:disabled .ba-btn .ic { opacity: .45; filter: grayscale(.7); }
+.bubble-act:disabled .ba-label { color: var(--ink-faint); }
+/* wilting crop: the Water action asks for attention */
+.bubble-act.attention .ba-btn { animation: bubble-pulse 1.3s ease infinite; }
+@keyframes bubble-pulse {
+  50% { box-shadow: var(--bevel), 0 0 0 5px rgba(79, 195, 247, .35), var(--e1); transform: scale(1.06); }
+}
+@keyframes bubble-in { from { transform: scale(.85); opacity: 0; } }
+@keyframes bubble-out { to { transform: scale(.9); opacity: 0; } }
 
 /* ============ Build bar ============ */
 #buildbar {
@@ -927,15 +963,16 @@ button.mini:disabled {
    ============================================================ */
 
 /* button press physics: fast press-in, springy release */
-.chunky, .round-btn, .tool-btn, .sheet-tab, .buy,
+.chunky, .round-btn, .bubble-act .ba-btn, .sheet-tab, .buy,
 button.mini, #sheet-close, .item-card {
   transition: transform .22s cubic-bezier(.34,1.56,.64,1);
 }
-.chunky:active, .round-btn:active, .tool-btn:active, .sheet-tab:active, .buy:active,
+.chunky:active, .round-btn:active, .sheet-tab:active, .buy:active,
 button.mini:active, #sheet-close:active {
   transform: scale(.96) translateY(1px);
   transition-duration: .06s;
 }
+.bubble-act:active .ba-btn { transform: scale(.92); transition-duration: .06s; }
 .item-card:active { transform: scale(.96); transition-duration: .06s; }
 
 /* coin flight clones */
@@ -949,18 +986,12 @@ button.mini:active, #sheet-close:active {
 .fx-coin .ic { width: 100%; height: 100%; vertical-align: 0; filter: drop-shadow(0 2px 3px rgba(20,14,6,.35)); }
 @keyframes pill-pop { 45% { transform: scale(1.12); } }
 
-/* ---- 3.0: daily tasks, Market Day, armed-seed indicator ---- */
+/* ---- 3.0: daily tasks, Market Day ---- */
 .daily-head { display: flex; align-items: center; justify-content: space-between; }
 .streak-flame { font-size: 0.75rem; font-weight: 800; color: #c05a13; }
 .daily-row.claimed { opacity: .62; }
 .md-tag { font-size: 0.6875rem; font-weight: 800; color: #8a4bb0; white-space: nowrap; }
 .md-badge { background: #f3e6fa; border-radius: 50%; text-align: center; }
-.seed-badge {
-  position: absolute; right: 3px; top: 3px;
-  font-size: 0.75rem; line-height: 1;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 1px rgba(20,14,6,.4));
-}
 
 /* ---- keyframes ---- */
 @keyframes fade-in { from { opacity: 0; } }
