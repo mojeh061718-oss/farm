@@ -192,6 +192,8 @@ function check(name, ok, detail) {
     return { millOk, creamOk };
   });
   check('mill & creamery placed for panel checks', panels.millOk && panels.creamOk, panels);
+  await page.evaluate(() => Renderer.centerOn(13.5, 5.5)); // zoom floor rose: keep the target clear of the HUD
+  await page.waitForTimeout(250);
   await tapTile(13, 5);
   await page.waitForTimeout(300);
   const millPanel = await page.evaluate(() => ({
@@ -203,6 +205,8 @@ function check(name, ok, detail) {
   await page.tap('#sheet-close');
   await page.waitForTimeout(250);
 
+  await page.evaluate(() => Renderer.centerOn(15.5, 8.5));
+  await page.waitForTimeout(250);
   await tapTile(15, 8);
   await page.waitForTimeout(300);
   const procPanel = await page.evaluate(() => {

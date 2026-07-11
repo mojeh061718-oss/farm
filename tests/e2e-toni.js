@@ -275,8 +275,11 @@ function check(name, ok, detail) {
   await page.waitForTimeout(250);
   const pos = await page.evaluate(() => {
     const t = Game.state.tonis[0];
-    return t ? Renderer.tileToScreen(t.x + 0.5, t.y + 0.5) : { x: 195, y: 420 };
+    if (!t) return { x: 195, y: 420 };
+    Renderer.centerOn(t.x + 0.5, t.y + 0.5); // cancels any in-flight pan tween
+    return Renderer.tileToScreen(t.x + 0.5, t.y + 0.5);
   });
+  await page.waitForTimeout(250);
   await page.touchscreen.tap(pos.x, pos.y);
   await page.waitForTimeout(350);
   const paper = await page.evaluate(() => ({
