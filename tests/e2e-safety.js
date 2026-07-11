@@ -159,6 +159,33 @@ function check(name, ok, detail) {
   }));
   check('corrupted save recovers from backup snapshot', recovered.coins === 55555 && recovered.setupHidden, recovered);
 
+  // ---- hard reset actually resets: no snapshot resurrection, ever ----
+  // regression: resetGame used to leave the 3 backups behind AND the pagehide
+  // save re-wrote a pre-setup shell, so every reset "recovered" the old farm.
+  await page.evaluate(() => { Game.resetGame(); });
+  await page.reload(); // fires pagehide -> save(), which must now be latched off
+  await page.waitForTimeout(1200);
+  const wiped = await page.evaluate(() => ({
+    setupShown: !document.getElementById('setup').classList.contains('hidden'),
+    main: localStorage.getItem('harvest-empire-save-v3'),
+    b1: localStorage.getItem('harvest-empire-backup-1'),
+    b2: localStorage.getItem('harvest-empire-backup-2'),
+    b3: localStorage.getItem('harvest-empire-backup-3'),
+    toast: document.getElementById('toasts').textContent,
+  }));
+  check('hard reset lands on a FRESH setup screen — main + all backups erased, no snapshot toast',
+    wiped.setupShown && !wiped.main && !wiped.b1 && !wiped.b2 && !wiped.b3
+    && !wiped.toast.includes('snapshot'), wiped);
+  // abandoning the setup screen must not write an invalid save that would
+  // resurrect a backup on the next open
+  await page.reload();
+  await page.waitForTimeout(1000);
+  const still = await page.evaluate(() => ({
+    setupShown: !document.getElementById('setup').classList.contains('hidden'),
+    main: localStorage.getItem('harvest-empire-save-v3'),
+  }));
+  check('leaving during setup never persists a pre-setup shell', still.setupShown && !still.main, still);
+
   console.log(errors.length ? '\nJS ERRORS:\n' + errors.join('\n') : '\nNO JS ERRORS');
   console.log(`\nsafety: ${pass} passed, ${fail} failed${fail ? ' → ' + failures.join(' | ') : ''}`);
   await browser.close();
