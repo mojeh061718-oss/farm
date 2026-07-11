@@ -104,9 +104,10 @@ function check(name, ok, detail) {
     Game.buyParcel(1);
     Game.placeBuilding('well', 16, 9);
     s.can.water = DATA.CAN_TIERS[s.can.tier].cap;
-    Renderer.centerOn(16.5, 9.5);
   });
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(800);                                  // let the land-purchase camera ceremony finish
+  await page.evaluate(() => Renderer.centerOn(16.5, 9.5));         // then lock the view onto the new well
+  await page.waitForTimeout(150);
   const wp = await page.evaluate(() => Renderer.tileToScreen(16.5, 9.5));
   await page.touchscreen.tap(wp.x, wp.y);
   await page.waitForTimeout(400);
