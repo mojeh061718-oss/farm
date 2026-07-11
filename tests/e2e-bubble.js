@@ -51,33 +51,87 @@ function check(name, ok, detail) {
     };
   });
 
-  // ---- grass: exactly Till ----
+  // ---- grass: a single tap tills it, no bubble ----
   await page.evaluate(() => Renderer.centerOn(8.5, 5.5));
   await page.waitForTimeout(200);
   await tapTile(8, 5);
+  await page.waitForTimeout(300);
   let b = await bubbleState();
-  check('tapping grass opens the bubble with exactly [Till]', b.open && b.acts.length === 1 && b.acts[0] === 'act-till', b);
+  const tilled = await page.evaluate(() => Game.state.tiles[5][8].k);
+  check('tapping grass tills it directly — no bubble', tilled === 'soil' && !b.open, { tilled, b });
 
-  // ---- till executes with the real action, then the bubble closes ----
-  await page.tap('#bubble .act-till');
-  await page.waitForTimeout(400);
-  const tilled = await page.evaluate(() => ({
-    k: Game.state.tiles[5][8].k,
-    closed: document.getElementById('bubble').classList.contains('hidden'),
-  }));
-  check('Till actually tills the tile and the bubble closes', tilled.k === 'soil' && tilled.closed, tilled);
-
-  // ---- empty soil: Plant + Un-till ----
+  // ---- empty soil: a tap opens the seed picker (the choice), no bubble ----
   await tapTile(8, 5);
-  b = await bubbleState();
-  check('empty soil offers Plant + Un-till', b.open && b.acts.join(',') === 'act-plant,act-dig' && b.labels.join(',') === 'Plant,Un-till', b);
+  await page.waitForTimeout(300);
+  const soilTap = await page.evaluate(() => ({
+    sheet: !document.getElementById('sheet').classList.contains('hidden'),
+    title: document.getElementById('sheet-title').textContent,
+    bubble: !document.getElementById('bubble').classList.contains('hidden'),
+    untill: !!document.querySelector('#sheet-body .seed-untill'),
+  }));
+  check('tapping bare soil opens the seed picker (no bubble) with an Un-till option',
+    soilTap.sheet && /seed/i.test(soilTap.title) && !soilTap.bubble && soilTap.untill, soilTap);
+
+  // picking a seed plants it on the tapped tile
+  await page.evaluate(() => {
+    [...document.querySelectorAll('#sheet-body .item-card')].find(c => c.textContent.includes('Turnip')).click();
+  });
+  await page.waitForTimeout(400);
+  const planted = await page.evaluate(() => ({
+    crop: Game.state.tiles[5][8].crop && Game.state.tiles[5][8].crop.id,
+    sheetClosed: document.getElementById('sheet').classList.contains('hidden'),
+  }));
+  check('picking a seed plants it on the tapped tile and closes the sheet', planted.crop === 'turnip' && planted.sheetClosed, planted);
+
+  // ---- Un-till from inside the seed picker clears the plot ----
+  await page.evaluate(() => { Game.state.tiles[5][8].crop = null; }); // back to bare soil
+  await tapTile(8, 5);
+  await page.waitForTimeout(300);
+  await page.tap('#sheet-body .seed-untill');
+  await page.waitForTimeout(400);
+  const untilled = await page.evaluate(() => ({
+    k: Game.state.tiles[5][8].k,
+    sheetClosed: document.getElementById('sheet').classList.contains('hidden'),
+  }));
+  check('Un-till in the seed picker turns the plot back to grass', untilled.k === 'grass' && untilled.sheetClosed, untilled);
+
+  // ---- thirsty crop + a full can: a single tap just waters it, no bubble ----
+  await page.evaluate(() => {
+    Game.state.tiles[5][8].k = 'soil';
+    Game.state.tiles[5][8].crop = { id: 'turnip', prog: 0.3, water: 0, wilt: 0, rot: 0, dead: false, fert: true, regrown: false };
+    Game.state.can.water = 4;
+  });
+  await tapTile(8, 5);
+  await page.waitForTimeout(400);
+  const autoWater = await page.evaluate(() => ({
+    water: Game.state.tiles[5][8].crop.water,
+    can: Game.state.can.water,
+    bubble: !document.getElementById('bubble').classList.contains('hidden'),
+  }));
+  check('a thirsty crop waters on a single tap — no bubble (a charge is spent)',
+    autoWater.water > 0.9 && autoWater.can === 3 && !autoWater.bubble, autoWater);
+
+  // ---- a crop with a real choice (Fertilize) opens the bubble ----
+  await page.evaluate(() => {
+    Game.state.tiles[5][8].crop.fert = false; // now fertilizable
+    Game.state.tiles[5][8].crop.water = 1;    // not thirsty → only Fertilize / Dig remain
+  });
+  await tapTile(8, 5);
+  const growing = await page.evaluate(() => {
+    const fert = document.querySelector('#bubble .act-fert');
+    return {
+      acts: [...document.querySelectorAll('#bubble .bubble-act')].map(x => x.classList[1]),
+      fertChip: fert && fert.querySelector('.ba-chip') && fert.querySelector('.ba-chip').textContent,
+    };
+  });
+  check('a fertilizable crop opens the bubble with Fertilize + Dig up', growing.acts.join(',') === 'act-fert,act-dig', growing);
+  check('Fertilize shows its coin cost chip', !!growing.fertChip && /\d/.test(growing.fertChip), growing);
 
   // ---- re-tap the same tile toggles the bubble away ----
   await tapTile(8, 5);
   await page.waitForTimeout(250);
   b = await bubbleState();
-  const stillSoil = await page.evaluate(() => Game.state.tiles[5][8].k === 'soil');
-  check('re-tapping the same tile closes the bubble (no action fires)', !b.open && stillSoil, b);
+  check('re-tapping the same tile closes the bubble (no action fires)', !b.open, b);
 
   // ---- outside tap (on the HUD) dismisses ----
   await tapTile(8, 5);
@@ -106,83 +160,41 @@ function check(name, ok, detail) {
   b = await bubbleState();
   check('starting a pan dismisses the bubble', !b.open, b);
 
-  // ---- Plant opens the seed picker; the pick plants THAT tile ----
-  await page.evaluate(() => Renderer.centerOn(8.5, 5.5));
-  await page.waitForTimeout(200);
+  // ---- Fertilize executes and closes the bubble ----
+  await page.evaluate(() => { Game.state.coins += 5000; Renderer.centerOn(8.5, 5.5); });
+  await page.waitForTimeout(150);
   await tapTile(8, 5);
-  await page.tap('#bubble .act-plant');
+  await page.tap('#bubble .act-fert');
   await page.waitForTimeout(400);
-  const sheetUp = await page.evaluate(() => ({
-    open: !document.getElementById('sheet').classList.contains('hidden'),
-    title: document.getElementById('sheet-title').textContent,
+  const ferted = await page.evaluate(() => ({
+    fert: !!Game.state.tiles[5][8].crop.fert,
+    closed: document.getElementById('bubble').classList.contains('hidden'),
   }));
-  check('bubble Plant opens the seed picker sheet', sheetUp.open && /seed/i.test(sheetUp.title), sheetUp);
+  check('Fertilize applies and closes the bubble', ferted.fert && ferted.closed, ferted);
+
+  // ---- empty can + thirsty crop → bubble with Water disabled + refill hint ----
   await page.evaluate(() => {
-    [...document.querySelectorAll('#sheet-body .item-card')].find(c => c.textContent.includes('Turnip')).click();
+    Game.state.tiles[5][8].crop = { id: 'turnip', prog: 0.3, water: 0, wilt: 0, rot: 0, dead: false, fert: true, regrown: false };
+    Game.state.can.water = 0;
   });
-  await page.waitForTimeout(400);
-  const planted = await page.evaluate(() => ({
-    crop: Game.state.tiles[5][8].crop && Game.state.tiles[5][8].crop.id,
-    sheetClosed: document.getElementById('sheet').classList.contains('hidden'),
-  }));
-  check('picking a seed plants it on the tapped tile and closes the sheet', planted.crop === 'turnip' && planted.sheetClosed, planted);
-
-  // ---- growing dry crop: Water (with charge chip) + Fertilize (cost chip) + Dig up ----
-  await page.evaluate(() => { Game.state.tiles[5][8].crop.water = 0; Game.state.can.water = 4; });
-  await tapTile(8, 5);
-  const growing = await page.evaluate(() => {
-    const water = document.querySelector('#bubble .act-water');
-    const fert = document.querySelector('#bubble .act-fert');
-    return {
-      acts: [...document.querySelectorAll('#bubble .bubble-act')].map(x => x.classList[1]),
-      chip: water && water.querySelector('.ba-chip') && water.querySelector('.ba-chip').textContent,
-      waterEnabled: water && !water.disabled,
-      fertChip: fert && fert.querySelector('.ba-chip') && fert.querySelector('.ba-chip').textContent,
-    };
-  });
-  check('dry growing crop offers Water + Fertilize + Dig up', growing.acts.join(',') === 'act-water,act-fert,act-dig', growing);
-  check('Water shows the remaining can charges as a chip (💧4)', growing.waterEnabled && growing.chip === '💧4', growing);
-  check('Fertilize shows its coin cost chip', !!growing.fertChip && /\d/.test(growing.fertChip), growing);
-
-  // ---- wilting crop: Water pulses for attention ----
-  await tapTile(8, 5); // toggle away
-  await page.evaluate(() => { Game.state.tiles[5][8].crop.wilt = 0.6; });
-  await tapTile(8, 5);
-  const wilty = await page.evaluate(() => {
-    const w = document.querySelector('#bubble .act-water');
-    return { attention: w && w.classList.contains('attention') };
-  });
-  check('a wilting crop\'s Water action pulses (attention class)', wilty.attention === true, wilty);
-
-  // ---- empty can: Water disabled with a refill hint ----
-  await tapTile(8, 5); // toggle away
-  await page.evaluate(() => { Game.state.can.water = 0; });
   await tapTile(8, 5);
   const emptyCan = await page.evaluate(() => {
     const w = document.querySelector('#bubble .act-water');
     return {
+      open: !document.getElementById('bubble').classList.contains('hidden'),
       disabled: w && w.disabled,
       hint: w && w.querySelector('.ba-hint') && w.querySelector('.ba-hint').textContent,
-      chip: w && !!w.querySelector('.ba-chip'),
     };
   });
-  check('empty can disables Water with a "refill at the well" hint', emptyCan.disabled && /refill at the well/.test(emptyCan.hint) && !emptyCan.chip, emptyCan);
-
-  // ---- watering works and closes the bubble ----
+  check('empty can + thirsty crop → bubble with Water disabled and a "refill at the well" hint',
+    emptyCan.open && emptyCan.disabled && /refill at the well/.test(emptyCan.hint), emptyCan);
   await tapTile(8, 5); // toggle away
-  await page.evaluate(() => { Game.state.can.water = 4; });
-  await tapTile(8, 5);
-  await page.tap('#bubble .act-water');
-  await page.waitForTimeout(400);
-  const watered = await page.evaluate(() => ({
-    water: Game.state.tiles[5][8].crop.water,
-    can: Game.state.can.water,
-    closed: document.getElementById('bubble').classList.contains('hidden'),
-  }));
-  check('Water waters the crop, spends a charge and closes the bubble', watered.water > 0.9 && watered.can === 3 && watered.closed, watered);
 
   // ---- ripe crop: a single tap harvests directly, NO bubble ----
-  await page.evaluate(() => { Game.state.tiles[5][8].crop.prog = 1; });
+  await page.evaluate(() => {
+    Game.state.can.water = 4;
+    Game.state.tiles[5][8].crop = { id: 'turnip', prog: 1, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
+  });
   const preTurnips = await page.evaluate(() => Game.state.inventory.turnip || 0);
   await tapTile(8, 5);
   await page.waitForTimeout(400);
@@ -193,21 +205,21 @@ function check(name, ok, detail) {
   }));
   check('ripe crop harvests on a single tap — no bubble opens', harvested.turnips > preTurnips && !harvested.crop && harvested.bubbleHidden, harvested);
 
-  // ---- dead crop: exactly Clear, and it explains the death ----
+  // ---- dead crop: a single tap clears it (explains why), no bubble ----
   await page.evaluate(() => {
+    Game.state.tiles[5][8].k = 'soil';
     Game.state.tiles[5][8].crop = { id: 'turnip', prog: 0.4, water: 0, wilt: 1, rot: 0, dead: true, deadCause: 'thirst', fert: false, regrown: false };
     document.getElementById('toasts').innerHTML = '';
   });
   await tapTile(8, 5);
-  b = await bubbleState();
-  check('dead crop offers exactly [Clear]', b.open && b.acts.join(',') === 'act-clear', b);
-  await page.tap('#bubble .act-clear');
   await page.waitForTimeout(400);
   const cleared = await page.evaluate(() => ({
     crop: !!Game.state.tiles[5][8].crop,
     toast: document.getElementById('toasts').textContent,
+    bubbleHidden: document.getElementById('bubble').classList.contains('hidden'),
   }));
-  check('Clear removes the dead crop and explains why it died', !cleared.crop && /died of/.test(cleared.toast), cleared);
+  check('dead crop clears on a single tap and explains why it died — no bubble',
+    !cleared.crop && /died of/.test(cleared.toast) && cleared.bubbleHidden, cleared);
 
   // ---- buildings keep their sheet (no bubble) ----
   await page.evaluate(() => {
@@ -253,6 +265,9 @@ function check(name, ok, detail) {
   await page.evaluate(() => {
     // park tile (8,6) near the top-left corner of the tiny screen
     // (zoomed in so the camera clamp allows the world edge to leave view)
+    // a fertilizable crop so the tap opens a bubble (grass/soil would auto-act)
+    Game.state.tiles[6][8].k = 'soil';
+    Game.state.tiles[6][8].crop = { id: 'turnip', prog: 0.3, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
     Renderer.cam.z = 1.8;
     Renderer.centerOn(8.5, 6.5);
     Renderer.cam.x += (Renderer.vw / 2 - 30) / Renderer.cam.z;

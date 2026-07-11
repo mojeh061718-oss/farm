@@ -55,20 +55,19 @@ function check(name, ok, detail) {
   check('bottom toolbar removed (no #toolbar, no .tool-btn)', !chrome.toolbar && chrome.toolBtns === 0, chrome);
   check('action bubble container exists and rests hidden', chrome.bubble && chrome.hidden, chrome);
 
-  // ---- tap-a-tile basics via the bubble ----
-  await tapTile(8, 6); // grass → bubble with Till
-  await page.waitForTimeout(200);
-  await page.tap('#bubble .act-till');
-  await page.waitForTimeout(200);
-  const tilled = await page.evaluate(() => Game.state.tiles[6][8].k);
-  check('tap grass → bubble Till tills it', tilled === 'soil', tilled);
+  // ---- tap-a-tile basics: one tap does the obvious thing ----
+  await tapTile(8, 6); // grass → tills directly, no bubble
+  await page.waitForTimeout(250);
+  const tilled = await page.evaluate(() => ({
+    k: Game.state.tiles[6][8].k,
+    bubble: !document.getElementById('bubble').classList.contains('hidden'),
+  }));
+  check('tapping grass tills it directly (no bubble)', tilled.k === 'soil' && !tilled.bubble, tilled);
 
-  await tapTile(9, 7); // pre-tilled starter plot → bubble with Plant
-  await page.waitForTimeout(200);
-  await page.tap('#bubble .act-plant');
+  await tapTile(9, 7); // pre-tilled starter plot → seed picker opens directly
   await page.waitForTimeout(300);
   const sheetVisible = await page.evaluate(() => !document.getElementById('sheet').classList.contains('hidden'));
-  check('tapping soil then Plant opens the seed sheet', sheetVisible);
+  check('tapping bare soil opens the seed sheet', sheetVisible);
   await page.evaluate(() => {
     [...document.querySelectorAll('#sheet-body .item-card')].find(c => c.textContent.includes('Turnip')).click();
   });
@@ -76,9 +75,10 @@ function check(name, ok, detail) {
   const planted = await page.evaluate(() => Game.state.tiles[7][9].crop && Game.state.tiles[7][9].crop.id);
   check('picking a seed plants it', planted === 'turnip', planted);
 
-  // ---- dig via the bubble: crop refund, then un-till ----
+  // ---- dig via the bubble: a not-thirsty crop offers Fertilize + Dig up ----
+  await page.evaluate(() => { Game.state.tiles[7][9].crop.water = 1; }); // not thirsty → bubble, not auto-water
   const preDig = await page.evaluate(() => ({ coins: Game.state.coins }));
-  await tapTile(9, 7); // growing turnip → bubble offers Dig up
+  await tapTile(9, 7);
   await page.waitForTimeout(200);
   await page.tap('#bubble .act-dig');
   await page.waitForTimeout(200);
@@ -88,16 +88,23 @@ function check(name, ok, detail) {
     coins: Game.state.coins,
   }));
   check('bubble Dig up digs the crop (refund $4, soil kept)', !dug.crop && dug.soil === 'soil' && dug.coins === preDig.coins + 4, dug);
-  await tapTile(9, 7); // empty soil → bubble offers Un-till
-  await page.waitForTimeout(200);
-  await page.tap('#bubble .act-dig');
-  await page.waitForTimeout(200);
+
+  // ---- un-till: tapping bare soil → seed picker → Un-till returns it to grass ----
+  await tapTile(9, 7);
+  await page.waitForTimeout(250);
+  await page.tap('#sheet-body .seed-untill');
+  await page.waitForTimeout(250);
   const untilled = await page.evaluate(() => Game.state.tiles[7][9].k);
-  check('bubble Un-till returns empty soil to grass', untilled === 'grass', untilled);
+  check('seed-picker Un-till returns empty soil to grass', untilled === 'grass', untilled);
 
   // ---- a drag pans the camera (no tool painting) and dismisses the bubble ----
-  await page.evaluate(() => { const s = Game.state; for (const x of [10, 11, 12]) s.tiles[6][x].k = 'soil'; });
-  await tapTile(10, 6); // bubble up on soil
+  await page.evaluate(() => {
+    const s = Game.state;
+    for (const x of [10, 11, 12]) s.tiles[6][x].k = 'soil';
+    // a not-thirsty fertilizable crop so the tap opens a bubble to dismiss
+    s.tiles[6][10].crop = { id: 'turnip', prog: 0.3, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
+  });
+  await tapTile(10, 6); // bubble up on the crop
   await page.waitForTimeout(200);
   const camBefore = await page.evaluate(() => ({ x: Renderer.cam.x, y: Renderer.cam.y }));
   const p1 = await tileXY(10, 6), p3 = await tileXY(12, 6);
@@ -248,17 +255,15 @@ function check(name, ok, detail) {
   check('menu → Review opens the Season Care sheet', careFromMenu === 'Season care', careFromMenu);
   await page.tap('#sheet-close');
 
-  // ---- context isolation: a grass bubble offers Till only ----
+  // ---- one-tap: grass tills directly, never a bubble ----
   await page.waitForTimeout(400); // let the sheet finish closing
   await tapTile(16, 10);
-  await page.waitForTimeout(200);
-  const grassActs = await page.evaluate(() => ({
-    open: !document.getElementById('bubble').classList.contains('hidden'),
-    acts: [...document.querySelectorAll('#bubble .bubble-act')].map(b => b.classList[1]),
-    stillGrass: Game.state.tiles[10][16].k === 'grass',
+  await page.waitForTimeout(250);
+  const grassTap = await page.evaluate(() => ({
+    bubble: !document.getElementById('bubble').classList.contains('hidden'),
+    tilled: Game.state.tiles[10][16].k === 'soil',
   }));
-  check('grass bubble offers exactly Till (no water/harvest), tile untouched',
-    grassActs.open && grassActs.acts.length === 1 && grassActs.acts[0] === 'act-till' && grassActs.stillGrass, grassActs);
+  check('tapping grass tills it directly — no bubble', grassTap.tilled && !grassTap.bubble, grassTap);
 
   // ---- reload: UI state intact, no errors ----
   await page.reload();

@@ -431,9 +431,8 @@ function check(name, ok, detail) {
   });
   await page.waitForTimeout(300);
   const psp = await page.evaluate(() => Renderer.tileToScreen(9.5, 7.5));
-  await page.touchscreen.tap(psp.x, psp.y); // soil → bubble
+  await page.touchscreen.tap(psp.x, psp.y); // soil → seed sheet opens directly
   await page.waitForTimeout(300);
-  await page.tap('#bubble .act-plant');     // → seed sheet
   await page.waitForTimeout(350);
   const picker = await page.evaluate(() => ({
     card: !!document.querySelector('#sheet-body .mythic-card'),

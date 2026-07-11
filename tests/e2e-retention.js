@@ -415,9 +415,8 @@ function check(name, ok, detail) {
   });
   await page.waitForTimeout(300);
   const rsp = await page.evaluate(() => Renderer.tileToScreen(10.5, 6.5));
-  await page.touchscreen.tap(rsp.x, rsp.y); // soil → bubble
+  await page.touchscreen.tap(rsp.x, rsp.y); // soil → seed sheet opens directly
   await page.waitForTimeout(300);
-  await page.tap('#bubble .act-plant');     // → seed sheet
   await page.waitForTimeout(400);
   await page.evaluate(() => { [...document.querySelectorAll('#sheet-body .item-card')].find(c => !c.classList.contains('off-season') && !c.classList.contains('mythic-card')).click(); });
   await page.waitForTimeout(400);
