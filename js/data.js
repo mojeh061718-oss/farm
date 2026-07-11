@@ -146,7 +146,7 @@ const DATA = (() => {
   const BUILDINGS = {
     well:       { name: 'Well',         emoji: '💧', w: 1, h: 1, cost: 300,   desc: 'Tap to refill your watering can.' },
     scarecrow:  { name: 'Scarecrow',    emoji: '🎃', w: 1, h: 1, cost: 350,   desc: 'Protects crops nearby (5×5) from crows and storms.' },
-    sprinkler:  { name: 'Sprinkler',    emoji: '🚿', w: 1, h: 1, cost: 600,   desc: 'Waters crops around it (5×5) every morning.' },
+    sprinkler:  { name: 'Sprinkler',    emoji: '🚿', w: 1, h: 1, cost: 600,   desc: 'Keeps crops around it (5×5) watered — no hand-watering needed.' },
     coop:       { name: 'Coop',         emoji: '🐔', w: 2, h: 2, cost: 500,   desc: 'Houses up to 6 chickens & ducks.', capacity: 6, roof: '#a8432f', wall: '#b98a5c', sign: 'COOP' },
     barn:       { name: 'Barn',         emoji: '🐄', w: 2, h: 2, cost: 1500,  desc: 'Houses up to 6 cows, goats, sheep or pigs.', capacity: 6, roof: '#7a4a24', wall: '#9e3d2d', sign: 'BARN' },
     mill:       { name: 'Feed Mill',    emoji: '🌾', w: 2, h: 2, cost: 2200,  desc: 'Grinds wheat & corn into animal feed — 1 grain becomes 3 feed credits.', roof: '#8d7a68', wall: '#a8977f', sign: 'MILL' },
