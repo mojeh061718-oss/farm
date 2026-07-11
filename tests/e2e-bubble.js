@@ -181,20 +181,17 @@ function check(name, ok, detail) {
   }));
   check('Water waters the crop, spends a charge and closes the bubble', watered.water > 0.9 && watered.can === 3 && watered.closed, watered);
 
-  // ---- ripe crop: Harvest first, then Dig up; Harvest executes ----
+  // ---- ripe crop: a single tap harvests directly, NO bubble ----
   await page.evaluate(() => { Game.state.tiles[5][8].crop.prog = 1; });
-  await tapTile(8, 5);
-  b = await bubbleState();
-  check('ripe crop offers Harvest first, then Dig up', b.acts.join(',') === 'act-harvest,act-dig', b);
   const preTurnips = await page.evaluate(() => Game.state.inventory.turnip || 0);
-  await page.tap('#bubble .act-harvest');
+  await tapTile(8, 5);
   await page.waitForTimeout(400);
   const harvested = await page.evaluate(() => ({
     turnips: Game.state.inventory.turnip || 0,
     crop: !!Game.state.tiles[5][8].crop,
-    closed: document.getElementById('bubble').classList.contains('hidden'),
+    bubbleHidden: document.getElementById('bubble').classList.contains('hidden'),
   }));
-  check('Harvest banks the crop and closes the bubble', harvested.turnips > preTurnips && !harvested.crop && harvested.closed, harvested);
+  check('ripe crop harvests on a single tap — no bubble opens', harvested.turnips > preTurnips && !harvested.crop && harvested.bubbleHidden, harvested);
 
   // ---- dead crop: exactly Clear, and it explains the death ----
   await page.evaluate(() => {

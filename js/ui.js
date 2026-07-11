@@ -1533,10 +1533,7 @@ const UI = (() => {
     if (c && c.dead) {
       // explain WHY it died, then clear — the old smart-tap behavior
       acts.push({ cls: 'act-clear', icon: I.icon('shovel'), label: 'Clear', primary: true, run: () => Game.smartAction(x, y) });
-    } else if (c && c.prog >= 1) {
-      acts.push({ cls: 'act-harvest', icon: I.icon('basket'), label: 'Harvest', primary: true, run: () => Game.applyTool('harvest', x, y) });
-      acts.push(digAct('Dig up'));
-    } else if (c) {
+    } else if (c) { // ripe crops harvest on tap (handleTap) and never reach here
       if (c.water <= 0.55) { // thirsty — same threshold the sim uses
         const empty = s.can.water <= 0;
         acts.push({
@@ -1745,6 +1742,10 @@ const UI = (() => {
     }
 
     if (Game.sproutAt(x, y)) { toast('🌟 Something is glowing beneath the soil…'); return; }
+
+    // ripe crops harvest on a single tap — no bubble to wade through
+    const rc = t.crop;
+    if (rc && !rc.dead && rc.prog >= 1) { Game.applyTool('harvest', x, y); updateHud(); return; }
 
     const acts = tileActions(x, y);
     if (acts.length) openBubble(x, y, acts);
