@@ -62,10 +62,12 @@ html, body {
 }
 html, body {
   font-family: ui-rounded, "SF Pro Rounded", Nunito, "Segoe UI", system-ui, sans-serif;
-  /* Propagates into the iOS safe area (home indicator / status bar), where the
-     100dvh canvas can't reach. Sky→grass so any exposed strip reads as part of
-     the world, not a dead black bar. */
-  background: linear-gradient(180deg, #a7d3ef 0%, #a7d3ef 22%, #8bbf5a 100%);
+  /* Solid grass green (sampled from the world's grass) as a background-COLOR,
+     which the root element propagates across the whole canvas — including the
+     iOS home-indicator safe area the 100dvh canvas can't reach. A gradient is a
+     background-IMAGE and leaves that strip with no colour (it fell back to
+     white); a real colour fills it so the strip reads as grass. */
+  background: #7bb676;
   color: var(--ink);
   user-select: none;
   -webkit-user-select: none;
