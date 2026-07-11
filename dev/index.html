@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#5cb14e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Harvest Empire</title>
+<link rel="stylesheet" href="css/style.css?v=43">
+</head>
+<body>
+<!-- HD PREVIEW: mild unsharp-mask kernel referenced by the renderer's post-process -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="hd-sharpen" x="0" y="0" width="100%" height="100%"><feConvolveMatrix order="3" preserveAlpha="true" divisor="1" kernelMatrix="0 -0.14 0 -0.14 1.56 -0.14 0 -0.14 0"/></filter></svg>
+<div id="hd-badge" role="button" title="Tap to cycle HD mode" style="position:fixed;left:50%;bottom:calc(8px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:100;background:rgba(20,14,6,.78);color:#ffe08a;font:700 11px/1 system-ui,sans-serif;padding:7px 13px;border-radius:99px;letter-spacing:.07em;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)">✨ HD: GRADE — tap to cycle</div>
+<canvas id="game"></canvas>
+<script>
+  // /dev HD toggle: 0 off · 1 grade+bloom · 2 grade+bloom+sharpen
+  window.__HD_MODE = 1;
+  (function(){
+    var b=document.getElementById('hd-badge');
+    var L=['HD: OFF — tap to cycle','✨ HD: GRADE — tap to cycle','✨ HD: GRADE+SHARP — tap'];
+    b.addEventListener('click',function(e){
+      e.stopPropagation();
+      window.__HD_MODE=(window.__HD_MODE+1)%3;
+      b.textContent=L[window.__HD_MODE];
+    });
+  })();
+</script>
+
+<!-- ===== Top HUD ===== -->
+<div id="hud-top">
+  <div class="pill" id="pill-coins"><span class="picon"><svg class="ic" aria-hidden="true"><use href="#i-coin"/></svg></span><span id="coins">0</span></div>
+  <div class="pill hidden" id="pill-fuel"><span class="picon"><svg class="ic" aria-hidden="true"><use href="#i-fuel"/></svg></span><span id="fuel-amount">0.0</span><span class="fuel-unit">gal</span></div>
+  <div class="pill" id="pill-level">
+    <span class="lvl-badge" id="level">1</span>
+    <div class="xpbar"><div id="xpfill"></div></div>
+  </div>
+  <div class="pill" id="pill-clock">
+    <span id="season-emoji" class="picon sm"></span><span id="day-label">Day 1</span>
+    <span id="weather-emoji" class="picon sm"></span><span id="forecast" title="Tomorrow's forecast"></span>
+    <div class="daybar"><div id="dayfill"></div></div>
+  </div>
+</div>
+
+<!-- ===== Goal chip ===== -->
+<div id="goal-chip" class="hidden">
+  <span id="goal-icon">🎯</span>
+  <div class="goal-text">
+    <span id="goal-title">Till 4 plots</span>
+    <span id="goal-progress">0 / 4</span>
+  </div>
+  <span id="goal-reward">+30</span>
+</div>
+
+<!-- ===== Side buttons ===== -->
+<div id="side-buttons">
+  <button class="round-btn" id="btn-shop" title="Shop" aria-label="Shop"><svg class="ic" aria-hidden="true"><use href="#i-shop"/></svg></button>
+  <button class="round-btn" id="btn-market" title="Market" aria-label="Market"><span id="market-icon"><svg class="ic" aria-hidden="true"><use href="#i-scales"/></svg></span><span class="btn-badge gold hidden" id="market-badge"></span></button>
+  <button class="round-btn" id="btn-orders" title="Orders" aria-label="Orders"><svg class="ic" aria-hidden="true"><use href="#i-clipboard"/></svg><span class="btn-badge hidden" id="orders-badge"></span></button>
+  <button class="round-btn" id="btn-menu" title="Menu" aria-label="Menu"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span class="btn-badge dot hidden" id="menu-badge"></span></button>
+</div>
+
+<!-- ===== Tile action bubble (built by ui.js on tap) ===== -->
+<div id="bubble" class="hidden"></div>
+
+<!-- ===== Build mode bar ===== -->
+<div id="buildbar" class="hidden">
+  <span id="build-label">Place the Coop</span>
+  <div class="build-actions">
+    <button id="build-ok" class="chunky green">✓ Place</button>
+    <button id="build-cancel" class="chunky red" aria-label="Cancel placement">✕</button>
+  </div>
+</div>
+
+<!-- ===== Bottom sheet (panels) ===== -->
+<div id="sheet-backdrop" class="hidden"></div>
+<div id="sheet" class="hidden">
+  <div id="sheet-handle"></div>
+  <div id="sheet-header">
+    <span id="sheet-badge" aria-hidden="true"></span>
+    <div class="sheet-titles">
+      <h2 id="sheet-title">Shop</h2>
+      <div id="sheet-sub"></div>
+    </div>
+    <button id="sheet-close" aria-label="Close"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+  </div>
+  <div id="sheet-tabs" class="hidden"></div>
+  <div id="sheet-body"></div>
+  <div id="sheet-wallet">
+    <span class="w-chip" id="wallet-coin-chip"><svg class="ic" aria-hidden="true"><use href="#i-coin"/></svg><span id="wallet-coins">0</span></span>
+    <span class="w-chip w-fuel hidden" id="wallet-fuel"><svg class="ic" aria-hidden="true"><use href="#i-fuel"/></svg><span id="wallet-fuel-amt">0.0</span><span class="w-unit">gal</span></span>
+  </div>
+</div>
+
+<!-- ===== Confirm modal ===== -->
+<div id="modal-backdrop" class="hidden">
+  <div id="modal">
+    <div id="modal-icon">❓</div>
+    <div id="modal-text">Are you sure?</div>
+    <div id="modal-buttons">
+      <button id="modal-no" class="chunky quiet">Cancel</button>
+      <button id="modal-yes" class="chunky green">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== New farm setup ===== -->
+<div id="setup" class="hidden">
+  <div id="setup-card">
+    <div class="setup-logo">🌾</div>
+    <h1>Harvest Empire</h1>
+    <p class="setup-tag">Turn a patch of dirt into a farming empire.<br>Everything is for sale from day one — if you can afford it, it's yours. But mind the seasons, the weather and your animals: neglected farms fail.</p>
+    <label class="setup-label" for="farm-name">Name your farm</label>
+    <input id="farm-name" type="text" maxlength="24" placeholder="Sunny Hollow Farm" autocomplete="off">
+    <label class="setup-label">Starting capital</label>
+    <div id="diff-cards"></div>
+    <button id="setup-start" class="chunky green">Start farming 🚜</button>
+  </div>
+</div>
+
+<!-- ===== THE Sunflower: newspaper & blessing overlays ===== -->
+<div id="toni-overlay" class="hidden"></div>
+
+<!-- ===== Toasts ===== -->
+<div id="toasts"></div>
+
+<!-- ===== Level up splash ===== -->
+<div id="levelup" class="hidden">
+  <div class="levelup-inner">
+    <div class="levelup-star"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg></div>
+    <h1>Reputation <span id="levelup-num">2</span>!</h1>
+    <div id="levelup-unlocks"></div>
+    <div class="levelup-hint">Tap anywhere to continue</div>
+  </div>
+</div>
+
+<script src="js/data.js?v=43"></script>
+<script src="js/game.js?v=43"></script>
+<script src="js/render.js?v=43"></script>
+<script src="js/icons.js?v=43"></script>
+<script src="js/ui.js?v=43"></script>
+<script src="js/main.js?v=43"></script>
+</body>
+</html>
