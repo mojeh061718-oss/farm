@@ -29,21 +29,27 @@ const Game = (() => {
     const f = state.farms[state.activeFarm] || (state.farms[state.activeFarm] = {});
     for (const k of FARM_FIELDS) f[k] = state[k];
     f.label = state.farmName || f.label;
+    f.tendedNow = state.now; // stamp when we left, so catch-up knows how long it froze
   }
   function hydrateFarm(i) {
     const f = state.farms[i];
     for (const k of FARM_FIELDS) state[k] = f[k];
     state.activeFarm = i;
     syncDims();
+    blessSrc = null; // new farm → different tonis array; force the bless memo to recompute
+    // catch-up: the farm sat frozen while you tended another. Fast-forward ONLY
+    // its crops by the game-time that passed since you last left it.
+    const elapsed = (f.tendedNow != null) ? (state.now - f.tendedNow) : 0;
+    return catchUpFarm(elapsed);
   }
   function ownedFarms() { ensureFarms(); return state.farms.map((f, i) => ({ i, id: f.id, label: f.label || f.farmName, tid: f.tid, w: f.w || D.WORLD_W, h: f.h || D.WORLD_H, active: i === state.activeFarm })); }
   function switchFarm(i) {
     ensureFarms();
     if (i < 0 || i >= state.farms.length || i === state.activeFarm) return false;
     snapshotActiveFarm();
-    hydrateFarm(i);
+    const digest = hydrateFarm(i);
     save();
-    emit('farmswitch', i);
+    emit('farmswitch', i, digest);
     return true;
   }
   function ownsTemplate(tid) { ensureFarms(); return state.farms.some(f => f.tid === tid); }
@@ -626,6 +632,58 @@ const Game = (() => {
       expiredOrders: orderIds.filter(id => !state.orders.some(o => o.id === id)).length,
       lost: Math.max(state.stats.lost - lostBefore, lostBy.dry + lostBy.rot + lostBy.season),
       lostBy,
+    };
+  }
+
+  // Return-catch-up: fast-forward ONLY a farm's crops by the game-time it sat
+  // frozen while you tended another. Growth-only and forgiving — nothing wilts or
+  // rots (you literally couldn't tend it), so a visit is always a small reward:
+  // crops advance, and a blessed (Toni) farm banks the harvests it would have made.
+  // The shared clock / orders / market / animals are already current, so we never
+  // touch them. Capped at the same 2.5-day away-limit so an idle empire can't mint.
+  function catchUpFarm(elapsed) {
+    if (!(elapsed > 0) || !state || !state.tiles) return null;
+    elapsed = Math.min(elapsed, 2.5 * D.DAY_LEN);
+    const wasOffline = state._offline;
+    state._offline = true; // silences fx/toasts and the blessed auto-harvester's sparkle
+    const before = readyCounts();
+    const harvestedBefore = state.stats.harvested;
+    const STEP = 2; // small steps so regrow/blessed cycles can bank more than once
+    let remaining = elapsed;
+    while (remaining > 0) {
+      const dt = Math.min(STEP, remaining);
+      remaining -= dt;
+      const bless = blessedRects(); // cheap: cached unless a toni just rose
+      for (let ty = 0; ty < WH; ty++) for (let tx = 0; tx < WW; tx++) {
+        const c = state.tiles[ty][tx].crop;
+        if (!c || c.dead) continue;
+        let bl = false;
+        if (bless) for (const p of bless) if (tx >= p.x && tx < p.x + p.w && ty >= p.y && ty < p.y + p.h) { bl = true; break; }
+        if (bl) { c.water = 1; c.wilt = 0; c.rot = 0; }
+        const off = !seasonOK(c.id, tx, ty);
+        if (c.prog >= 1) {
+          if (c.toni) { // a secret toni-turnip ripens: she rises (only one, ever)
+            if (state.tonis.length) delete c.toni;
+            else { state.tiles[ty][tx].crop = null; const tn = addToni(tx, ty); tn.rise = state.now; continue; }
+          }
+          if (bl) { toniAutoHarvest(tx, ty); continue; } // blessed ripe crops bank + replant
+          // ordinary ripe crops just wait (no rot while you're away)
+        } else if (!off) {
+          const def = D.CROPS[c.id];
+          const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
+          const speed = (c.fert || bl) ? 1.25 : 1;
+          c.prog = Math.min(1, c.prog + (dt * speed) / growTime);
+        }
+      }
+    }
+    state._offline = wasOffline;
+    const after = readyCounts();
+    const banked = state.stats.harvested - harvestedBefore; // blessed auto-harvests
+    return {
+      elapsed,
+      grew: Math.max(0, after.crops - before.crops), // newly-ripe standing crops
+      banked,
+      ripe: after.crops,
     };
   }
 
