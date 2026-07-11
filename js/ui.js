@@ -486,6 +486,7 @@ const UI = (() => {
     else if (sheetOpen === 'menu') renderMenu(body);
     else if (sheetOpen === 'log') renderLog(body);
     else if (sheetOpen === 'care') renderCare(body);
+    else if (sheetOpen === 'compendium') renderCompendium(body);
     else if (sheetOpen.startsWith('b:')) renderBuilding(body, parseInt(sheetOpen.slice(2), 10));
     // freeze the tallest height seen this session: a bottom-anchored sheet that
     // shrinks slides its buttons downward mid-tap (the sell-everything trap)
@@ -954,6 +955,39 @@ const UI = (() => {
 
   // ---------------- season care sheet ----------------
   // opened automatically at dawn of a season's last day; lists every planted
+  // Compendium — a completion scoreboard for the "touch everything" player
+  function renderCompendium(body) {
+    const s = Game.state;
+    setSheetHeader(I.icon('sprout'), 'Compendium', 'Everything you have discovered');
+    setTabs(null);
+    const section = (title, have, total, rows) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'order-card';
+      wrap.innerHTML = `<div style="font-weight:900;font-size:0.9rem;margin-bottom:6px">${title} — <b>${have}/${total}</b></div>
+        <div class="comp-grid">${rows}</div>`;
+      body.appendChild(wrap);
+    };
+    // crops harvested (produced flag) — everything the player has ever grown
+    const grown = id => !!(s.produced && s.produced[id]);
+    const cropRows = Object.keys(D.CROPS).map(id =>
+      `<span class="comp-chip${grown(id) ? ' got' : ''}">${I.item(id)} ${grown(id) ? D.ITEMS[id].name : '???'}</span>`).join('');
+    section('🌱 Crops grown', Object.keys(D.CROPS).filter(grown).length, Object.keys(D.CROPS).length, cropRows);
+    // recipes crafted (produced flag on the output)
+    const recRows = Object.entries(D.RECIPES).map(([, r]) =>
+      `<span class="comp-chip${grown(r.out) ? ' got' : ''}">${I.item(r.out)} ${grown(r.out) ? D.ITEMS[r.out].name : '???'}</span>`).join('');
+    section('🍞 Recipes crafted', Object.values(D.RECIPES).filter(r => grown(r.out)).length, Object.keys(D.RECIPES).length, recRows);
+    // animals owned
+    const haveAnimal = t => s.animals.some(a => a.type === t);
+    const aniRows = Object.keys(D.ANIMALS).map(t =>
+      `<span class="comp-chip${haveAnimal(t) ? ' got' : ''}">${D.ANIMALS[t].emoji} ${haveAnimal(t) ? D.ANIMALS[t].name : '???'}</span>`).join('');
+    section('🐔 Animals owned', Object.keys(D.ANIMALS).filter(haveAnimal).length, Object.keys(D.ANIMALS).length, aniRows);
+    // buildings placed
+    const haveB = t => s.buildings.some(b => b && b.type === t);
+    const bRows = Object.keys(D.BUILDINGS).map(t =>
+      `<span class="comp-chip${haveB(t) ? ' got' : ''}">${D.BUILDINGS[t].emoji} ${haveB(t) ? D.BUILDINGS[t].name : '???'}</span>`).join('');
+    section('🏠 Buildings placed', Object.keys(D.BUILDINGS).filter(haveB).length, Object.keys(D.BUILDINGS).length, bRows);
+  }
+
   // crop that won't survive the flip, with one-tap rescue actions.
   function renderCare(body) {
     const s = Game.state;
@@ -1335,6 +1369,53 @@ const UI = (() => {
       <div class="actions"><button class="mini${atRisk ? ' danger' : ''}">Review</button></div>`;
     care.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('care'); };
     body.appendChild(care);
+
+    // ---- automation & comfort ----
+    const comfortLabel = document.createElement('div');
+    comfortLabel.className = 'section-label';
+    comfortLabel.textContent = '⚙️ Automation & comfort';
+    body.appendChild(comfortLabel);
+
+    const toggleRow = (emoji, name, sub, on, onFlip) => {
+      const row = document.createElement('div');
+      row.className = 'row-card';
+      row.innerHTML = `
+        <div class="emoji">${emoji}</div>
+        <div class="info"><div class="name">${name}</div><div class="sub">${sub}</div></div>
+        <div class="actions"><button class="mini toggle${on ? ' on gold' : ''}">${on ? 'On' : 'Off'}</button></div>`;
+      row.querySelector('button').onclick = () => { SOUNDS.tap(); onFlip(); renderSheet(); };
+      body.appendChild(row);
+    };
+    toggleRow('⛽', 'Auto-fuel', 'Top the tank up from coins each dawn so drones never strand themselves.', !!s.autoFuel, () => { s.autoFuel = !s.autoFuel; Game.save(); });
+    toggleRow('💰', 'Auto-sell surplus', 'Sell spare produce each dawn (keeps a small buffer, never mythics).', !!s.autoSell, () => { s.autoSell = !s.autoSell; Game.save(); });
+
+    const compRow = document.createElement('div');
+    compRow.className = 'row-card';
+    compRow.innerHTML = `
+      <div class="emoji">📚</div>
+      <div class="info"><div class="name">Compendium</div><div class="sub">Track your progress: crops, recipes, animals & buildings collected.</div></div>
+      <div class="actions"><button class="mini">Open</button></div>`;
+    compRow.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('compendium'); };
+    body.appendChild(compRow);
+
+    // ---- Legacy (prestige): only once the whole valley is yours ----
+    if (Game.canPrestige()) {
+      const legRow = document.createElement('div');
+      legRow.className = 'row-card backup-due';
+      const stars = Game.legacyStars();
+      legRow.innerHTML = `
+        <div class="emoji">🌟</div>
+        <div class="info"><div class="name">Start a New Legacy</div><div class="sub">You own the whole valley! Retire this farm to begin a fresh one — and keep a permanent <b>+10% sell price</b> per Legacy Star, forever.${stars ? ' You have ' + stars + ' ⭐.' : ''}</div></div>
+        <div class="actions"><button class="mini gold">Retire →</button></div>`;
+      legRow.querySelector('button').onclick = () => {
+        SOUNDS.tap();
+        confirmBox('🌟', 'Retire this farm and start a New Legacy? You keep a permanent +10% sell bonus, but this valley is reset.', 'Start New Legacy', () => {
+          Game.startNewLegacy();
+          location.reload();
+        });
+      };
+      body.appendChild(legRow);
+    }
 
     // ---- farm safety: backup & restore ----
     const safetyLabel = document.createElement('div');
@@ -1815,13 +1896,16 @@ const UI = (() => {
     $('levelup-unlocks').innerHTML =
       `Your farm's reputation is growing!<br><span class="unlock">⚖️ All goods now sell for +${bonus}%</span>`;
     $('levelup').classList.remove('hidden');
-    // tap to dismiss — no auto-hide, and no stolen input: the splash lets
-    // pointer events through; the first tap anywhere also dismisses it
+    // tap to dismiss — but ALSO auto-hide after a few seconds so a splash left
+    // undismissed can never sit on top of the season-care rescue sheet (playtest bug)
+    let autoHide = null;
     const dismiss = () => {
+      if (autoHide) { clearTimeout(autoHide); autoHide = null; }
       $('levelup').classList.add('hidden');
       document.removeEventListener('pointerdown', dismiss, true);
     };
     document.addEventListener('pointerdown', dismiss, true);
+    autoHide = setTimeout(dismiss, 4500);
   }
 
   /* ---------------- THE Sunflower (the Toni Variety) ----------------
@@ -2088,6 +2172,7 @@ const UI = (() => {
     Game.on('season', () => { if (sheetOpen === 'seeds') renderSheet(); });
     // dawn of a season's last day: banner + auto-open the Season Care sheet
     Game.on('care', info => {
+      $('levelup').classList.add('hidden'); // a reward splash must never bury the rescue sheet
       toast(`⏳ Last day of ${info.season}! ${info.n} crop${info.n > 1 ? 's' : ''} won't survive ${info.next} — here's the rescue list (also in the ⚙️ Menu).`, 'bad');
       // don't clobber a sheet the player is using (typing a farm code, mid-
       // purchase…) — the toast already points at the Menu entry

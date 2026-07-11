@@ -1,0 +1,8365 @@
+{
+  "config": {
+    "name": "Maple Yield Co",
+    "diff": "classic",
+    "days": 90,
+    "seed": 2022,
+    "plot": 30,
+    "diligence": 0.98,
+    "sellMode": "daily",
+    "ambition": 0.95,
+    "fertilize": true,
+    "doOrders": 0.9,
+    "buyAnimals": true,
+    "buildProd": true,
+    "automate": true,
+    "note": "Min-maxer, big plot, sells daily, chases orders, buildings, automation.",
+    "persona": "optimizer"
+  },
+  "days": [
+    {
+      "day": 1,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 1964,
+      "fuel": 0,
+      "level": 1,
+      "xp": 0,
+      "farmValue": 2264,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 0,
+      "buildings": 1,
+      "parcels": 1,
+      "orders": 2,
+      "goalsDone": 4,
+      "goal": "Harvest 6 crops",
+      "stats": {
+        "tilled": 26,
+        "planted": 30,
+        "watered": 6,
+        "harvested": 0,
+        "sold": 0,
+        "collected": 0,
+        "orders": 0,
+        "crafted": 0,
+        "fertilized": 12,
+        "earned": 0,
+        "lost": 0,
+        "recent": 0,
+        "prodMark": 0
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 0
+    },
+    {
+      "day": 2,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 2131,
+      "fuel": 5,
+      "level": 2,
+      "xp": 3,
+      "farmValue": 2447,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 0,
+      "buildings": 1,
+      "parcels": 1,
+      "orders": 4,
+      "goalsDone": 6,
+      "goal": "Build a Coop & buy a bird",
+      "stats": {
+        "tilled": 26,
+        "planted": 36,
+        "watered": 6,
+        "harvested": 6,
+        "sold": 8,
+        "collected": 0,
+        "orders": 0,
+        "crafted": 0,
+        "fertilized": 17,
+        "earned": 360,
+        "lost": 0,
+        "recent": 0,
+        "prodMark": 0
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 1
+    },
+    {
+      "day": 3,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 3603,
+      "fuel": 5,
+      "level": 3,
+      "xp": 130,
+      "farmValue": 3920,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 0,
+      "buildings": 1,
+      "parcels": 1,
+      "orders": 4,
+      "goalsDone": 6,
+      "goal": "Build a Coop & buy a bird",
+      "stats": {
+        "tilled": 26,
+        "planted": 60,
+        "watered": 6,
+        "harvested": 36,
+        "sold": 44,
+        "collected": 0,
+        "orders": 0,
+        "crafted": 0,
+        "fertilized": 26,
+        "earned": 2048,
+        "lost": 0,
+        "recent": 1.8,
+        "prodMark": 6
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 2
+    },
+    {
+      "day": 4,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 3370,
+      "fuel": 5,
+      "level": 4,
+      "xp": 135,
+      "farmValue": 3687,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 0,
+      "buildings": 1,
+      "parcels": 1,
+      "orders": 4,
+      "goalsDone": 6,
+      "goal": "Build a Coop & buy a bird",
+      "stats": {
+        "tilled": 26,
+        "planted": 84,
+        "watered": 6,
+        "harvested": 66,
+        "sold": 80,
+        "collected": 0,
+        "orders": 0,
+        "crafted": 0,
+        "fertilized": 37,
+        "earned": 2966,
+        "lost": 0,
+        "recent": 10.3,
+        "prodMark": 36
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 3
+    },
+    {
+      "day": 5,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 4844,
+      "fuel": 5,
+      "level": 5,
+      "xp": 156,
+      "farmValue": 5761,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 0,
+      "buildings": 2,
+      "parcels": 1,
+      "orders": 3,
+      "goalsDone": 6,
+      "goal": "Build a Coop & buy a bird",
+      "stats": {
+        "tilled": 26,
+        "planted": 84,
+        "watered": 6,
+        "harvested": 96,
+        "sold": 114,
+        "collected": 0,
+        "orders": 0,
+        "crafted": 0,
+        "fertilized": 37,
+        "earned": 5040,
+        "lost": 0,
+        "recent": 16.2,
+        "prodMark": 66
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 4
+    },
+    {
+      "day": 6,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 5876,
+      "fuel": 5,
+      "level": 6,
+      "xp": 81,
+      "farmValue": 7793,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 0,
+      "buildings": 2,
+      "parcels": 2,
+      "orders": 3,
+      "goalsDone": 7,
+      "goal": "Build a Coop & buy a bird",
+      "stats": {
+        "tilled": 26,
+        "planted": 84,
+        "watered": 32,
+        "harvested": 126,
+        "sold": 145,
+        "collected": 0,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 37,
+        "earned": 6822,
+        "lost": 0,
+        "recent": 20.3,
+        "prodMark": 96
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 5
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 5254,
+      "fuel": 5,
+      "level": 6,
+      "xp": 367,
+      "farmValue": 9321,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 1,
+      "buildings": 4,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 8,
+      "goal": "Collect 5 animal products",
+      "stats": {
+        "tilled": 26,
+        "planted": 84,
+        "watered": 32,
+        "harvested": 156,
+        "sold": 177,
+        "collected": 0,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 37,
+        "earned": 8230,
+        "lost": 0,
+        "recent": 23.2,
+        "prodMark": 126
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 5
+    },
+    {
+      "day": 8,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "cloud",
+      "coins": 5909,
+      "fuel": 5,
+      "level": 7,
+      "xp": 63,
+      "farmValue": 10826,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 2,
+      "buildings": 4,
+      "parcels": 2,
+      "orders": 3,
+      "goalsDone": 8,
+      "goal": "Collect 5 animal products",
+      "stats": {
+        "tilled": 26,
+        "planted": 84,
+        "watered": 32,
+        "harvested": 186,
+        "sold": 211,
+        "collected": 1,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 37,
+        "earned": 9740,
+        "lost": 0,
+        "recent": 25.2,
+        "prodMark": 156
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 6
+    },
+    {
+      "day": 9,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "cloud",
+      "coins": 6387,
+      "fuel": 5,
+      "level": 7,
+      "xp": 362,
+      "farmValue": 12604,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 3,
+      "buildings": 4,
+      "parcels": 2,
+      "orders": 3,
+      "goalsDone": 9,
+      "goal": "Collect 5 animal products",
+      "stats": {
+        "tilled": 26,
+        "planted": 84,
+        "watered": 58,
+        "harvested": 216,
+        "sold": 247,
+        "collected": 3,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 37,
+        "earned": 10935,
+        "lost": 0,
+        "recent": 26.9,
+        "prodMark": 187
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 6
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 4036,
+      "fuel": 5,
+      "level": 7,
+      "xp": 659,
+      "farmValue": 13453,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 3,
+      "buildings": 5,
+      "parcels": 2,
+      "orders": 3,
+      "goalsDone": 10,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 26,
+        "planted": 84,
+        "watered": 84,
+        "harvested": 246,
+        "sold": 280,
+        "collected": 5,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 37,
+        "earned": 11715,
+        "lost": 0,
+        "recent": 28.4,
+        "prodMark": 219
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 6
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "cloud",
+      "coins": 2157,
+      "fuel": 5,
+      "level": 8,
+      "xp": 125,
+      "farmValue": 11992,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 4,
+      "buildings": 5,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 10,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 114,
+        "watered": 120,
+        "harvested": 276,
+        "sold": 314,
+        "collected": 8,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 48,
+        "earned": 12618,
+        "lost": 0,
+        "recent": 29.5,
+        "prodMark": 251
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 7
+    },
+    {
+      "day": 12,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "storm",
+      "coins": 1911,
+      "fuel": 5,
+      "level": 8,
+      "xp": 138,
+      "farmValue": 11897,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 5,
+      "buildings": 5,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 10,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 117,
+        "watered": 120,
+        "harvested": 276,
+        "sold": 317,
+        "collected": 10,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 49,
+        "earned": 12719,
+        "lost": 3,
+        "recent": 30.6,
+        "prodMark": 284
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 7
+    },
+    {
+      "day": 13,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "drought",
+      "coins": 7905,
+      "fuel": 5,
+      "level": 8,
+      "xp": 569,
+      "farmValue": 18042,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 6,
+      "buildings": 5,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 10,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 133,
+        "watered": 132,
+        "harvested": 295,
+        "sold": 349,
+        "collected": 15,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 50,
+        "earned": 19689,
+        "lost": 3,
+        "recent": 22,
+        "prodMark": 286
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 7
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "drought",
+      "coins": 3083,
+      "fuel": 5,
+      "level": 8,
+      "xp": 594,
+      "farmValue": 18169,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 7,
+      "buildings": 6,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 10,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 133,
+        "watered": 162,
+        "harvested": 295,
+        "sold": 354,
+        "collected": 20,
+        "orders": 1,
+        "crafted": 0,
+        "fertilized": 50,
+        "earned": 19866,
+        "lost": 3,
+        "recent": 22.6,
+        "prodMark": 310
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 7
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "drought",
+      "coins": 5722,
+      "fuel": 5,
+      "level": 8,
+      "xp": 899,
+      "farmValue": 21159,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 7,
+      "buildings": 7,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 11,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 148,
+        "watered": 198,
+        "harvested": 306,
+        "sold": 374,
+        "collected": 27,
+        "orders": 1,
+        "crafted": 1,
+        "fertilized": 55,
+        "earned": 23669,
+        "lost": 7,
+        "recent": 17.3,
+        "prodMark": 315
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 7
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "cloud",
+      "coins": 4426,
+      "fuel": 5,
+      "level": 8,
+      "xp": 943,
+      "farmValue": 21132,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 9,
+      "buildings": 7,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 12,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 163,
+        "watered": 222,
+        "harvested": 306,
+        "sold": 382,
+        "collected": 33,
+        "orders": 1,
+        "crafted": 2,
+        "fertilized": 62,
+        "earned": 24115,
+        "lost": 22,
+        "recent": 17.5,
+        "prodMark": 333
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 7
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "drought",
+      "coins": 4463,
+      "fuel": 5,
+      "level": 8,
+      "xp": 1055,
+      "farmValue": 22019,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 10,
+      "buildings": 7,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 12,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 163,
+        "watered": 252,
+        "harvested": 310,
+        "sold": 396,
+        "collected": 41,
+        "orders": 1,
+        "crafted": 3,
+        "fertilized": 62,
+        "earned": 25076,
+        "lost": 22,
+        "recent": 14.1,
+        "prodMark": 339
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 7
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "storm",
+      "coins": 4570,
+      "fuel": 5,
+      "level": 9,
+      "xp": 69,
+      "farmValue": 23427,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 11,
+      "buildings": 7,
+      "parcels": 2,
+      "orders": 4,
+      "goalsDone": 13,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 170,
+        "watered": 252,
+        "harvested": 321,
+        "sold": 421,
+        "collected": 50,
+        "orders": 1,
+        "crafted": 4,
+        "fertilized": 64,
+        "earned": 26633,
+        "lost": 29,
+        "recent": 13.5,
+        "prodMark": 351
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 8
+    },
+    {
+      "day": 19,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "cloud",
+      "coins": 7749,
+      "fuel": 5,
+      "level": 9,
+      "xp": 483,
+      "farmValue": 26606,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 11,
+      "buildings": 7,
+      "parcels": 2,
+      "orders": 3,
+      "goalsDone": 13,
+      "goal": "Complete 2 orders",
+      "stats": {
+        "tilled": 33,
+        "planted": 170,
+        "watered": 252,
+        "harvested": 351,
+        "sold": 469,
+        "collected": 60,
+        "orders": 1,
+        "crafted": 5,
+        "fertilized": 64,
+        "earned": 29912,
+        "lost": 29,
+        "recent": 15.5,
+        "prodMark": 371
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 8
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "sun",
+      "coins": 7183,
+      "fuel": 5,
+      "level": 9,
+      "xp": 952,
+      "farmValue": 29390,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 7,
+      "parcels": 3,
+      "orders": 3,
+      "goalsDone": 14,
+      "goal": "Automate: drone + sprinkler",
+      "stats": {
+        "tilled": 33,
+        "planted": 170,
+        "watered": 282,
+        "harvested": 381,
+        "sold": 506,
+        "collected": 70,
+        "orders": 2,
+        "crafted": 6,
+        "fertilized": 64,
+        "earned": 32616,
+        "lost": 29,
+        "recent": 22.9,
+        "prodMark": 411
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 8
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "sun",
+      "coins": 6593,
+      "fuel": 5,
+      "level": 9,
+      "xp": 1418,
+      "farmValue": 28800,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 7,
+      "parcels": 3,
+      "orders": 2,
+      "goalsDone": 14,
+      "goal": "Automate: drone + sprinkler",
+      "stats": {
+        "tilled": 48,
+        "planted": 200,
+        "watered": 318,
+        "harvested": 411,
+        "sold": 547,
+        "collected": 81,
+        "orders": 3,
+        "crafted": 7,
+        "fertilized": 77,
+        "earned": 35365,
+        "lost": 29,
+        "recent": 28,
+        "prodMark": 451
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 8
+    },
+    {
+      "day": 22,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 7407,
+      "fuel": 5,
+      "level": 9,
+      "xp": 1508,
+      "farmValue": 29615,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 7,
+      "parcels": 3,
+      "orders": 4,
+      "goalsDone": 14,
+      "goal": "Automate: drone + sprinkler",
+      "stats": {
+        "tilled": 48,
+        "planted": 200,
+        "watered": 348,
+        "harvested": 411,
+        "sold": 561,
+        "collected": 92,
+        "orders": 3,
+        "crafted": 8,
+        "fertilized": 77,
+        "earned": 36291,
+        "lost": 29,
+        "recent": 31.9,
+        "prodMark": 492
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 8
+    },
+    {
+      "day": 23,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "rain",
+      "coins": 8617,
+      "fuel": 5,
+      "level": 10,
+      "xp": 48,
+      "farmValue": 30826,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 7,
+      "parcels": 3,
+      "orders": 3,
+      "goalsDone": 14,
+      "goal": "Automate: drone + sprinkler",
+      "stats": {
+        "tilled": 48,
+        "planted": 200,
+        "watered": 348,
+        "harvested": 415,
+        "sold": 582,
+        "collected": 103,
+        "orders": 3,
+        "crafted": 9,
+        "fertilized": 77,
+        "earned": 37613,
+        "lost": 29,
+        "recent": 25.6,
+        "prodMark": 503
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 9
+    },
+    {
+      "day": 24,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "rain",
+      "coins": 11743,
+      "fuel": 5,
+      "level": 10,
+      "xp": 637,
+      "farmValue": 33953,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 7,
+      "parcels": 3,
+      "orders": 3,
+      "goalsDone": 14,
+      "goal": "Automate: drone + sprinkler",
+      "stats": {
+        "tilled": 48,
+        "planted": 200,
+        "watered": 348,
+        "harvested": 445,
+        "sold": 633,
+        "collected": 114,
+        "orders": 3,
+        "crafted": 10,
+        "fertilized": 77,
+        "earned": 40851,
+        "lost": 29,
+        "recent": 22.4,
+        "prodMark": 518
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 9
+    },
+    {
+      "day": 25,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 14721,
+      "fuel": 5,
+      "level": 10,
+      "xp": 1224,
+      "farmValue": 36932,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 7,
+      "parcels": 3,
+      "orders": 4,
+      "goalsDone": 14,
+      "goal": "Automate: drone + sprinkler",
+      "stats": {
+        "tilled": 48,
+        "planted": 200,
+        "watered": 348,
+        "harvested": 475,
+        "sold": 682,
+        "collected": 125,
+        "orders": 3,
+        "crafted": 11,
+        "fertilized": 77,
+        "earned": 43941,
+        "lost": 29,
+        "recent": 28,
+        "prodMark": 559
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 9
+    },
+    {
+      "day": 26,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "storm",
+      "coins": 8191,
+      "fuel": 5,
+      "level": 10,
+      "xp": 1314,
+      "farmValue": 37903,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 3,
+      "orders": 4,
+      "goalsDone": 15,
+      "goal": "Own 4 land parcels",
+      "stats": {
+        "tilled": 48,
+        "planted": 202,
+        "watered": 348,
+        "harvested": 475,
+        "sold": 696,
+        "collected": 136,
+        "orders": 3,
+        "crafted": 12,
+        "fertilized": 78,
+        "earned": 44742,
+        "lost": 31,
+        "recent": 31.9,
+        "prodMark": 600
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 9
+    },
+    {
+      "day": 27,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "sun",
+      "coins": 11145,
+      "fuel": 4,
+      "level": 10,
+      "xp": 1883,
+      "farmValue": 40853,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 3,
+      "orders": 4,
+      "goalsDone": 15,
+      "goal": "Own 4 land parcels",
+      "stats": {
+        "tilled": 48,
+        "planted": 202,
+        "watered": 348,
+        "harvested": 504,
+        "sold": 740,
+        "collected": 147,
+        "orders": 3,
+        "crafted": 13,
+        "fertilized": 78,
+        "earned": 47808,
+        "lost": 31,
+        "recent": 25.6,
+        "prodMark": 611
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 9
+    },
+    {
+      "day": 28,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 11841,
+      "fuel": 4,
+      "level": 10,
+      "xp": 1990,
+      "farmValue": 41549,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 3,
+      "orders": 4,
+      "goalsDone": 15,
+      "goal": "Own 4 land parcels",
+      "stats": {
+        "tilled": 48,
+        "planted": 202,
+        "watered": 378,
+        "harvested": 505,
+        "sold": 755,
+        "collected": 158,
+        "orders": 3,
+        "crafted": 14,
+        "fertilized": 78,
+        "earned": 48616,
+        "lost": 31,
+        "recent": 29.9,
+        "prodMark": 651
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 9
+    },
+    {
+      "day": 29,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "sun",
+      "coins": 14303,
+      "fuel": 3,
+      "level": 11,
+      "xp": 352,
+      "farmValue": 44007,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 3,
+      "orders": 4,
+      "goalsDone": 15,
+      "goal": "Own 4 land parcels",
+      "stats": {
+        "tilled": 48,
+        "planted": 203,
+        "watered": 408,
+        "harvested": 533,
+        "sold": 800,
+        "collected": 169,
+        "orders": 3,
+        "crafted": 15,
+        "fertilized": 79,
+        "earned": 51314,
+        "lost": 32,
+        "recent": 24.5,
+        "prodMark": 663
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 15093,
+      "fuel": 3,
+      "level": 11,
+      "xp": 459,
+      "farmValue": 44796,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 3,
+      "orders": 4,
+      "goalsDone": 15,
+      "goal": "Own 4 land parcels",
+      "stats": {
+        "tilled": 48,
+        "planted": 203,
+        "watered": 438,
+        "harvested": 534,
+        "sold": 815,
+        "collected": 180,
+        "orders": 3,
+        "crafted": 16,
+        "fertilized": 79,
+        "earned": 52216,
+        "lost": 32,
+        "recent": 28.9,
+        "prodMark": 702
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "sun",
+      "coins": 15310,
+      "fuel": 7,
+      "level": 11,
+      "xp": 1028,
+      "farmValue": 45027,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 3,
+      "orders": 3,
+      "goalsDone": 15,
+      "goal": "Own 4 land parcels",
+      "stats": {
+        "tilled": 48,
+        "planted": 232,
+        "watered": 462,
+        "harvested": 563,
+        "sold": 859,
+        "collected": 191,
+        "orders": 3,
+        "crafted": 17,
+        "fertilized": 90,
+        "earned": 55472,
+        "lost": 32,
+        "recent": 23.8,
+        "prodMark": 714
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "cloud",
+      "coins": 10963,
+      "fuel": 7,
+      "level": 11,
+      "xp": 1149,
+      "farmValue": 46679,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 4,
+      "orders": 4,
+      "goalsDone": 16,
+      "goal": "Reach $60,000 farm value",
+      "stats": {
+        "tilled": 48,
+        "planted": 233,
+        "watered": 492,
+        "harvested": 563,
+        "sold": 875,
+        "collected": 202,
+        "orders": 3,
+        "crafted": 18,
+        "fertilized": 91,
+        "earned": 56276,
+        "lost": 33,
+        "recent": 28.7,
+        "prodMark": 754
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 33,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 11540,
+      "fuel": 7,
+      "level": 11,
+      "xp": 1248,
+      "farmValue": 47256,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 4,
+      "orders": 3,
+      "goalsDone": 16,
+      "goal": "Reach $60,000 farm value",
+      "stats": {
+        "tilled": 48,
+        "planted": 234,
+        "watered": 523,
+        "harvested": 564,
+        "sold": 888,
+        "collected": 213,
+        "orders": 3,
+        "crafted": 19,
+        "fertilized": 91,
+        "earned": 57007,
+        "lost": 33,
+        "recent": 23.4,
+        "prodMark": 765
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 32173,
+      "fuel": 6,
+      "level": 11,
+      "xp": 2066,
+      "farmValue": 67883,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 4,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 48,
+        "planted": 264,
+        "watered": 559,
+        "harvested": 594,
+        "sold": 937,
+        "collected": 224,
+        "orders": 3,
+        "crafted": 20,
+        "fertilized": 100,
+        "earned": 77093,
+        "lost": 33,
+        "recent": 20,
+        "prodMark": 777
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 20915,
+      "fuel": 6,
+      "level": 11,
+      "xp": 2277,
+      "farmValue": 68627,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 5,
+      "orders": 1,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 48,
+        "planted": 270,
+        "watered": 595,
+        "harvested": 600,
+        "sold": 951,
+        "collected": 235,
+        "orders": 4,
+        "crafted": 21,
+        "fertilized": 103,
+        "earned": 78568,
+        "lost": 33,
+        "recent": 26.3,
+        "prodMark": 818
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 26152,
+      "fuel": 5,
+      "level": 11,
+      "xp": 2714,
+      "farmValue": 73860,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 5,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 294,
+        "watered": 631,
+        "harvested": 624,
+        "sold": 988,
+        "collected": 246,
+        "orders": 5,
+        "crafted": 22,
+        "fertilized": 110,
+        "earned": 85304,
+        "lost": 33,
+        "recent": 23.5,
+        "prodMark": 835
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 10
+    },
+    {
+      "day": 37,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "cloud",
+      "coins": 31222,
+      "fuel": 5,
+      "level": 12,
+      "xp": 97,
+      "farmValue": 78929,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 5,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 306,
+        "watered": 667,
+        "harvested": 636,
+        "sold": 1014,
+        "collected": 257,
+        "orders": 5,
+        "crafted": 23,
+        "fertilized": 111,
+        "earned": 91003,
+        "lost": 33,
+        "recent": 27,
+        "prodMark": 870
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 11
+    },
+    {
+      "day": 38,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "sun",
+      "coins": 37078,
+      "fuel": 4,
+      "level": 12,
+      "xp": 598,
+      "farmValue": 84781,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 5,
+      "orders": 2,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 313,
+        "watered": 679,
+        "harvested": 659,
+        "sold": 1049,
+        "collected": 268,
+        "orders": 6,
+        "crafted": 24,
+        "fertilized": 112,
+        "earned": 97550,
+        "lost": 33,
+        "recent": 30.9,
+        "prodMark": 910
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 11
+    },
+    {
+      "day": 39,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 41950,
+      "fuel": 4,
+      "level": 12,
+      "xp": 1269,
+      "farmValue": 89652,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 5,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 319,
+        "watered": 698,
+        "harvested": 699,
+        "sold": 1105,
+        "collected": 279,
+        "orders": 6,
+        "crafted": 25,
+        "fertilized": 115,
+        "earned": 103155,
+        "lost": 33,
+        "recent": 31.8,
+        "prodMark": 944
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 11
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "sun",
+      "coins": 48155,
+      "fuel": 3,
+      "level": 12,
+      "xp": 1765,
+      "farmValue": 95855,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 5,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 326,
+        "watered": 712,
+        "harvested": 723,
+        "sold": 1147,
+        "collected": 290,
+        "orders": 6,
+        "crafted": 26,
+        "fertilized": 116,
+        "earned": 110067,
+        "lost": 33,
+        "recent": 37.6,
+        "prodMark": 995
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 11
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 56442,
+      "fuel": 3,
+      "level": 12,
+      "xp": 2510,
+      "farmValue": 104143,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 5,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 333,
+        "watered": 712,
+        "harvested": 764,
+        "sold": 1203,
+        "collected": 301,
+        "orders": 6,
+        "crafted": 27,
+        "fertilized": 119,
+        "earned": 118799,
+        "lost": 33,
+        "recent": 41.9,
+        "prodMark": 1047
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 11
+    },
+    {
+      "day": 42,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 39436,
+      "fuel": 3,
+      "level": 12,
+      "xp": 2945,
+      "farmValue": 107136,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 2,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 339,
+        "watered": 712,
+        "harvested": 788,
+        "sold": 1245,
+        "collected": 312,
+        "orders": 6,
+        "crafted": 28,
+        "fertilized": 121,
+        "earned": 122183,
+        "lost": 39,
+        "recent": 39.8,
+        "prodMark": 1082
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 11
+    },
+    {
+      "day": 43,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 44966,
+      "fuel": 7,
+      "level": 12,
+      "xp": 3654,
+      "farmValue": 112679,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 339,
+        "watered": 712,
+        "harvested": 835,
+        "sold": 1312,
+        "collected": 323,
+        "orders": 6,
+        "crafted": 29,
+        "fertilized": 121,
+        "earned": 127842,
+        "lost": 39,
+        "recent": 43.5,
+        "prodMark": 1134
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 11
+    },
+    {
+      "day": 44,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "cloud",
+      "coins": 50613,
+      "fuel": 6,
+      "level": 13,
+      "xp": 449,
+      "farmValue": 118325,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 339,
+        "watered": 725,
+        "harvested": 882,
+        "sold": 1377,
+        "collected": 334,
+        "orders": 6,
+        "crafted": 30,
+        "fertilized": 121,
+        "earned": 133601,
+        "lost": 39,
+        "recent": 47.8,
+        "prodMark": 1192
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 53885,
+      "fuel": 5,
+      "level": 13,
+      "xp": 901,
+      "farmValue": 121594,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 340,
+        "watered": 737,
+        "harvested": 911,
+        "sold": 1423,
+        "collected": 345,
+        "orders": 6,
+        "crafted": 31,
+        "fertilized": 121,
+        "earned": 137027,
+        "lost": 40,
+        "recent": 45.8,
+        "prodMark": 1233
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 46,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 59760,
+      "fuel": 4,
+      "level": 13,
+      "xp": 1592,
+      "farmValue": 127464,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 341,
+        "watered": 749,
+        "harvested": 956,
+        "sold": 1489,
+        "collected": 356,
+        "orders": 6,
+        "crafted": 32,
+        "fertilized": 121,
+        "earned": 143056,
+        "lost": 41,
+        "recent": 49.2,
+        "prodMark": 1290
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 47,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 65193,
+      "fuel": 3,
+      "level": 13,
+      "xp": 2281,
+      "farmValue": 132894,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 341,
+        "watered": 762,
+        "harvested": 1001,
+        "sold": 1552,
+        "collected": 367,
+        "orders": 6,
+        "crafted": 33,
+        "fertilized": 121,
+        "earned": 148601,
+        "lost": 41,
+        "recent": 46.1,
+        "prodMark": 1329
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 67825,
+      "fuel": 7,
+      "level": 13,
+      "xp": 2734,
+      "farmValue": 135540,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 341,
+        "watered": 775,
+        "harvested": 1030,
+        "sold": 1599,
+        "collected": 378,
+        "orders": 6,
+        "crafted": 34,
+        "fertilized": 121,
+        "earned": 151363,
+        "lost": 41,
+        "recent": 49.1,
+        "prodMark": 1385
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 72486,
+      "fuel": 6,
+      "level": 13,
+      "xp": 3442,
+      "farmValue": 140198,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 341,
+        "watered": 775,
+        "harvested": 1077,
+        "sold": 1663,
+        "collected": 389,
+        "orders": 6,
+        "crafted": 35,
+        "fertilized": 121,
+        "earned": 156136,
+        "lost": 41,
+        "recent": 51.5,
+        "prodMark": 1442
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 50,
+      "year": 2,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "cloud",
+      "coins": 75112,
+      "fuel": 5,
+      "level": 13,
+      "xp": 3904,
+      "farmValue": 142819,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 341,
+        "watered": 775,
+        "harvested": 1107,
+        "sold": 1711,
+        "collected": 400,
+        "orders": 6,
+        "crafted": 36,
+        "fertilized": 121,
+        "earned": 158874,
+        "lost": 41,
+        "recent": 48.3,
+        "prodMark": 1483
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 51,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "sun",
+      "coins": 78075,
+      "fuel": 4,
+      "level": 13,
+      "xp": 4610,
+      "farmValue": 145779,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 354,
+        "watered": 787,
+        "harvested": 1154,
+        "sold": 1772,
+        "collected": 411,
+        "orders": 6,
+        "crafted": 37,
+        "fertilized": 130,
+        "earned": 162817,
+        "lost": 41,
+        "recent": 51.2,
+        "prodMark": 1541
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 12
+    },
+    {
+      "day": 52,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "rain",
+      "coins": 82476,
+      "fuel": 4,
+      "level": 14,
+      "xp": 23,
+      "farmValue": 150181,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 6,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 354,
+        "watered": 787,
+        "harvested": 1188,
+        "sold": 1826,
+        "collected": 422,
+        "orders": 6,
+        "crafted": 38,
+        "fertilized": 130,
+        "earned": 167330,
+        "lost": 41,
+        "recent": 53.2,
+        "prodMark": 1599
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 53,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "sun",
+      "coins": 54052,
+      "fuel": 3,
+      "level": 14,
+      "xp": 541,
+      "farmValue": 153752,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 66,
+        "planted": 354,
+        "watered": 787,
+        "harvested": 1218,
+        "sold": 1874,
+        "collected": 433,
+        "orders": 6,
+        "crafted": 39,
+        "fertilized": 130,
+        "earned": 171018,
+        "lost": 41,
+        "recent": 45.6,
+        "prodMark": 1627
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 54,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "storm",
+      "coins": 58992,
+      "fuel": 7,
+      "level": 14,
+      "xp": 1231,
+      "farmValue": 158704,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 358,
+        "watered": 787,
+        "harvested": 1261,
+        "sold": 1937,
+        "collected": 444,
+        "orders": 6,
+        "crafted": 40,
+        "fertilized": 130,
+        "earned": 176266,
+        "lost": 45,
+        "recent": 49.3,
+        "prodMark": 1685
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 55,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "rain",
+      "coins": 65137,
+      "fuel": 6,
+      "level": 14,
+      "xp": 1986,
+      "farmValue": 164847,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 362,
+        "watered": 787,
+        "harvested": 1308,
+        "sold": 2003,
+        "collected": 455,
+        "orders": 6,
+        "crafted": 41,
+        "fertilized": 132,
+        "earned": 182743,
+        "lost": 45,
+        "recent": 45.6,
+        "prodMark": 1722
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 56,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "drought",
+      "coins": 68541,
+      "fuel": 5,
+      "level": 14,
+      "xp": 2468,
+      "farmValue": 168248,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 362,
+        "watered": 787,
+        "harvested": 1338,
+        "sold": 2047,
+        "collected": 466,
+        "orders": 6,
+        "crafted": 42,
+        "fertilized": 132,
+        "earned": 186259,
+        "lost": 45,
+        "recent": 49.3,
+        "prodMark": 1780
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 57,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "sun",
+      "coins": 73603,
+      "fuel": 5,
+      "level": 14,
+      "xp": 3052,
+      "farmValue": 173308,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 362,
+        "watered": 800,
+        "harvested": 1372,
+        "sold": 2098,
+        "collected": 477,
+        "orders": 6,
+        "crafted": 43,
+        "fertilized": 132,
+        "earned": 191433,
+        "lost": 45,
+        "recent": 51.9,
+        "prodMark": 1838
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 58,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "drought",
+      "coins": 76628,
+      "fuel": 4,
+      "level": 14,
+      "xp": 3535,
+      "farmValue": 176331,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 362,
+        "watered": 813,
+        "harvested": 1402,
+        "sold": 2144,
+        "collected": 488,
+        "orders": 6,
+        "crafted": 44,
+        "fertilized": 132,
+        "earned": 194570,
+        "lost": 45,
+        "recent": 44.7,
+        "prodMark": 1866
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 59,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "sun",
+      "coins": 81147,
+      "fuel": 4,
+      "level": 14,
+      "xp": 4118,
+      "farmValue": 180851,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 362,
+        "watered": 826,
+        "harvested": 1436,
+        "sold": 2191,
+        "collected": 499,
+        "orders": 6,
+        "crafted": 45,
+        "fertilized": 132,
+        "earned": 199201,
+        "lost": 45,
+        "recent": 48.7,
+        "prodMark": 1924
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "seasonName": "Summer",
+      "weather": "drought",
+      "coins": 86478,
+      "fuel": 3,
+      "level": 14,
+      "xp": 4848,
+      "farmValue": 186179,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 362,
+        "watered": 839,
+        "harvested": 1483,
+        "sold": 2255,
+        "collected": 510,
+        "orders": 6,
+        "crafted": 46,
+        "fertilized": 132,
+        "earned": 204644,
+        "lost": 45,
+        "recent": 47.6,
+        "prodMark": 1969
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 89167,
+      "fuel": 3,
+      "level": 14,
+      "xp": 5185,
+      "farmValue": 188867,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 70,
+        "planted": 362,
+        "watered": 852,
+        "harvested": 1500,
+        "sold": 2287,
+        "collected": 521,
+        "orders": 6,
+        "crafted": 47,
+        "fertilized": 132,
+        "earned": 207445,
+        "lost": 45,
+        "recent": 45.6,
+        "prodMark": 2010
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 62,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 94169,
+      "fuel": 3,
+      "level": 14,
+      "xp": 5768,
+      "farmValue": 193869,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 375,
+        "watered": 864,
+        "harvested": 1534,
+        "sold": 2336,
+        "collected": 532,
+        "orders": 6,
+        "crafted": 48,
+        "fertilized": 134,
+        "earned": 212653,
+        "lost": 58,
+        "recent": 45.4,
+        "prodMark": 2055
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "rain",
+      "coins": 97733,
+      "fuel": 3,
+      "level": 14,
+      "xp": 6406,
+      "farmValue": 197434,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 387,
+        "watered": 864,
+        "harvested": 1580,
+        "sold": 2397,
+        "collected": 543,
+        "orders": 6,
+        "crafted": 49,
+        "fertilized": 139,
+        "earned": 217614,
+        "lost": 58,
+        "recent": 40.2,
+        "prodMark": 2083
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 13
+    },
+    {
+      "day": 64,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "storm",
+      "coins": 100841,
+      "fuel": 3,
+      "level": 15,
+      "xp": 41,
+      "farmValue": 200541,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 388,
+        "watered": 864,
+        "harvested": 1602,
+        "sold": 2437,
+        "collected": 554,
+        "orders": 6,
+        "crafted": 51,
+        "fertilized": 139,
+        "earned": 220929,
+        "lost": 59,
+        "recent": 45.2,
+        "prodMark": 2140
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 65,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "sun",
+      "coins": 108634,
+      "fuel": 3,
+      "level": 15,
+      "xp": 824,
+      "farmValue": 208334,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 388,
+        "watered": 864,
+        "harvested": 1648,
+        "sold": 2502,
+        "collected": 565,
+        "orders": 6,
+        "crafted": 52,
+        "fertilized": 139,
+        "earned": 228834,
+        "lost": 59,
+        "recent": 46.6,
+        "prodMark": 2190
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 66,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "sun",
+      "coins": 111132,
+      "fuel": 3,
+      "level": 15,
+      "xp": 1179,
+      "farmValue": 210833,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 388,
+        "watered": 877,
+        "harvested": 1666,
+        "sold": 2537,
+        "collected": 576,
+        "orders": 6,
+        "crafted": 53,
+        "fertilized": 139,
+        "earned": 231444,
+        "lost": 59,
+        "recent": 44.6,
+        "prodMark": 2230
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 67,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 116156,
+      "fuel": 3,
+      "level": 15,
+      "xp": 1946,
+      "farmValue": 215857,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 7,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 389,
+        "watered": 889,
+        "harvested": 1711,
+        "sold": 2601,
+        "collected": 587,
+        "orders": 6,
+        "crafted": 54,
+        "fertilized": 140,
+        "earned": 236704,
+        "lost": 60,
+        "recent": 45,
+        "prodMark": 2276
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 68,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "sun",
+      "coins": 75057,
+      "fuel": 3,
+      "level": 15,
+      "xp": 2576,
+      "farmValue": 219758,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 389,
+        "watered": 902,
+        "harvested": 1746,
+        "sold": 2652,
+        "collected": 598,
+        "orders": 6,
+        "crafted": 55,
+        "fertilized": 140,
+        "earned": 240717,
+        "lost": 60,
+        "recent": 48.3,
+        "prodMark": 2332
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 69,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "cloud",
+      "coins": 78182,
+      "fuel": 3,
+      "level": 15,
+      "xp": 3079,
+      "farmValue": 222883,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 390,
+        "watered": 914,
+        "harvested": 1773,
+        "sold": 2695,
+        "collected": 609,
+        "orders": 6,
+        "crafted": 56,
+        "fertilized": 140,
+        "earned": 244049,
+        "lost": 61,
+        "recent": 42.5,
+        "prodMark": 2361
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 70,
+      "year": 2,
+      "season": 2,
+      "seasonName": "Fall",
+      "weather": "sun",
+      "coins": 82183,
+      "fuel": 3,
+      "level": 15,
+      "xp": 3680,
+      "farmValue": 226884,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 391,
+        "watered": 926,
+        "harvested": 1808,
+        "sold": 2747,
+        "collected": 620,
+        "orders": 6,
+        "crafted": 57,
+        "fertilized": 141,
+        "earned": 248286,
+        "lost": 62,
+        "recent": 46.3,
+        "prodMark": 2416
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 71,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "cloud",
+      "coins": 82183,
+      "fuel": 3,
+      "level": 15,
+      "xp": 4316,
+      "farmValue": 233491,
+      "invCount": 49,
+      "invValue": 6606,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 391,
+        "watered": 926,
+        "harvested": 1852,
+        "sold": 2747,
+        "collected": 620,
+        "orders": 6,
+        "crafted": 57,
+        "fertilized": 141,
+        "earned": 248286,
+        "lost": 62,
+        "recent": 41.1,
+        "prodMark": 2445
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "forgot",
+      "levelups": 14
+    },
+    {
+      "day": 72,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "sun",
+      "coins": 89324,
+      "fuel": 3,
+      "level": 15,
+      "xp": 4677,
+      "farmValue": 234025,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 404,
+        "watered": 938,
+        "harvested": 1869,
+        "sold": 2827,
+        "collected": 631,
+        "orders": 6,
+        "crafted": 58,
+        "fertilized": 145,
+        "earned": 256137,
+        "lost": 65,
+        "recent": 42,
+        "prodMark": 2489
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 73,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 93535,
+      "fuel": 3,
+      "level": 15,
+      "xp": 5435,
+      "farmValue": 238235,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 416,
+        "watered": 962,
+        "harvested": 1915,
+        "sold": 2889,
+        "collected": 642,
+        "orders": 6,
+        "crafted": 59,
+        "fertilized": 149,
+        "earned": 260856,
+        "lost": 65,
+        "recent": 42.9,
+        "prodMark": 2534
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 74,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 96781,
+      "fuel": 3,
+      "level": 15,
+      "xp": 5901,
+      "farmValue": 241481,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 428,
+        "watered": 986,
+        "harvested": 1944,
+        "sold": 2932,
+        "collected": 653,
+        "orders": 6,
+        "crafted": 60,
+        "fertilized": 154,
+        "earned": 264619,
+        "lost": 65,
+        "recent": 42,
+        "prodMark": 2574
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 75,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "sun",
+      "coins": 102107,
+      "fuel": 3,
+      "level": 15,
+      "xp": 6613,
+      "farmValue": 246807,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 440,
+        "watered": 1010,
+        "harvested": 1990,
+        "sold": 2998,
+        "collected": 664,
+        "orders": 6,
+        "crafted": 61,
+        "fertilized": 161,
+        "earned": 270652,
+        "lost": 65,
+        "recent": 46.5,
+        "prodMark": 2631
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 76,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 106710,
+      "fuel": 3,
+      "level": 15,
+      "xp": 7368,
+      "farmValue": 251410,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 452,
+        "watered": 1034,
+        "harvested": 2036,
+        "sold": 3062,
+        "collected": 675,
+        "orders": 6,
+        "crafted": 62,
+        "fertilized": 167,
+        "earned": 275949,
+        "lost": 65,
+        "recent": 49.6,
+        "prodMark": 2688
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 77,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 109036,
+      "fuel": 3,
+      "level": 15,
+      "xp": 7881,
+      "farmValue": 253736,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 464,
+        "watered": 1058,
+        "harvested": 2065,
+        "sold": 3109,
+        "collected": 686,
+        "orders": 6,
+        "crafted": 63,
+        "fertilized": 169,
+        "earned": 279521,
+        "lost": 65,
+        "recent": 46.7,
+        "prodMark": 2728
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "cloud",
+      "coins": 113216,
+      "fuel": 3,
+      "level": 15,
+      "xp": 8481,
+      "farmValue": 257915,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 465,
+        "watered": 1072,
+        "harvested": 2100,
+        "sold": 3163,
+        "collected": 697,
+        "orders": 6,
+        "crafted": 64,
+        "fertilized": 170,
+        "earned": 283852,
+        "lost": 65,
+        "recent": 49.8,
+        "prodMark": 2785
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 14
+    },
+    {
+      "day": 79,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "cloud",
+      "coins": 121623,
+      "fuel": 3,
+      "level": 16,
+      "xp": 436,
+      "farmValue": 266322,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 477,
+        "watered": 1084,
+        "harvested": 2145,
+        "sold": 3224,
+        "collected": 708,
+        "orders": 6,
+        "crafted": 65,
+        "fertilized": 173,
+        "earned": 292758,
+        "lost": 66,
+        "recent": 43.6,
+        "prodMark": 2814
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 80,
+      "year": 2,
+      "season": 3,
+      "seasonName": "Winter",
+      "weather": "snow",
+      "coins": 124066,
+      "fuel": 3,
+      "level": 16,
+      "xp": 798,
+      "farmValue": 268766,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 478,
+        "watered": 1098,
+        "harvested": 2163,
+        "sold": 3257,
+        "collected": 719,
+        "orders": 6,
+        "crafted": 66,
+        "fertilized": 173,
+        "earned": 295355,
+        "lost": 66,
+        "recent": 47.3,
+        "prodMark": 2870
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 130973,
+      "fuel": 3,
+      "level": 16,
+      "xp": 1590,
+      "farmValue": 275673,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 491,
+        "watered": 1122,
+        "harvested": 2210,
+        "sold": 3317,
+        "collected": 730,
+        "orders": 7,
+        "crafted": 67,
+        "fertilized": 179,
+        "earned": 302734,
+        "lost": 66,
+        "recent": 46.9,
+        "prodMark": 2916
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 82,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 133590,
+      "fuel": 3,
+      "level": 16,
+      "xp": 1969,
+      "farmValue": 278290,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 497,
+        "watered": 1134,
+        "harvested": 2232,
+        "sold": 3354,
+        "collected": 741,
+        "orders": 7,
+        "crafted": 68,
+        "fertilized": 180,
+        "earned": 305728,
+        "lost": 67,
+        "recent": 45.1,
+        "prodMark": 2957
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 83,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 138910,
+      "fuel": 3,
+      "level": 16,
+      "xp": 2596,
+      "farmValue": 283611,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 502,
+        "watered": 1152,
+        "harvested": 2271,
+        "sold": 3410,
+        "collected": 752,
+        "orders": 7,
+        "crafted": 69,
+        "fertilized": 185,
+        "earned": 311260,
+        "lost": 67,
+        "recent": 46.6,
+        "prodMark": 3007
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 84,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "cloud",
+      "coins": 146277,
+      "fuel": 3,
+      "level": 16,
+      "xp": 3231,
+      "farmValue": 290978,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 509,
+        "watered": 1172,
+        "harvested": 2312,
+        "sold": 3469,
+        "collected": 763,
+        "orders": 7,
+        "crafted": 70,
+        "fertilized": 190,
+        "earned": 319098,
+        "lost": 67,
+        "recent": 47.6,
+        "prodMark": 3057
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 85,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 149501,
+      "fuel": 3,
+      "level": 16,
+      "xp": 3625,
+      "farmValue": 294202,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 4,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 509,
+        "watered": 1172,
+        "harvested": 2335,
+        "sold": 3507,
+        "collected": 774,
+        "orders": 7,
+        "crafted": 71,
+        "fertilized": 190,
+        "earned": 322434,
+        "lost": 67,
+        "recent": 43.8,
+        "prodMark": 3092
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 86,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 154839,
+      "fuel": 3,
+      "level": 16,
+      "xp": 4334,
+      "farmValue": 299541,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 8,
+      "orders": 3,
+      "goalsDone": 17,
+      "goal": "Own the whole valley",
+      "stats": {
+        "tilled": 79,
+        "planted": 509,
+        "watered": 1172,
+        "harvested": 2382,
+        "sold": 3574,
+        "collected": 785,
+        "orders": 7,
+        "crafted": 72,
+        "fertilized": 190,
+        "earned": 327884,
+        "lost": 67,
+        "recent": 46,
+        "prodMark": 3143
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 87,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "sun",
+      "coins": 110859,
+      "fuel": 3,
+      "level": 16,
+      "xp": 5063,
+      "farmValue": 315561,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 9,
+      "orders": 4,
+      "goalsDone": 18,
+      "goal": null,
+      "stats": {
+        "tilled": 79,
+        "planted": 510,
+        "watered": 1184,
+        "harvested": 2428,
+        "sold": 3638,
+        "collected": 796,
+        "orders": 7,
+        "crafted": 73,
+        "fertilized": 190,
+        "earned": 334058,
+        "lost": 68,
+        "recent": 44.5,
+        "prodMark": 3184
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 88,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 113785,
+      "fuel": 3,
+      "level": 16,
+      "xp": 5504,
+      "farmValue": 318488,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 9,
+      "orders": 4,
+      "goalsDone": 18,
+      "goal": null,
+      "stats": {
+        "tilled": 80,
+        "planted": 511,
+        "watered": 1184,
+        "harvested": 2456,
+        "sold": 3680,
+        "collected": 807,
+        "orders": 7,
+        "crafted": 74,
+        "fertilized": 190,
+        "earned": 337138,
+        "lost": 69,
+        "recent": 48.3,
+        "prodMark": 3241
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 89,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 118648,
+      "fuel": 3,
+      "level": 16,
+      "xp": 6214,
+      "farmValue": 323351,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 9,
+      "orders": 4,
+      "goalsDone": 18,
+      "goal": null,
+      "stats": {
+        "tilled": 80,
+        "planted": 511,
+        "watered": 1184,
+        "harvested": 2503,
+        "sold": 3748,
+        "collected": 818,
+        "orders": 7,
+        "crafted": 75,
+        "fertilized": 190,
+        "earned": 342113,
+        "lost": 69,
+        "recent": 50.6,
+        "prodMark": 3297
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    },
+    {
+      "day": 90,
+      "year": 3,
+      "season": 0,
+      "seasonName": "Spring",
+      "weather": "rain",
+      "coins": 121462,
+      "fuel": 3,
+      "level": 16,
+      "xp": 6674,
+      "farmValue": 326165,
+      "invCount": 0,
+      "invValue": 0,
+      "animals": 12,
+      "buildings": 8,
+      "parcels": 9,
+      "orders": 4,
+      "goalsDone": 18,
+      "goal": null,
+      "stats": {
+        "tilled": 80,
+        "planted": 511,
+        "watered": 1184,
+        "harvested": 2533,
+        "sold": 3792,
+        "collected": 829,
+        "orders": 7,
+        "crafted": 76,
+        "fertilized": 190,
+        "earned": 345039,
+        "lost": 69,
+        "recent": 47.7,
+        "prodMark": 3338
+      },
+      "lostBy": {
+        "dry": 0,
+        "rot": 0,
+        "season": 0
+      },
+      "canTier": 1,
+      "tillTier": 1,
+      "dayKind": "played",
+      "levelups": 15
+    }
+  ],
+  "final": {
+    "day": 91,
+    "year": 3,
+    "season": 1,
+    "seasonName": "Summer",
+    "weather": "sun",
+    "coins": 121462,
+    "fuel": 3,
+    "level": 16,
+    "xp": 7150,
+    "farmValue": 331714,
+    "invCount": 37,
+    "invValue": 5550,
+    "animals": 12,
+    "buildings": 8,
+    "parcels": 9,
+    "orders": 4,
+    "goalsDone": 18,
+    "goal": null,
+    "stats": {
+      "tilled": 80,
+      "planted": 511,
+      "watered": 1184,
+      "harvested": 2567,
+      "sold": 3792,
+      "collected": 829,
+      "orders": 7,
+      "crafted": 76,
+      "fertilized": 190,
+      "earned": 345039,
+      "lost": 69,
+      "recent": 50.8,
+      "prodMark": 3396
+    },
+    "lostBy": {
+      "dry": 0,
+      "rot": 0,
+      "season": 0
+    },
+    "canTier": 1,
+    "tillTier": 1
+  },
+  "toasts": [
+    {
+      "day": 1,
+      "year": 1,
+      "season": 0,
+      "t": 0.02,
+      "kind": "good",
+      "msg": "⛏️ Goal complete: Till 4 plots! +$40"
+    },
+    {
+      "day": 1,
+      "year": 1,
+      "season": 0,
+      "t": 0.02,
+      "kind": "good",
+      "msg": "🌱 Goal complete: Plant 4 crops! +$40"
+    },
+    {
+      "day": 1,
+      "year": 1,
+      "season": 0,
+      "t": 0.02,
+      "kind": "good",
+      "msg": "💧 Goal complete: Water 4 crops! +$40"
+    },
+    {
+      "day": 1,
+      "year": 1,
+      "season": 0,
+      "t": 0.02,
+      "kind": "good",
+      "msg": "✨ Goal complete: Fertilize 5 crops! +$150"
+    },
+    {
+      "day": 1,
+      "year": 1,
+      "season": 0,
+      "t": 0.02,
+      "kind": "good",
+      "msg": "🚜 Upgraded to the Rototiller! It burns 0.05 gal per tile."
+    },
+    {
+      "day": 1,
+      "year": 1,
+      "season": 0,
+      "t": 0.02,
+      "kind": "good",
+      "msg": "💧 Upgraded to the Hose Cart!"
+    },
+    {
+      "day": 2,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 2,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🧺 Goal complete: Harvest 6 crops! +$60"
+    },
+    {
+      "day": 2,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "⛽ +5 gal of fuel ($16)"
+    },
+    {
+      "day": 2,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "⚖️ Goal complete: Earn $300 selling goods! +$80"
+    },
+    {
+      "day": 3,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 3,
+      "year": 1,
+      "season": 0,
+      "t": 0.04,
+      "kind": "info",
+      "msg": "💾 It's been a while — save a farm backup code from the ⚙️ Menu."
+    },
+    {
+      "day": 4,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 4,
+      "year": 1,
+      "season": 0,
+      "t": 0.02,
+      "kind": "info",
+      "msg": "📋 2 orders expired — fresh ones are on the way."
+    },
+    {
+      "day": 4,
+      "year": 1,
+      "season": 0,
+      "t": 0.19,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 4,
+      "year": 1,
+      "season": 0,
+      "t": 0.57,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 5,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Yogurt & Truffle Oil sell +50% today"
+    },
+    {
+      "day": 5,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚿 Sprinkler built!"
+    },
+    {
+      "day": 6,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 6,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 6,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 6,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 Goal complete: Buy your 2nd land parcel! +$250"
+    },
+    {
+      "day": 6,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Order complete! +$325 ⚡ RUSH +25%!"
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐔 Coop built!"
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐔 Welcome, Maple!"
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐔 Goal complete: Build a Coop & buy a bird! +$120"
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐄 Barn built!"
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0.24,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 7,
+      "year": 1,
+      "season": 0,
+      "t": 0.62,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 8,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 8,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 1 animal! 🌾"
+    },
+    {
+      "day": 8,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐄 Welcome, Buttons!"
+    },
+    {
+      "day": 9,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 9,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 9,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 1 animal! 🌾"
+    },
+    {
+      "day": 9,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 1 animal! 🌾"
+    },
+    {
+      "day": 9,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐐 Welcome, Sunny!"
+    },
+    {
+      "day": 9,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "💰 Goal complete: Earn $10,000 lifetime! +$600"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 1 animal! 🌾"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🥚 Goal complete: Collect 5 animal products! +$100"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🍞 Bakery built!"
+    },
+    {
+      "day": 10,
+      "year": 1,
+      "season": 0,
+      "t": 0.67,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "info",
+      "msg": "☀️ Summer has arrived!"
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 1 animal! 🌾"
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🦆 Welcome, Peanut!"
+    },
+    {
+      "day": 11,
+      "year": 1,
+      "season": 1,
+      "t": 0.05,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 12,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "⛈️ The storm destroyed 3 crops! Scarecrows protect nearby plots."
+    },
+    {
+      "day": 12,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 12,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 12,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 12,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐔 Welcome, Pumpernickel!"
+    },
+    {
+      "day": 12,
+      "year": 1,
+      "season": 1,
+      "t": 0.22,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 13,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "🔥 Heatwave! Crops dry out three times faster today."
+    },
+    {
+      "day": 13,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 3 animals! 🌾"
+    },
+    {
+      "day": 13,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 13,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐔 Welcome, Clover!"
+    },
+    {
+      "day": 13,
+      "year": 1,
+      "season": 1,
+      "t": 0.72,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "🔥 Heatwave! Crops dry out three times faster today."
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 4 animals! 🌾"
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐔 Welcome, Marshmallow!"
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🧀 Creamery built!"
+    },
+    {
+      "day": 14,
+      "year": 1,
+      "season": 1,
+      "t": 0.97,
+      "kind": "bad",
+      "msg": "Crop losses: 4 died of thirst 🥀"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Duck Egg & Pepper sell +50% today"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "🔥 Heatwave! Crops dry out three times faster today."
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 5 animals! 🌾"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎃 Scarecrow built!"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎃 Goal complete: Place a Scarecrow! +$150"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0.52,
+      "kind": "bad",
+      "msg": "Crop losses: 15 died of thirst 🥀"
+    },
+    {
+      "day": 15,
+      "year": 1,
+      "season": 1,
+      "t": 0.85,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 5 animals! 🌾"
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 2 animals! 🌾"
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🦆 Welcome, Ginger!"
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐄 Goal complete: Own 8 animals! +$400"
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐄 Welcome, Cocoa!"
+    },
+    {
+      "day": 16,
+      "year": 1,
+      "season": 1,
+      "t": 0.22,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "🔥 Heatwave! Crops dry out three times faster today."
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 3 animals! 🌾"
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐄 Welcome, Daisy!"
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0.02,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 17,
+      "year": 1,
+      "season": 1,
+      "t": 0.97,
+      "kind": "bad",
+      "msg": "Crop losses: 6 died of thirst 🥀"
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "⛈️ The storm destroyed 1 crop! Scarecrows protect nearby plots."
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 4 animals! 🌾"
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🍞 Goal complete: Craft 4 artisan goods! +$300"
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐐 Welcome, Pepper!"
+    },
+    {
+      "day": 18,
+      "year": 1,
+      "season": 1,
+      "t": 0.52,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 19,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 19,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 5 animals! 🌾"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 5 animals! 🌾"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🐄 Welcome, Nugget!"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Order complete! +$510 ⚡ RUSH +25%!"
+    },
+    {
+      "day": 20,
+      "year": 1,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "📋 Goal complete: Complete 2 orders! +$180"
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🍂 Fall has arrived!"
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 21,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Order complete! +$650 ⚡ RUSH +25%!"
+    },
+    {
+      "day": 22,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 22,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 22,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 22,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 22,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 22,
+      "year": 1,
+      "season": 2,
+      "t": 0.57,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 23,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 23,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 23,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 23,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 24,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 24,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 24,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 24,
+      "year": 1,
+      "season": 2,
+      "t": 0.85,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 25,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Winter Kale & Potato sell +50% today"
+    },
+    {
+      "day": 25,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 25,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 26,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "bad",
+      "msg": "⛈️ The storm destroyed 2 crops! Scarecrows protect nearby plots."
+    },
+    {
+      "day": 26,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 26,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 26,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Harvest Drone built!"
+    },
+    {
+      "day": 26,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Goal complete: Automate: drone + sprinkler! +$500"
+    },
+    {
+      "day": 26,
+      "year": 1,
+      "season": 2,
+      "t": 0.62,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 27,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 5 crops!"
+    },
+    {
+      "day": 27,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 27,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 27,
+      "year": 1,
+      "season": 2,
+      "t": 0.22,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 27,
+      "year": 1,
+      "season": 2,
+      "t": 0.9,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 28,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 28,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 28,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 28,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 28,
+      "year": 1,
+      "season": 2,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 28,
+      "year": 1,
+      "season": 2,
+      "t": 0.72,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 29,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 6 crops!"
+    },
+    {
+      "day": 29,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 29,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 29,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 29,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 29,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "t": 0.17,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 30,
+      "year": 1,
+      "season": 2,
+      "t": 0.77,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "❄️ Winter has arrived!"
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 7 crops!"
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "⛽ +5 gal of fuel ($20)"
+    },
+    {
+      "day": 31,
+      "year": 1,
+      "season": 3,
+      "t": 0.57,
+      "kind": "bad",
+      "msg": "Crop losses: 1 withered out of season 🍂"
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 32,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🗺️ Goal complete: Own 4 land parcels! +$1,000"
+    },
+    {
+      "day": 33,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 33,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 33,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 33,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 33,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 33,
+      "year": 1,
+      "season": 3,
+      "t": 0.82,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 7 crops and replanted 6!"
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🏦 Goal complete: Reach $60,000 farm value! +$2,000"
+    },
+    {
+      "day": 34,
+      "year": 1,
+      "season": 3,
+      "t": 0.97,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Grapes & Yam sell +50% today"
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 35,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Order complete! +$345"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 6 crops and replanted 6!"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Order complete! +$190 ⚡ RUSH +25%!"
+    },
+    {
+      "day": 36,
+      "year": 1,
+      "season": 3,
+      "t": 0.22,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 37,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 37,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 37,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 37,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 37,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 38,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 7 crops and replanted 6!"
+    },
+    {
+      "day": 38,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 38,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 38,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 38,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 38,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Order complete! +$225"
+    },
+    {
+      "day": 39,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 39,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 39,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 39,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 39,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 39,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "bad",
+      "msg": "📉 Dumping 44 Winter Kale at once crashed its price! It recovers over a few days."
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 7 crops and replanted 6!"
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 40,
+      "year": 1,
+      "season": 3,
+      "t": 0.14,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌸 Spring has arrived!"
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0.77,
+      "kind": "bad",
+      "msg": "Crop losses: 6 withered out of season 🍂"
+    },
+    {
+      "day": 41,
+      "year": 2,
+      "season": 0,
+      "t": 0.97,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 42,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 42,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 42,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 42,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 42,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 42,
+      "year": 2,
+      "season": 0,
+      "t": 0.1,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 43,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 43,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 43,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 43,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "⛽ +5 gal of fuel ($17)"
+    },
+    {
+      "day": 44,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 44,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 44,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 44,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 44,
+      "year": 2,
+      "season": 0,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Cabbage & Carrot sell +50% today"
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0.54,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 45,
+      "year": 2,
+      "season": 0,
+      "t": 0.77,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 46,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 46,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 46,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 46,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 46,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 46,
+      "year": 2,
+      "season": 0,
+      "t": 0.9,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 47,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 47,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 47,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 47,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 47,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 47,
+      "year": 2,
+      "season": 0,
+      "t": 0.22,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "⛽ +5 gal of fuel ($18)"
+    },
+    {
+      "day": 48,
+      "year": 2,
+      "season": 0,
+      "t": 0.59,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "t": 0.32,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 49,
+      "year": 2,
+      "season": 0,
+      "t": 0.95,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 50,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 50,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 50,
+      "year": 2,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 50,
+      "year": 2,
+      "season": 0,
+      "t": 0.77,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 51,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "info",
+      "msg": "☀️ Summer has arrived!"
+    },
+    {
+      "day": 51,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 51,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 51,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 51,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 51,
+      "year": 2,
+      "season": 1,
+      "t": 0.64,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 52,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 52,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 52,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 52,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 53,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 3 crops!"
+    },
+    {
+      "day": 53,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 53,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 53,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 53,
+      "year": 2,
+      "season": 1,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 54,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 54,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "⛈️ The storm destroyed 3 crops! Scarecrows protect nearby plots."
+    },
+    {
+      "day": 54,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 54,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 54,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "⛽ +5 gal of fuel ($16)"
+    },
+    {
+      "day": 55,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 55,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Milk & Egg sell +50% today"
+    },
+    {
+      "day": 55,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 55,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 55,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 55,
+      "year": 2,
+      "season": 1,
+      "t": 0.47,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 56,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 56,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "🔥 Heatwave! Crops dry out three times faster today."
+    },
+    {
+      "day": 56,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 56,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 56,
+      "year": 2,
+      "season": 1,
+      "t": 0.22,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 56,
+      "year": 2,
+      "season": 1,
+      "t": 0.44,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 57,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 57,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 57,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 57,
+      "year": 2,
+      "season": 1,
+      "t": 0.6,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 58,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 58,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "🔥 Heatwave! Crops dry out three times faster today."
+    },
+    {
+      "day": 58,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 58,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 58,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 58,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 59,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 59,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 59,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 59,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 59,
+      "year": 2,
+      "season": 1,
+      "t": 0.27,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "🤖 Drones harvested 2 crops!"
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "bad",
+      "msg": "🔥 Heatwave! Crops dry out three times faster today."
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0.24,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 60,
+      "year": 2,
+      "season": 1,
+      "t": 0.65,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🍂 Fall has arrived!"
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "t": 0.12,
+      "kind": "bad",
+      "msg": "Crop losses: 13 withered out of season 🍂"
+    },
+    {
+      "day": 61,
+      "year": 2,
+      "season": 2,
+      "t": 0.52,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 62,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 62,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 62,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 62,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "t": 0.29,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 63,
+      "year": 2,
+      "season": 2,
+      "t": 0.7,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 64,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "bad",
+      "msg": "⛈️ The storm destroyed 1 crop! Scarecrows protect nearby plots."
+    },
+    {
+      "day": 64,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 64,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 64,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 65,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Truffle, Berry Cake & Wool Quilt sell +50% today"
+    },
+    {
+      "day": 65,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 65,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 65,
+      "year": 2,
+      "season": 2,
+      "t": 0.72,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 66,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 66,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 66,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 66,
+      "year": 2,
+      "season": 2,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 66,
+      "year": 2,
+      "season": 2,
+      "t": 0.75,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 67,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 67,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 67,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 67,
+      "year": 2,
+      "season": 2,
+      "t": 0.59,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 67,
+      "year": 2,
+      "season": 2,
+      "t": 0.97,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 68,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 68,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 68,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 68,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 68,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 68,
+      "year": 2,
+      "season": 2,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 69,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 69,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 69,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 69,
+      "year": 2,
+      "season": 2,
+      "t": 0.27,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 69,
+      "year": 2,
+      "season": 2,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 69,
+      "year": 2,
+      "season": 2,
+      "t": 0.8,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 70,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 70,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 70,
+      "year": 2,
+      "season": 2,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 71,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "❄️ Winter has arrived!"
+    },
+    {
+      "day": 71,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 71,
+      "year": 2,
+      "season": 3,
+      "t": 0.27,
+      "kind": "bad",
+      "msg": "Crop losses: 1 withered out of season 🍂"
+    },
+    {
+      "day": 71,
+      "year": 2,
+      "season": 3,
+      "t": 0.47,
+      "kind": "bad",
+      "msg": "Crop losses: 1 withered out of season 🍂"
+    },
+    {
+      "day": 71,
+      "year": 2,
+      "season": 3,
+      "t": 0.57,
+      "kind": "bad",
+      "msg": "Crop losses: 1 withered out of season 🍂"
+    },
+    {
+      "day": 72,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 72,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 72,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 72,
+      "year": 2,
+      "season": 3,
+      "t": 0.52,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 73,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 73,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 73,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 73,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 73,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 73,
+      "year": 2,
+      "season": 3,
+      "t": 0.85,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 74,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 74,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 74,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 74,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 74,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 75,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Egg & Grapes sell +50% today"
+    },
+    {
+      "day": 75,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 75,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 75,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 75,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 75,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 76,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 76,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 76,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 76,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 76,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 76,
+      "year": 2,
+      "season": 3,
+      "t": 0.9,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 77,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 77,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 77,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 77,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 77,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0.22,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 78,
+      "year": 2,
+      "season": 3,
+      "t": 0.72,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 79,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 79,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 79,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 79,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 79,
+      "year": 2,
+      "season": 3,
+      "t": 0.72,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 80,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 80,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 80,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 80,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 80,
+      "year": 2,
+      "season": 3,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌸 Spring has arrived!"
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Order complete! +$1,395 ⚡ RUSH +25%!"
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0.27,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 81,
+      "year": 3,
+      "season": 0,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 82,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 82,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 82,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 83,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 83,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 83,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 83,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 83,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 84,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 84,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 84,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌻 The land is at peace — nothing can be disturbed while the flower stands."
+    },
+    {
+      "day": 84,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 84,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 84,
+      "year": 3,
+      "season": 0,
+      "t": 0.25,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 85,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🎪 Market Day! Grapes & Cheese sell +50% today"
+    },
+    {
+      "day": 85,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 85,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 85,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 85,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 85,
+      "year": 3,
+      "season": 0,
+      "t": 0.97,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 86,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 86,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 86,
+      "year": 3,
+      "season": 0,
+      "t": 0.07,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 86,
+      "year": 3,
+      "season": 0,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 86,
+      "year": 3,
+      "season": 0,
+      "t": 0.6,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 87,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 87,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 87,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "🚧 New land unlocked — your empire grows!"
+    },
+    {
+      "day": 87,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "👑 Goal complete: Own the whole valley! +$10,000"
+    },
+    {
+      "day": 87,
+      "year": 3,
+      "season": 0,
+      "t": 0.5,
+      "kind": "bad",
+      "msg": "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fields."
+    },
+    {
+      "day": 87,
+      "year": 3,
+      "season": 0,
+      "t": 0.55,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 88,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 88,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Watering can refilled! 💧"
+    },
+    {
+      "day": 88,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 88,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 89,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 89,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 89,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 89,
+      "year": 3,
+      "season": 0,
+      "t": 0.02,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 89,
+      "year": 3,
+      "season": 0,
+      "t": 0.37,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 90,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "info",
+      "msg": "🌧️ Rain today — no watering needed!"
+    },
+    {
+      "day": 90,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 90,
+      "year": 3,
+      "season": 0,
+      "t": 0,
+      "kind": "good",
+      "msg": "Fed 6 animals! 🌾"
+    },
+    {
+      "day": 90,
+      "year": 3,
+      "season": 0,
+      "t": 0.6,
+      "kind": "info",
+      "msg": "📋 1 order expired — fresh ones are on the way."
+    },
+    {
+      "day": 91,
+      "year": 3,
+      "season": 1,
+      "t": 0,
+      "kind": "info",
+      "msg": "☀️ Summer has arrived!"
+    }
+  ],
+  "toastSummary": [
+    [
+      "Fed # animals! 🌾",
+      158
+    ],
+    [
+      "Watering can refilled! 💧",
+      118
+    ],
+    [
+      "📋 # order expired — fresh ones are on the way.",
+      67
+    ],
+    [
+      "🌻 The land is at peace — nothing can be disturbed while the",
+      23
+    ],
+    [
+      "🤖 Drones harvested # crops!",
+      18
+    ],
+    [
+      "🌧️ Rain today — no watering needed!",
+      16
+    ],
+    [
+      "🐦‍⬛ Crows ate a crop! Build a Scarecrow to protect your fie",
+      11
+    ],
+    [
+      "🚧 New land unlocked — your empire grows!",
+      8
+    ],
+    [
+      "🔥 Heatwave! Crops dry out three times faster today.",
+      7
+    ],
+    [
+      "Crop losses: # withered out of season 🍂",
+      6
+    ],
+    [
+      "⛽ +# gal of fuel ($#)",
+      5
+    ],
+    [
+      "Order complete! +$# ⚡ RUSH +#%!",
+      5
+    ],
+    [
+      "Fed # animal! 🌾",
+      5
+    ],
+    [
+      "🤖 Drones harvested # crops and replanted #!",
+      4
+    ],
+    [
+      "☀️ Summer has arrived!",
+      3
+    ],
+    [
+      "⛈️ The storm destroyed # crops! Scarecrows protect nearby pl",
+      3
+    ],
+    [
+      "Crop losses: # died of thirst 🥀",
+      3
+    ],
+    [
+      "⛈️ The storm destroyed # crop! Scarecrows protect nearby plo",
+      2
+    ],
+    [
+      "🍂 Fall has arrived!",
+      2
+    ],
+    [
+      "❄️ Winter has arrived!",
+      2
+    ],
+    [
+      "Order complete! +$#",
+      2
+    ],
+    [
+      "🌸 Spring has arrived!",
+      2
+    ],
+    [
+      "⛏️ Goal complete: Till # plots! +$#",
+      1
+    ],
+    [
+      "🌱 Goal complete: Plant # crops! +$#",
+      1
+    ],
+    [
+      "💧 Goal complete: Water # crops! +$#",
+      1
+    ],
+    [
+      "✨ Goal complete: Fertilize # crops! +$#",
+      1
+    ],
+    [
+      "🚜 Upgraded to the Rototiller! It burns # gal per tile.",
+      1
+    ],
+    [
+      "💧 Upgraded to the Hose Cart!",
+      1
+    ],
+    [
+      "🧺 Goal complete: Harvest # crops! +$#",
+      1
+    ],
+    [
+      "⚖️ Goal complete: Earn $# selling goods! +$#",
+      1
+    ],
+    [
+      "💾 It's been a while — save a farm backup code from the ⚙️ M",
+      1
+    ],
+    [
+      "📋 # orders expired — fresh ones are on the way.",
+      1
+    ],
+    [
+      "🎪 Market Day! Yogurt & Truffle Oil sell +#% today",
+      1
+    ],
+    [
+      "🚿 Sprinkler built!",
+      1
+    ],
+    [
+      "🚧 Goal complete: Buy your #nd land parcel! +$#",
+      1
+    ],
+    [
+      "🐔 Coop built!",
+      1
+    ],
+    [
+      "🐔 Welcome, Maple!",
+      1
+    ],
+    [
+      "🐔 Goal complete: Build a Coop & buy a bird! +$#",
+      1
+    ],
+    [
+      "🐄 Barn built!",
+      1
+    ],
+    [
+      "🐄 Welcome, Buttons!",
+      1
+    ]
+  ],
+  "lossCauses": {
+    "thirst": 25,
+    "rot": 0,
+    "season": 23,
+    "storm": 10,
+    "crow": 11,
+    "frost": 0
+  },
+  "levelups": 15,
+  "pageErrors": []
+}

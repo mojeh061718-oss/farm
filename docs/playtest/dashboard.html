@@ -1,0 +1,344 @@
+<title>Harvest Empire — Playtest Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --ground:#1e1811; --panel:#282018; --panel-2:#312819; --line:#41341f;
+    --ink:#f2e9d8; --ink-soft:#c9bda4; --ink-faint:#8f8467;
+    --gold:#e0a92e; --gold-deep:#b9821c; --leaf:#7ea653;
+    --p0:#cf5b39; --p1:#d99a2b; --p2:#9aa085;
+    --p0-wash:#3a2018; --p1-wash:#352a14; --p2-wash:#252619;
+    --shadow:0 1px 0 rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.7);
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ground:#f3ede0; --panel:#fbf7ee; --panel-2:#f6efe0; --line:#e2d6bd;
+      --ink:#2c2416; --ink-soft:#5c503a; --ink-faint:#8a7d60;
+      --gold:#a9781a; --gold-deep:#8a6112; --leaf:#4f7a2f;
+      --p0:#b8492a; --p1:#a9761a; --p2:#6f755c;
+      --p0-wash:#f4e2da; --p1-wash:#f4ead2; --p2-wash:#ecefe0;
+      --shadow:0 1px 0 rgba(255,255,255,.6), 0 12px 30px -20px rgba(60,40,10,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#1e1811; --panel:#282018; --panel-2:#312819; --line:#41341f;
+    --ink:#f2e9d8; --ink-soft:#c9bda4; --ink-faint:#8f8467;
+    --gold:#e0a92e; --gold-deep:#b9821c; --leaf:#7ea653;
+    --p0:#cf5b39; --p1:#d99a2b; --p2:#9aa085;
+    --p0-wash:#3a2018; --p1-wash:#352a14; --p2-wash:#252619;
+    --shadow:0 1px 0 rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.7);
+  }
+  :root[data-theme="light"]{
+    --ground:#f3ede0; --panel:#fbf7ee; --panel-2:#f6efe0; --line:#e2d6bd;
+    --ink:#2c2416; --ink-soft:#5c503a; --ink-faint:#8a7d60;
+    --gold:#a9781a; --gold-deep:#8a6112; --leaf:#4f7a2f;
+    --p0:#b8492a; --p1:#a9761a; --p2:#6f755c;
+    --p0-wash:#f4e2da; --p1-wash:#f4ead2; --p2-wash:#ecefe0;
+    --shadow:0 1px 0 rgba(255,255,255,.6), 0 12px 30px -20px rgba(60,40,10,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(120% 60% at 50% -10%, rgba(224,169,46,.07), transparent 60%);}
+  .wrap{max-width:960px;margin:0 auto;padding:clamp(20px,4vw,52px) clamp(16px,4vw,40px) 80px;}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;text-wrap:balance;margin:0;letter-spacing:.01em}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--gold);margin:0 0 14px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  /* ---- masthead ---- */
+  header{border-bottom:2px solid var(--line);padding-bottom:26px;margin-bottom:8px}
+  .title{font-size:clamp(30px,6vw,52px);line-height:1.04;margin:0 0 6px}
+  .title .amp{color:var(--gold)}
+  .sub{color:var(--ink-soft);font-size:clamp(15px,2.2vw,18px);max-width:60ch}
+  .stamp{display:inline-flex;gap:8px;align-items:center;margin-top:18px;font-family:var(--mono);
+    font-size:12px;color:var(--ink-faint);flex-wrap:wrap}
+  .stamp b{color:var(--ink-soft);font-weight:600}
+  .dot{width:4px;height:4px;border-radius:50%;background:var(--ink-faint)}
+
+  /* ---- verdict ---- */
+  .verdict{margin:34px 0;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--gold);
+    border-radius:6px;padding:24px clamp(20px,3vw,30px);box-shadow:var(--shadow)}
+  .verdict h2{font-size:22px;margin-bottom:10px}
+  .verdict p{margin:0;color:var(--ink-soft);font-size:16.5px}
+  .verdict .lead{color:var(--ink);font-family:var(--serif);font-size:19px;font-style:italic;
+    line-height:1.5;margin-bottom:14px}
+
+  section{margin-top:52px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;
+    border-bottom:1px solid var(--line);padding-bottom:12px}
+  .sec-head h2{font-size:26px;flex:1}
+  .sec-head .num{font-family:var(--mono);color:var(--gold);font-size:13px;letter-spacing:.15em}
+
+  /* ---- metrics table ---- */
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+  caption{caption-side:bottom;color:var(--ink-faint);font-size:12.5px;padding:10px;text-align:left}
+  th,td{padding:11px 14px;text-align:right;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:600;background:var(--panel-2)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody td{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+  tbody td:first-child{font-family:var(--sans);color:var(--ink);font-weight:600}
+  .persona-diff{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-faint);font-weight:400}
+  .hot{color:var(--p0);font-weight:700}
+
+  /* ---- findings ---- */
+  .finding{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    padding:20px clamp(18px,2.5vw,26px);margin-bottom:16px;position:relative;overflow:hidden}
+  .finding::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sev)}
+  .finding.p0{--sev:var(--p0)} .finding.p1{--sev:var(--p1)} .finding.p2{--sev:var(--p2)}
+  .f-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .f-top h3{font-size:19px;flex:1;min-width:220px}
+  .sev{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    padding:3px 9px;border-radius:100px;font-weight:700;white-space:nowrap}
+  .p0 .sev{background:var(--p0-wash);color:var(--p0)}
+  .p1 .sev{background:var(--p1-wash);color:var(--p1)}
+  .p2 .sev{background:var(--p2-wash);color:var(--p2)}
+  .tally{font-family:var(--mono);font-size:12px;color:var(--ink-soft);display:inline-flex;
+    align-items:center;gap:7px;white-space:nowrap}
+  .pips{display:inline-flex;gap:3px}
+  .pip{width:9px;height:9px;border-radius:2px;background:var(--sev);opacity:.9}
+  .pip.off{background:var(--line);opacity:1}
+  .finding p{margin:0 0 12px;color:var(--ink-soft);font-size:15px}
+  .finding p:last-child{margin-bottom:0}
+  .evidence{background:var(--panel-2);border-radius:5px;padding:11px 14px;font-size:13.5px;
+    color:var(--ink-soft);border:1px solid var(--line)}
+  .evidence .k{font-family:var(--mono);color:var(--gold);font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;display:block;margin-bottom:3px}
+  .fix{font-size:14.5px;color:var(--ink)}
+  .fix b{color:var(--leaf)}
+
+  /* ---- bar charts ---- */
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:640px){.charts{grid-template-columns:1fr}}
+  .chart{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 20px}
+  .chart h3{font-size:15px;font-family:var(--sans);font-weight:700;margin-bottom:4px}
+  .chart .cap{color:var(--ink-faint);font-size:12px;margin-bottom:16px}
+  .bar-row{display:grid;grid-template-columns:64px 1fr 46px;align-items:center;gap:10px;margin:9px 0}
+  .bar-row .lbl{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .track{height:16px;background:var(--panel-2);border-radius:3px;overflow:hidden}
+  .fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-deep),var(--gold))}
+  .fill.red{background:linear-gradient(90deg,#8f3a22,var(--p0))}
+  .bar-row .val{font-family:var(--mono);font-size:12.5px;text-align:right;color:var(--ink)}
+
+  /* ---- roster ---- */
+  .roster{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px}
+  .card h3{font-size:17px;margin-bottom:2px}
+  .card .who{color:var(--ink-faint);font-size:12.5px;font-family:var(--mono);margin-bottom:12px}
+  .card ul{margin:0;padding:0;list-style:none;font-size:13px;color:var(--ink-soft)}
+  .card li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dotted var(--line)}
+  .card li:last-child{border-bottom:none}
+  .card li b{font-family:var(--mono);color:var(--ink);font-weight:600}
+  .quote{margin-top:12px;font-family:var(--serif);font-style:italic;font-size:13.5px;color:var(--ink-soft);
+    line-height:1.5;border-top:1px solid var(--line);padding-top:10px}
+
+  /* ---- great ---- */
+  .great{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  .great .g{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px;
+    border-top:3px solid var(--leaf)}
+  .great h3{font-size:15px;font-family:var(--sans);font-weight:700;margin-bottom:6px}
+  .great p{margin:0;font-size:13.5px;color:var(--ink-soft)}
+
+  /* ---- fixes ---- */
+  ol.fixes{counter-reset:f;list-style:none;padding:0;margin:0;display:grid;gap:10px}
+  ol.fixes li{counter-increment:f;background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    padding:14px 18px 14px 54px;position:relative;font-size:14.5px;color:var(--ink-soft)}
+  ol.fixes li::before{content:counter(f);position:absolute;left:14px;top:12px;width:26px;height:26px;
+    display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:700;
+    color:var(--ground);background:var(--gold);border-radius:5px}
+  ol.fixes li b{color:var(--ink)}
+  ol.fixes .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--gold);
+    text-transform:uppercase;margin-left:6px}
+
+  footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);color:var(--ink-faint);
+    font-size:12.5px;font-family:var(--mono);line-height:1.8}
+  a{color:var(--gold)}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Playtest Ledger · Fun &amp; Playability Review</p>
+    <h1 class="title">Harvest&nbsp;Empire <span class="amp">—</span> six farmers, one field notebook</h1>
+    <p class="sub">Five blind playtesters and one first-hand engineering review, every finding grounded in a real instrumented play session — not opinion.</p>
+    <p class="stamp"><b>470</b> in-game days simulated <span class="dot"></span> <b>~2,400</b> toasts captured <span class="dot"></span> <b>0</b> engine errors <span class="dot"></span> <b>84</b> suggestions logged <span class="dot"></span> 2026-07-11</p>
+  </header>
+
+  <div class="verdict">
+    <h2>The verdict</h2>
+    <p class="lead">An exceptional first four minutes and a beautiful, polished world — held back by guidance that freezes, notifications that drown the signal, and an economy solved by the mid-game.</p>
+    <p>The strongest evidence is <b style="color:var(--gold)">agreement without collusion</b>: testers played different difficulties, strategies and lengths, never saw each other's notes, yet the same four problems surfaced in five separate journals. The fun is real; it leaks out through a handful of fixable systems.</p>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>The six plots &amp; their yields</h2><span class="num">FIG.1</span></div>
+    <div class="table-scroll">
+      <table>
+        <caption>Final state of each instrumented run. Order-expiry toasts and out-of-season deaths are the two figures that alarmed the room.</caption>
+        <thead><tr>
+          <th>Tester</th><th>Days</th><th>Lvl</th><th>Coins</th><th>Farm value</th>
+          <th>Harvested</th><th>Lost</th><th>Order-expiry toasts</th><th>Suggestions</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Fern<span class="persona-diff">Cozy · busy parent</span></td><td>90</td><td>13</td><td>$125,980</td><td>$132,988</td><td>2,193</td><td>26</td><td class="hot">93</td><td>17</td></tr>
+          <tr><td>Rex<span class="persona-diff">Classic · optimizer</span></td><td>90</td><td>16</td><td>$121,462</td><td>$331,714</td><td>2,567</td><td>69</td><td class="hot">67</td><td>17</td></tr>
+          <tr><td>Sasha<span class="persona-diff">Tycoon · challenge-seeker</span></td><td>90</td><td>15</td><td>$100,312</td><td>$235,878</td><td>1,994</td><td>66</td><td class="hot">77</td><td>16</td></tr>
+          <tr><td>Milo<span class="persona-diff">Classic · completionist</span></td><td>100</td><td>14</td><td>$48,614</td><td>$114,591</td><td>971</td><td class="hot">343</td><td class="hot">81</td><td>17</td></tr>
+          <tr><td>June<span class="persona-diff">Cozy · idler</span></td><td>100</td><td>10</td><td>$27,577</td><td>$45,317</td><td>691</td><td>81</td><td class="hot">96</td><td>17</td></tr>
+          <tr><td>Claude<span class="persona-diff">Classic · live review</span></td><td>41</td><td>9</td><td>$28,346</td><td>$31,446</td><td>325</td><td>29</td><td>—</td><td>5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Consensus findings</h2><span class="num">RANKED BY AGREEMENT</span></div>
+
+    <div class="finding p0">
+      <div class="f-top"><span class="sev">P0 · Critical</span><h3>The goal chip is a single linear queue that freezes</h3>
+        <span class="tally"><span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip off"></i><i class="pip off"></i></span>4 / 6</span></div>
+      <p>The chip shows one goal at a time in fixed order. Skip it and <em>all</em> forward guidance stops — the game keeps pointing at the same task while the player quietly clears others it never credits.</p>
+      <div class="evidence"><span class="k">What the runs showed</span>Fern's chip sat on "Place a Scarecrow" for <b>80 of 90 days</b> · Rex had <b>no active goal from day 34 → 87</b> · Milo froze at 17/18 on day 48 · my live run froze day 6 → 41 while the game <em>also</em> nagged "build a scarecrow" as crop-loss punishment.</div>
+      <p class="fix" style="margin-top:12px"><b>Fix →</b> surface the 2–3 goals the player is closest to, credit out-of-order completions, link the goal to its shop entry, and add a mid/late goal ladder.</p>
+    </div>
+
+    <div class="finding p0">
+      <div class="f-top"><span class="sev">P0 · Critical</span><h3>The order board is failure spam, not a system</h3>
+        <span class="tally"><span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip off"></i></span>5 / 6</span></div>
+      <p>Order quantities scale with recent production <em>while you're selling that production</em>, so asks are chronically unfulfillable — and every expiry fires a toast.</p>
+      <div class="evidence"><span class="k">What the runs showed</span><b>67–96 "order expired" toasts</b> per run. Rex completed <b>7 of ~74</b>; Sasha <b>12 of ~89</b>. Both casual testers said the churn made a system they were ignoring <em>feel</em> like constant failure.</div>
+      <p class="fix" style="margin-top:12px"><b>Fix →</b> cap asks to current inventory, add a "reserve stock for orders" toggle, highlight orders you can already fill, and fold expiries into a daily digest.</p>
+    </div>
+
+    <div class="finding p0">
+      <div class="f-top"><span class="sev">P0 · Critical</span><h3>Out-of-season planting kills silently and instantly</h3>
+        <span class="tally"><span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip off"></i><i class="pip off"></i><i class="pip off"></i></span>3 / 6</span></div>
+      <p>A crop planted out of season dies within a day; the only warning is one toast fired <em>after</em> the money's spent, which vanishes and doesn't survive drag-planting a row.</p>
+      <div class="evidence"><span class="k">What the runs showed</span>Milo lost <b>292 crops out of season — 85% of all his losses</b>. June lost fields to silent season-flip deaths. The single most punishing unexplained mechanic in the game.</div>
+      <p class="fix" style="margin-top:12px"><b>Fix →</b> tint doomed crops red + 🍂 from planting, gray out out-of-season seeds in the buy menu, add a plant-time confirm, and warn loudly the day before a season flips.</p>
+    </div>
+
+    <div class="finding p0">
+      <div class="f-top"><span class="sev">P0 · Critical</span><h3>Notifications don't prioritize</h3>
+        <span class="tally"><span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip off"></i><i class="pip off"></i><i class="pip off"></i></span>3 / 6</span></div>
+      <p>Toasts stack 3+ deep on a phone screen with no tiering — a crop-death alert you must act on sits in the same pile as "Fed 6 animals" and "Watering can refilled."</p>
+      <div class="evidence"><span class="k">What the runs showed</span>Routine chatter fires <b>66–70×/run</b> each; I caught heatwave + 2× crow + storm stacked at once. The two older/casual personas both named it independently.</div>
+      <p class="fix" style="margin-top:12px"><b>Fix →</b> tier toasts (loss &gt; reward &gt; routine), cap on-screen count, route routine into a scrollable log + welcome-back card, add a larger-text option.</p>
+    </div>
+
+    <div class="finding p1">
+      <div class="f-top"><span class="sev">P1 · Depth</span><h3>The economy is solved by the mid-game</h3>
+        <span class="tally"><span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip off"></i><i class="pip off"></i><i class="pip off"></i></span>3 / 6</span></div>
+      <p>Five of six runs passed six figures. Rex hit <b>$60k farm value by day 34</b> and $331k by day 90 with <code>goal: null</code> and nothing able to threaten him — 56 days of victory lap.</p>
+      <p class="fix"><b>Fix →</b> prestige / second-valley reset-for-multiplier, a $100k–$500k goal ladder, and functional megaproject spend sinks (irrigation network, cold storage, auto-sell rail).</p>
+    </div>
+
+    <div class="finding p1">
+      <div class="f-top"><span class="sev">P1 · Depth</span><h3>Automation &amp; fuel are decorative</h3>
+        <span class="tally"><span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip off"></i><i class="pip off"></i><i class="pip off"></i></span>3 / 6</span></div>
+      <p>The "automation end-game" barely runs, and the one tester who <em>needs</em> it found it hostile.</p>
+      <div class="evidence"><span class="k">What the runs showed</span>Rex's drone ran 22× on <b>$87 of fuel all game</b>; animals froze at the 12 cap on day 22. June: sprinklers are 3×3 (two needed for a 16-tile field) and every drone needs fuel an idler will forget.</div>
+      <p class="fix" style="margin-top:12px"><b>Fix →</b> scale drone coverage + fuel burn with land owned, offer a bigger-radius irrigation line and a fuel-free tier, add mega-barns and auto-fuel/auto-sell toggles.</p>
+    </div>
+
+    <div class="finding p1">
+      <div class="f-top"><span class="sev">P1 · Balance</span><h3>Difficulty modes don't hold their promise</h3>
+        <span class="tally"><span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip off"></i><i class="pip off"></i><i class="pip off"></i><i class="pip off"></i></span>2 / 6</span></div>
+      <p>Sasha picked Tycoon <em>hoping to lose</em> and found "a brilliant 14-day thriller inside a 90-day cakewalk"; June found Cozy too harsh for a true idler.</p>
+      <div class="evidence"><span class="k">What the runs showed</span>Tycoon's harsh weather cost <b>66 crops = 3.3%</b> (cosmetic vs $261k earned); its "+5%" edge added ~$12,450 all game. June lost <b>59 crops to thirst</b> across 48 forgotten days on the "relax" mode.</div>
+      <p class="fix" style="margin-top:12px"><b>Fix →</b> scale weather severity with wealth, make storms cost dollars (repair/vet bills), honor the promised Tycoon bonus, and give Cozy longer drought survival + idle-friendly rules.</p>
+    </div>
+
+    <div class="finding p2">
+      <div class="f-top"><span class="sev">P2 · Polish</span><h3>The long tail — discoverability &amp; retention</h3>
+        <span class="tally">across all runs</span></div>
+      <p>Level-up splash has no auto-dismiss and can layer over the rescue sheet · selling is never taught (and blind stack-dumps crash the price) · automation is discovered too late (June had sprinkler money 13× over while bleeding crops) · features hide from completionists (no "buildings you don't own" checklist, no compendium) · missing mobile hooks (thirst push-nudge, real welcome-back card, vacation mode) · the mystery sunflower needs one introduction.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>The two numbers that alarmed the room</h2><span class="num">FIG.2</span></div>
+    <div class="charts">
+      <div class="chart">
+        <h3>"Order expired" toasts per run</h3>
+        <p class="cap">Pure noise — nobody was engaging the board at this rate.</p>
+        <div class="bar-row"><span class="lbl">June</span><div class="track"><div class="fill red" style="width:100%"></div></div><span class="val">96</span></div>
+        <div class="bar-row"><span class="lbl">Fern</span><div class="track"><div class="fill red" style="width:97%"></div></div><span class="val">93</span></div>
+        <div class="bar-row"><span class="lbl">Milo</span><div class="track"><div class="fill red" style="width:84%"></div></div><span class="val">81</span></div>
+        <div class="bar-row"><span class="lbl">Sasha</span><div class="track"><div class="fill red" style="width:80%"></div></div><span class="val">77</span></div>
+        <div class="bar-row"><span class="lbl">Rex</span><div class="track"><div class="fill red" style="width:70%"></div></div><span class="val">67</span></div>
+      </div>
+      <div class="chart">
+        <h3>Milo's crop losses by cause</h3>
+        <p class="cap">Out of 343 total — the season mechanic dwarfs everything.</p>
+        <div class="bar-row"><span class="lbl">Season</span><div class="track"><div class="fill red" style="width:100%"></div></div><span class="val">292</span></div>
+        <div class="bar-row"><span class="lbl">Thirst</span><div class="track"><div class="fill" style="width:8%"></div></div><span class="val">24</span></div>
+        <div class="bar-row"><span class="lbl">Crow</span><div class="track"><div class="fill" style="width:5%"></div></div><span class="val">16</span></div>
+        <div class="bar-row"><span class="lbl">Storm</span><div class="track"><div class="fill" style="width:4%"></div></div><span class="val">11</span></div>
+        <div class="bar-row"><span class="lbl">Rot</span><div class="track"><div class="fill" style="width:1%"></div></div><span class="val">0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>The testers &amp; their headline calls</h2><span class="num">FIG.3</span></div>
+    <div class="roster">
+      <div class="card"><h3>Fern</h3><p class="who">Cozy · 10-min phone sessions · hoards</p>
+        <ul><li>Goal frozen <b>80 days</b></li><li>Order-expiry toasts <b>93</b></li><li>Forgot to water <b>19 days</b></li></ul>
+        <p class="quote">"Show me the goal I'm actually closest to, and add a 'your crops are thirsty' nudge — that's the retention hook this game is missing."</p></div>
+      <div class="card"><h3>Rex</h3><p class="who">Classic · min-maxing optimizer</p>
+        <ul><li>Farm value <b>$331k</b></li><li>Solved by day <b>34</b></li><li>Orders done <b>7 / 74</b></li></ul>
+        <p class="quote">"By day 34 nothing could threaten a $60k farm. Give me a prestige layer and make the drone's $87-of-fuel 'end-game' earn its name."</p></div>
+      <div class="card"><h3>Sasha</h3><p class="who">Tycoon · picked the storm cloud</p>
+        <ul><li>Day-1 low <b>$186</b></li><li>Weather loss <b>3.3%</b></li><li>Tension ended day <b>~20</b></li></ul>
+        <p class="quote">"A brilliant 14-day thriller inside a 90-day cakewalk. Scale the skies up with my bank and make storms cost dollars, not just crops."</p></div>
+      <div class="card"><h3>Milo</h3><p class="who">Classic · touch every feature</p>
+        <ul><li>Out-of-season deaths <b>292</b></li><li>Goals dry by day <b>48</b></li><li>Buildings toured <b>11</b></li></ul>
+        <p class="quote">"Tint the doomed crop the second I plant it. 292 deaths would've been 20. And give a completionist a compendium to fill."</p></div>
+      <div class="card"><h3>June</h3><p class="who">Cozy · low-attention idler</p>
+        <ul><li>Days skipped <b>48 / 100</b></li><li>Thirst deaths <b>59</b></li><li>Fuel used <b>0 gal</b></li></ul>
+        <p class="quote">"Surface the $600 sprinkler inside the 'died of thirst' toast — affordability was never my problem, discovery was."</p></div>
+      <div class="card"><h3>Claude</h3><p class="who">Classic · live first-hand review</p>
+        <ul><li>Screenshots <b>11</b></li><li>Goal froze day <b>6–41</b></li><li>Engine errors <b>0</b></li></ul>
+        <p class="quote">"An exceptional first four minutes. Break the linear goal chain and tier the toasts and it goes from charming to hard to put down."</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>What's genuinely great — keep this</h2><span class="num">CREDIT</span></div>
+    <div class="great">
+      <div class="g"><h3>Best-in-class onboarding</h3><p>The goal chip's first six steps teach one verb at a time with an instant cash reward. Testers felt like naturals inside a day.</p></div>
+      <div class="g"><h3>A beautiful, performant world</h3><p>Isometric golden-hour lighting, per-crop water/harvest FX, seasonal palettes, forecast HUD — all zero-asset vanilla Canvas, and it looks professional.</p></div>
+      <div class="g"><h3>Kind failure framing</h3><p>Batched loss messages, named animals you bond with, rush-order bonuses, and safety nets throughout — failure is real but rarely feels cheap.</p></div>
+      <div class="g"><h3>An honest thesis</h3><p>"Everything's for sale from day one" is stated up front and the game delivers — money genuinely is the only ladder.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Consolidated fix list</h2><span class="num">PRIORITY ORDER</span></div>
+    <ol class="fixes">
+      <li><b>Break the linear goal chain</b> — closest 2–3 goals, credit out-of-order, add a mid/late ladder.<span class="tag">P0 · 4 testers</span></li>
+      <li><b>Repair the order board</b> — cap asks to inventory, reserve toggle, highlight fillable, kill expiry spam.<span class="tag">P0 · 5 testers</span></li>
+      <li><b>Telegraph out-of-season death</b> — tile tint + badge, buy-menu graying, plant-time confirm, season-flip warning.<span class="tag">P0 · 3 testers</span></li>
+      <li><b>Tier &amp; coalesce notifications</b> — priority levels, on-screen cap, routine digest, larger-text option.<span class="tag">P0 · 3 testers</span></li>
+      <li><b>Give the economy an end-game</b> — prestige, $100k+ goal ladder, megaproject spend sinks.<span class="tag">P1 · 3 testers</span></li>
+      <li><b>Make automation &amp; fuel matter</b> — coverage/fuel scale with land, fuel-free tier, mega-barns, auto-toggles.<span class="tag">P1 · 3 testers</span></li>
+      <li><b>Re-tune the difficulty promise</b> — weather scales with wealth &amp; costs dollars; Cozy drought/idle leniency.<span class="tag">P1 · 2 testers</span></li>
+      <li><b>Sweep the P2 polish</b> — splash auto-dismiss, teach selling, surface automation early, completionist checklists, retention nudges.<span class="tag">P2</span></li>
+    </ol>
+  </section>
+
+  <footer>
+    Sources committed to the repo · docs/playtest/AGGREGATE-REPORT.md · fern · rex · sasha · milo · june · claude-review<br>
+    Instrumented harness: tests/playtest-driver.js · per-day data: docs/playtest/data/*.json · screenshots: docs/playtest/review-shots/
+  </footer>
+</div>
+
+<script>
+  // respect an explicit theme toggle stamped on <html> by the host; nothing else needed —
+  // tokens already cover prefers-color-scheme and data-theme in both directions.
+</script>

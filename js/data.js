@@ -41,10 +41,12 @@ const DATA = (() => {
   ];
 
   // ---- Difficulty (chosen at farm creation — sets starting capital & event harshness) ----
+  // wiltDays: drought-survival window per mode (Cozy is forgiving for idlers);
+  // escalate: does weather harshness ramp up as the farm gets rich?
   const DIFFICULTIES = [
-    { id: 'cozy',    name: 'Cozy',    emoji: '🌤️', coins: 6000, eventMult: 0.5, sellBonus: 1,   blurb: 'A big nest egg and gentle weather. Relax and build.' },
-    { id: 'classic', name: 'Classic', emoji: '🌾', coins: 3000, eventMult: 1,   sellBonus: 1,   blurb: 'A solid grubstake. Weather and crows play fair… mostly.' },
-    { id: 'tycoon',  name: 'Tycoon',  emoji: '⛈️', coins: 1500, eventMult: 1.4, sellBonus: 1.05, blurb: 'Thin wallet, harsh skies — but goods sell for +5%.' },
+    { id: 'cozy',    name: 'Cozy',    emoji: '🌤️', coins: 6000, eventMult: 0.5, sellBonus: 1,   wiltDays: 3,   escalate: false, blurb: 'A big nest egg and gentle weather. Relax and build.' },
+    { id: 'classic', name: 'Classic', emoji: '🌾', coins: 3000, eventMult: 1,   sellBonus: 1,   wiltDays: 1.5, escalate: true,  blurb: 'A solid grubstake. Weather and crows play fair… mostly.' },
+    { id: 'tycoon',  name: 'Tycoon',  emoji: '⛈️', coins: 1500, eventMult: 1.4, sellBonus: 1.05, wiltDays: 1.2, escalate: true,  blurb: 'Thin wallet, harsh skies that worsen as you grow — but goods sell for +5%.' },
   ];
 
   // ---- Fuel (powers the tiller, tractor and drones) ----
@@ -144,7 +146,7 @@ const DATA = (() => {
   const BUILDINGS = {
     well:       { name: 'Well',         emoji: '💧', w: 1, h: 1, cost: 300,   desc: 'Tap to refill your watering can.' },
     scarecrow:  { name: 'Scarecrow',    emoji: '🎃', w: 1, h: 1, cost: 350,   desc: 'Protects crops nearby (5×5) from crows and storms.' },
-    sprinkler:  { name: 'Sprinkler',    emoji: '🚿', w: 1, h: 1, cost: 600,   desc: 'Waters crops around it (3×3) every morning.' },
+    sprinkler:  { name: 'Sprinkler',    emoji: '🚿', w: 1, h: 1, cost: 600,   desc: 'Waters crops around it (5×5) every morning.' },
     coop:       { name: 'Coop',         emoji: '🐔', w: 2, h: 2, cost: 500,   desc: 'Houses up to 6 chickens & ducks.', capacity: 6, roof: '#a8432f', wall: '#b98a5c', sign: 'COOP' },
     barn:       { name: 'Barn',         emoji: '🐄', w: 2, h: 2, cost: 1500,  desc: 'Houses up to 6 cows, goats, sheep or pigs.', capacity: 6, roof: '#7a4a24', wall: '#9e3d2d', sign: 'BARN' },
     mill:       { name: 'Feed Mill',    emoji: '🌾', w: 2, h: 2, cost: 2200,  desc: 'Grinds wheat & corn into animal feed — 1 grain becomes 3 feed credits.', roof: '#8d7a68', wall: '#a8977f', sign: 'MILL' },
@@ -221,6 +223,13 @@ const DATA = (() => {
     { id: 'land3',   icon: '🗺️', title: 'Own 4 land parcels',            reward: 1000,  check: s => [s.unlockedParcels.length, 4] },
     { id: 'value',   icon: '🏦', title: 'Reach $60,000 farm value',      reward: 2000,  check: s => [Game.farmValue(), 60000] },
     { id: 'empire',  icon: '👑', title: 'Own the whole valley',          reward: 10000, check: s => [s.unlockedParcels.length, PARCELS.length] },
+    // ---- late-game ladder: the arc no longer runs dry after the valley ----
+    { id: 'harvest500', icon: '🌽', title: 'Harvest 500 crops',           reward: 1500,  check: s => [s.stats.harvested, 500] },
+    { id: 'zoo',     icon: '🐖', title: 'Own one of every animal',        reward: 2200,  check: s => [new Set(s.animals.map(a => a.type)).size, Object.keys(ANIMALS).length] },
+    { id: 'craft50', icon: '🥧', title: 'Craft 50 artisan goods',         reward: 1800,  check: s => [s.stats.crafted, 50] },
+    { id: 'rep15',   icon: '⭐', title: 'Reach reputation level 15',       reward: 3000,  check: s => [s.level, 15] },
+    { id: 'value150',icon: '🏰', title: 'Reach $150,000 farm value',      reward: 5000,  check: s => [Game.farmValue(), 150000] },
+    { id: 'value300',icon: '💎', title: 'Reach $300,000 farm value',      reward: 12000, check: s => [Game.farmValue(), 300000] },
   ];
 
   // reputation: xp needed to go from `level` to the next

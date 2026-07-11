@@ -1,0 +1,556 @@
+<title>Harvest Empire — WebGL Golden-Hour POC</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --gold:#e0a92e; --ink:#f2e9d8; --ink-soft:#c9bda4; --panel:rgba(28,22,16,.82); --line:#4a3b22;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0c0a07;overflow:hidden;font-family:var(--sans);color:var(--ink)}
+  #gl{display:block;width:100vw;height:100vh;touch-action:none}
+  .hud{position:fixed;left:0;right:0;bottom:0;padding:16px clamp(12px,3vw,26px) 20px;
+    background:linear-gradient(0deg,rgba(8,6,4,.72),transparent);pointer-events:none}
+  .bar{max-width:920px;margin:0 auto;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:14px 18px;pointer-events:auto;backdrop-filter:blur(8px);
+    box-shadow:0 10px 40px -18px #000}
+  .title{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:10px}
+  .row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .tod{flex:1;min-width:180px;display:flex;align-items:center;gap:12px}
+  .tod input{flex:1;accent-color:var(--gold)}
+  .clock{font-family:var(--mono);font-size:13px;color:var(--ink-soft);min-width:118px;text-align:right;font-variant-numeric:tabular-nums}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink);background:#33291a;
+    border:1px solid var(--line);border-radius:8px;padding:8px 13px;cursor:pointer}
+  button:hover{border-color:var(--gold)}
+  button.on{background:var(--gold);color:#241a08;border-color:var(--gold)}
+  .toggles{display:flex;gap:8px;flex-wrap:wrap}
+  .fps{position:fixed;top:12px;right:14px;font-family:var(--mono);font-size:11px;color:var(--ink-soft);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
+  .badge{position:fixed;top:12px;left:14px;font-family:var(--mono);font-size:11px;color:var(--gold);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 9px;max-width:60vw;line-height:1.5}
+  .err{position:fixed;inset:0;display:none;place-items:center;padding:30px;text-align:center;
+    background:#160f08;font-family:var(--mono);font-size:14px;color:#e0916a;white-space:pre-wrap}
+</style>
+
+<canvas id="gl"></canvas>
+<div class="badge">WebGL2 · dynamic sun + soft shadow map · point-light bloom · HDR tonemap</div>
+<div class="fps" id="fps">—</div>
+<div class="err" id="err"></div>
+<div class="hud"><div class="bar">
+  <div class="title">Harvest Empire — WebGL lighting proof-of-concept</div>
+  <div class="row">
+    <div class="tod">
+      <span style="font-size:12px;color:var(--ink-soft)">Time</span>
+      <input id="tod" type="range" min="0" max="1000" value="775">
+      <span class="clock" id="clock">Golden hour</span>
+    </div>
+    <div class="toggles">
+      <button id="play" class="on">▮▮ Auto</button>
+      <button id="bloom" class="on">Bloom</button>
+      <button id="shadows" class="on">Shadows</button>
+      <button id="lights" class="on">Lamps</button>
+    </div>
+  </div>
+</div></div>
+
+<script>
+"use strict";
+const err = (m)=>{const e=document.getElementById('err');e.style.display='grid';e.textContent='WebGL POC error:\n\n'+m;console.error(m);};
+
+// ---------- tiny mat4 ----------
+const M4={
+  ident:()=>[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  mul(a,b){const o=new Array(16);for(let r=0;r<4;r++)for(let c=0;c<4;c++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s;}return o;},
+  ortho(l,r,b,t,n,f){const o=M4.ident();o[0]=2/(r-l);o[5]=2/(t-b);o[10]=-2/(f-n);o[12]=-(r+l)/(r-l);o[13]=-(t+b)/(t-b);o[14]=-(f+n)/(f-n);return o;},
+  lookAt(e,c,u){const z=norm(sub(e,c)),x=norm(cross(u,z)),y=cross(z,x);
+    return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -dot(x,e),-dot(y,e),-dot(z,e),1];},
+};
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const len=a=>Math.hypot(a[0],a[1],a[2]);
+const norm=a=>{const l=len(a)||1;return [a[0]/l,a[1]/l,a[2]/l];};
+
+// ---------- scene geometry (flat-shaded, matches the game's procedural look) ----------
+// Vertex: pos(3) normal(3) color(3) emissive(1)  => 10 floats
+const V=[];
+function tri(p0,p1,p2,col,emi){
+  const n=norm(cross(sub(p1,p0),sub(p2,p0)));
+  for(const p of [p0,p1,p2]){ V.push(p[0],p[1],p[2], n[0],n[1],n[2], col[0],col[1],col[2], emi||0); }
+}
+function quad(a,b,c,d,col,emi){ tri(a,b,c,col,emi); tri(a,c,d,col,emi); }
+// axis-aligned box from (x0,y0,z0) to (x1,y1,z1)
+function box(x0,y0,z0,x1,y1,z1,col,emi){
+  quad([x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1],col,emi);      // top
+  quad([x0,y0,z1],[x1,y0,z1],[x1,y0,z0],[x0,y0,z0],col,emi);      // bottom
+  quad([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],col,emi);      // +z (front)
+  quad([x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],col,emi);      // -z (back)
+  quad([x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],col,emi);      // +x
+  quad([x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],col,emi);      // -x
+}
+const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+// deterministic rng
+let _s=1337; const rnd=()=>{_s=(_s*1664525+1013904223)&0x7fffffff;return _s/0x7fffffff;};
+
+const emitters=[]; // point lights: {pos, color, range}
+function buildScene(){
+  V.length=0; emitters.length=0;
+  const GRASS=[0.36,0.55,0.24], GRASS2=[0.30,0.48,0.20];
+  const SOIL=[0.36,0.24,0.15], SOILR=[0.28,0.18,0.11];
+  const N=14, half=N/2;
+  // ground tiles
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+    const wx=x-half, wz=z-half;
+    const inBed = (x>=4&&x<=9&&z>=5&&z<=10);
+    let col = inBed ? mix(SOIL,SOILR,(x+z)%2?0.0:1.0) : mix(GRASS,GRASS2, (rnd()*0.6));
+    const y = inBed? 0.02 : (rnd()*0.03);
+    quad([wx,y,wz],[wx+1,y,wz],[wx+1,y,wz+1],[wx,y,wz+1], col, 0);
+    // furrow ridges in the bed
+    if(inBed && (x)%1===0){ box(wx+0.12,0.02,wz+0.1, wx+0.30,0.10,wz+0.9, mix(SOIL,[0.2,0.13,0.08],0.4),0);
+                            box(wx+0.55,0.02,wz+0.1, wx+0.73,0.10,wz+0.9, mix(SOIL,[0.2,0.13,0.08],0.4),0); }
+    // crops in the bed
+    if(inBed && rnd()<0.85){
+      const cx=wx+0.5, cz=wz+0.5, h=0.28+rnd()*0.22;
+      const leaf=mix([0.42,0.62,0.22],[0.55,0.72,0.28],rnd());
+      box(cx-0.09,0.02,cz-0.09,cx+0.09,h,cz+0.09, leaf,0);
+      if(rnd()<0.5){const rp=mix([0.85,0.55,0.18],[0.86,0.32,0.2],rnd());box(cx-0.06,h-0.05,cz-0.06,cx+0.06,h+0.10,cz+0.06,rp,0);}
+    }
+  }
+  // fence around plot
+  const fc=[0.44,0.29,0.16];
+  for(let x=0;x<N;x++){ box(x-half+0.42,0,-half-0.02, x-half+0.58,0.5,-half+0.06,fc,0);
+                        box(x-half+0.42,0,half-0.06, x-half+0.58,0.5,half+0.02,fc,0); }
+  for(let z=0;z<N;z++){ box(-half-0.02,0,z-half+0.42,-half+0.06,0.5,z-half+0.58,fc,0);
+                        box(half-0.06,0,z-half+0.42,half+0.02,0.5,z-half+0.58,fc,0); }
+  // rails
+  box(-half,0.34,-half,half,0.42,-half+0.06,fc,0);
+  box(-half,0.34,half-0.06,half,0.42,half,fc,0);
+
+  // ---- barn ----
+  const bx=-5.2, bz=-4.6, bw=3.2, bd=2.6, bh=1.7;
+  box(bx,0,bz,bx+bw,bh,bz+bd,[0.62,0.24,0.20],0);            // walls (barn red)
+  // gable roof (two slabs)
+  const rc=[0.30,0.22,0.17], apex=bh+1.0;
+  quad([bx-0.2,bh,bz-0.2],[bx+bw/2,apex,bz-0.2],[bx+bw/2,apex,bz+bd+0.2],[bx-0.2,bh,bz+bd+0.2],rc,0);
+  quad([bx+bw/2,apex,bz-0.2],[bx+bw+0.2,bh,bz-0.2],[bx+bw+0.2,bh,bz+bd+0.2],[bx+bw/2,apex,bz+bd+0.2],rc,0);
+  // gable triangles
+  tri([bx-0.2,bh,bz-0.2],[bx+bw+0.2,bh,bz-0.2],[bx+bw/2,apex,bz-0.2],[0.55,0.20,0.17],0);
+  tri([bx+bw+0.2,bh,bz+bd+0.2],[bx-0.2,bh,bz+bd+0.2],[bx+bw/2,apex,bz+bd+0.2],[0.55,0.20,0.17],0);
+  // door
+  box(bx+bw/2-0.45,0,bz+bd-0.02,bx+bw/2+0.45,1.1,bz+bd+0.02,[0.30,0.18,0.12],0);
+  // GLOWING WINDOW (emissive) — front face
+  const winCol=[1.0,0.72,0.30];
+  box(bx+0.35,0.7,bz+bd-0.01,bx+0.95,1.25,bz+bd+0.03, winCol, 1.0);
+  box(bx+bw-0.95,0.7,bz+bd-0.01,bx+bw-0.35,1.25,bz+bd+0.03, winCol, 1.0);
+  emitters.push({pos:[bx+0.65,1.0,bz+bd+0.15],color:[1.0,0.66,0.28],range:4.2});
+  emitters.push({pos:[bx+bw-0.65,1.0,bz+bd+0.15],color:[1.0,0.66,0.28],range:4.2});
+
+  // ---- well ----
+  const wx=5.0,wz=-4.2;
+  box(wx-0.6,0,wz-0.6,wx+0.6,0.55,wz+0.6,[0.5,0.5,0.55],0);
+  box(wx-0.5,0.55,wz-0.5,wx+0.5,0.62,wz+0.5,[0.4,0.4,0.45],0);
+  box(wx-0.08,0.62,wz-0.5,wx+0.08,1.7,wz-0.42,[0.4,0.27,0.16],0);
+  box(wx-0.08,0.62,wz+0.42,wx+0.08,1.7,wz+0.5,[0.4,0.27,0.16],0);
+  quad([wx-0.7,1.7,wz-0.7],[wx,2.15,wz-0.7],[wx,2.15,wz+0.7],[wx-0.7,1.7,wz+0.7],[0.5,0.24,0.18],0);
+  quad([wx,2.15,wz-0.7],[wx+0.7,1.7,wz-0.7],[wx+0.7,1.7,wz+0.7],[wx,2.15,wz+0.7],[0.45,0.22,0.16],0);
+  // water surface (faint emissive so it catches light)
+  quad([wx-0.45,0.5,wz-0.45],[wx+0.45,0.5,wz-0.45],[wx+0.45,0.5,wz+0.45],[wx-0.45,0.5,wz+0.45],[0.15,0.35,0.5],0.06);
+
+  // ---- lamp post (point light) ----
+  const lx=5.6,lz=5.2;
+  box(lx-0.06,0,lz-0.06,lx+0.06,1.8,lz+0.06,[0.22,0.2,0.18],0);
+  box(lx-0.18,1.8,lz-0.18,lx+0.18,2.1,lz+0.18,[0.9,0.7,0.35],1.0); // bulb
+  emitters.push({pos:[lx,2.0,lz],color:[1.0,0.72,0.32],range:5.5});
+
+  // ---- trees ----
+  function tree(tx,tz,scale){
+    const th=1.1*scale;
+    box(tx-0.12*scale,0,tz-0.12*scale,tx+0.12*scale,th,tz+0.12*scale,[0.34,0.24,0.15],0);
+    const cc=mix([0.24,0.42,0.20],[0.30,0.5,0.24],rnd());
+    // canopy: stacked pyramids
+    for(let i=0;i<3;i++){
+      const y=th+i*0.55*scale, r=(0.95-i*0.22)*scale;
+      quad([tx-r,y,tz-r],[tx+r,y,tz-r],[tx,y+0.7*scale,tz],[tx,y+0.7*scale,tz],cc,0);
+      tri([tx+r,y,tz-r],[tx+r,y,tz+r],[tx,y+0.7*scale,tz],cc,0);
+      tri([tx+r,y,tz+r],[tx-r,y,tz+r],[tx,y+0.7*scale,tz],cc,0);
+      tri([tx-r,y,tz+r],[tx-r,y,tz-r],[tx,y+0.7*scale,tz],cc,0);
+    }
+  }
+  tree(-6.4,3.5,1.1); tree(6.6,-6.2,0.9); tree(-6.8,-7.0,0.8); tree(7.0,4.0,1.05);
+
+  // ---- fireflies (rendered as emissive point sprites, added at night) ----
+  fireflies.length=0;
+  for(let i=0;i<26;i++) fireflies.push({x:(rnd()-0.5)*14, y:0.5+rnd()*2.2, z:(rnd()-0.5)*14, ph:rnd()*6.28, sp:0.4+rnd()*0.8});
+}
+const fireflies=[];
+
+// ---------- GL boot ----------
+const canvas=document.getElementById('gl');
+const gl=canvas.getContext('webgl2',{antialias:true,alpha:false,preserveDrawingBuffer:true});
+if(!gl){ err('WebGL2 not available in this browser.'); }
+let HDR = false;
+(function(){ if(!gl) return;
+  // HDR needs BOTH float render targets AND linear filtering of them — SwiftShader
+  // (software fallback) has the former but not the latter, so verify both or drop to LDR.
+  const canRender = gl.getExtension('EXT_color_buffer_float');
+  const canFilter = gl.getExtension('OES_texture_half_float_linear');
+  HDR = !!canRender && !!canFilter;
+})();
+
+function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){err(gl.getShaderInfoLog(s)+'\n\n'+src.split('\n').slice(0,40).map((l,i)=>(i+1)+': '+l).join('\n'));}return s;}
+function prog(vs,fs){const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))err(gl.getProgramInfoLog(p));return p;}
+
+// ===== scene program =====
+const sceneVS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(location=2) in vec3 aCol; layout(location=3) in float aEmi;
+uniform mat4 uVP, uLightVP;
+out vec3 vPos,vNrm,vCol; out float vEmi; out vec4 vLS;
+void main(){ vPos=aPos; vNrm=aNrm; vCol=aCol; vEmi=aEmi; vLS=uLightVP*vec4(aPos,1.0);
+  gl_Position=uVP*vec4(aPos,1.0); }`;
+const sceneFS=`#version 300 es
+precision highp float;
+in vec3 vPos,vNrm,vCol; in float vEmi; in vec4 vLS;
+out vec4 frag;
+uniform vec3 uSunDir,uSunCol,uSkyCol,uGndCol,uCamPos;
+uniform float uSunInt, uShadowOn, uLightsOn, uNight;
+uniform sampler2D uShadow;
+#define NL 3
+uniform vec3 uLPos[NL],uLCol[NL]; uniform float uLRange[NL];
+float shadow(vec3 n){
+  if(uShadowOn<0.5) return 1.0;
+  vec3 p=vLS.xyz/vLS.w*0.5+0.5;
+  if(p.z>1.0||p.x<0.0||p.x>1.0||p.y<0.0||p.y>1.0) return 1.0;
+  float bias=max(0.004*(1.0-dot(n,uSunDir)),0.0012);
+  vec2 tx=1.0/vec2(textureSize(uShadow,0));
+  float s=0.0;
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+    float d=texture(uShadow,p.xy+vec2(x,y)*tx).r;
+    s+= (p.z-bias> d)?0.0:1.0;
+  }
+  return s/9.0;
+}
+void main(){
+  vec3 N=normalize(vNrm);
+  // hemispheric ambient (sky above, ground bounce below)
+  float hemi=0.5+0.5*N.y;
+  vec3 amb=mix(uGndCol,uSkyCol,hemi);
+  // sun (Lambert) + soft shadow
+  float ndl=max(dot(N,uSunDir),0.0);
+  float sh=shadow(N);
+  vec3 col=amb*vCol;
+  col += uSunCol*uSunInt*ndl*sh*vCol;
+  // point lamps
+  if(uLightsOn>0.5){
+    for(int i=0;i<NL;i++){
+      vec3 L=uLPos[i]-vPos; float d=length(L); L/=d;
+      float att=clamp(1.0-d/uLRange[i],0.0,1.0); att*=att;
+      float nl=max(dot(N,L),0.0);
+      col += uLCol[i]*(nl*att)*vCol*(0.6+0.8*uNight);
+    }
+  }
+  // emissive (windows/lamp/fireflies) — brighter at night, drives bloom
+  col += vCol*vEmi*(1.0+3.5*uNight);
+  frag=vec4(col,1.0);
+}`;
+
+// depth-only program for shadow map
+const depthVS=`#version 300 es
+precision highp float; layout(location=0) in vec3 aPos; uniform mat4 uLightVP;
+void main(){ gl_Position=uLightVP*vec4(aPos,1.0); }`;
+const depthFS=`#version 300 es
+precision highp float; void main(){}`;
+
+// fullscreen passes
+const fsVS=`#version 300 es
+precision highp float; layout(location=0) in vec2 p; out vec2 uv;
+void main(){ uv=p*0.5+0.5; gl_Position=vec4(p,0.0,1.0); }`;
+const brightFS=`#version 300 es
+precision highp float; in vec2 uv; out vec4 frag; uniform sampler2D uTex; uniform float uThresh;
+void main(){ vec3 c=texture(uTex,uv).rgb; float b=max(max(c.r,c.g),c.b);
+  frag=vec4(c*smoothstep(uThresh,uThresh+0.5,b),1.0); }`;
+const blurFS=`#version 300 es
+precision highp float; in vec2 uv; out vec4 frag; uniform sampler2D uTex; uniform vec2 uDir;
+void main(){ vec2 t=uDir/vec2(textureSize(uTex,0));
+  vec3 c=texture(uTex,uv).rgb*0.227;
+  c+=texture(uTex,uv+t*1.3846).rgb*0.316; c+=texture(uTex,uv-t*1.3846).rgb*0.316;
+  c+=texture(uTex,uv+t*3.2307).rgb*0.070; c+=texture(uTex,uv-t*3.2307).rgb*0.070;
+  frag=vec4(c,1.0); }`;
+const skyFS=`#version 300 es
+precision highp float; in vec2 uv; out vec4 frag;
+uniform vec3 uTop,uHor,uSunCol; uniform vec2 uSun; uniform float uAspect,uSunUp;
+void main(){
+  vec3 c=mix(uHor,uTop,pow(clamp(uv.y,0.0,1.0),0.62));
+  vec2 d=(uv-uSun)*vec2(uAspect,1.0); float r=length(d);
+  c+=uSunCol*uSunUp*(smoothstep(0.05,0.0,r)*3.2 + smoothstep(0.65,0.0,r)*0.32);
+  frag=vec4(c,1.0);
+}`;
+const compFS=`#version 300 es
+precision highp float; in vec2 uv; out vec4 frag;
+uniform sampler2D uScene,uBloom; uniform float uBloomOn,uExposure,uSunScreenY,uNight;
+uniform vec2 uSunScreen; uniform float uGodOn;
+vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
+void main(){
+  vec3 c=texture(uScene,uv).rgb;
+  if(uBloomOn>0.5) c += texture(uBloom,uv).rgb*1.15;
+  // cheap god-rays: radial samples toward the sun screen pos (golden hour / dusk)
+  if(uGodOn>0.5){
+    vec2 dir=(uSunScreen-uv); vec3 g=vec3(0.0); float w=1.0;
+    for(int i=0;i<10;i++){ vec2 s=uv+dir*(float(i)/10.0)*0.55; g+=texture(uBloom,s).rgb*w; w*=0.86; }
+    c += g*0.05*(0.4+uNight*0.3);
+  }
+  c*=uExposure;
+  c=aces(c);
+  // vignette + fine grain
+  float vig=smoothstep(1.15,0.35,length(uv-0.5)); c*=mix(0.82,1.0,vig);
+  float gr=fract(sin(dot(uv*vec2(543.1,193.7),vec2(12.9898,78.233)))*43758.5453);
+  c+=(gr-0.5)*0.02;
+  frag=vec4(pow(c,vec3(0.4545)),1.0);
+}`;
+
+const P={
+  scene:prog(sceneVS,sceneFS), depth:prog(depthVS,depthFS), sky:prog(fsVS,skyFS),
+  bright:prog(fsVS,brightFS), blur:prog(fsVS,blurFS), comp:prog(fsVS,compFS)
+};
+const U=(p)=>{const o={},n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const nm=gl.getActiveUniform(p,i).name;o[nm]=gl.getUniformLocation(p,nm);}return o;};
+const u={scene:U(P.scene),depth:U(P.depth),sky:U(P.sky),bright:U(P.bright),blur:U(P.blur),comp:U(P.comp)};
+
+// ---------- buffers ----------
+buildScene();
+let vbo=gl.createBuffer(), vao=gl.createVertexArray();
+gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(V),gl.STATIC_DRAW);
+const stride=10*4;
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,stride,0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,stride,12);
+gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,3,gl.FLOAT,false,stride,24);
+gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3,1,gl.FLOAT,false,stride,36);
+const vertCount=V.length/10;
+
+// dynamic firefly buffer
+let fvbo=gl.createBuffer(), fvao=gl.createVertexArray();
+gl.bindVertexArray(fvao); gl.bindBuffer(gl.ARRAY_BUFFER,fvbo);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,stride,0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,stride,12);
+gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,3,gl.FLOAT,false,stride,24);
+gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3,1,gl.FLOAT,false,stride,36);
+
+// fullscreen quad
+let qvbo=gl.createBuffer(), qvao=gl.createVertexArray();
+gl.bindVertexArray(qvao); gl.bindBuffer(gl.ARRAY_BUFFER,qvbo);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1, 3,-1, -1,3]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+
+// ---------- framebuffers ----------
+const IFMT = HDR? gl.RGBA16F : gl.RGBA8;
+const ITYPE = HDR? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+function makeColor(w,h){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texImage2D(gl.TEXTURE_2D,0,IFMT,w,h,0,gl.RGBA,ITYPE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);return {t,f,w,h};}
+// shadow map
+const SM=2048;
+const shadowTex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,shadowTex);
+gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,SM,SM,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+const shadowFB=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFB);
+gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,shadowTex,0);
+gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE);
+
+let sceneFBO, bloomA, bloomB, W=1,H=1;
+function resize(){
+  const dpr=Math.min(devicePixelRatio||1, 2);
+  W=Math.floor(canvas.clientWidth*dpr); H=Math.floor(canvas.clientHeight*dpr);
+  if(W<2||H<2) return;
+  canvas.width=W; canvas.height=H;
+  sceneFBO=makeColor(W,H);
+  bloomA=makeColor(W>>1,H>>1); bloomB=makeColor(W>>1,H>>1);
+}
+window.addEventListener('resize',resize); resize();
+
+// ---------- camera ----------
+function cameraVP(){
+  const d=13.5;
+  const eye=[d*0.75, d*0.72, d*0.75], ctr=[0,0.6,0], up=[0,1,0];
+  const view=M4.lookAt(eye,ctr,up);
+  const asp=W/H, s=10.2;
+  const proj=M4.ortho(-s*asp,s*asp,-s,s,-40,60);
+  return {vp:M4.mul(proj,view), eye};
+}
+function lightVP(dir){
+  const ctr=[0,0.4,0]; const dist=22;
+  const eye=[ctr[0]+dir[0]*dist,ctr[1]+dir[1]*dist,ctr[2]+dir[2]*dist];
+  const up=Math.abs(dir[1])>0.98?[0,0,1]:[0,1,0];
+  const view=M4.lookAt(eye,ctr,up);
+  const s=13.5; const proj=M4.ortho(-s,s,-s,s,0.1,50);
+  return M4.mul(proj,view);
+}
+function project(vp,p){ // world->screen uv
+  const x=vp[0]*p[0]+vp[4]*p[1]+vp[8]*p[2]+vp[12];
+  const y=vp[1]*p[0]+vp[5]*p[1]+vp[9]*p[2]+vp[13];
+  const w=vp[3]*p[0]+vp[7]*p[1]+vp[11]*p[2]+vp[15];
+  return [ (x/w)*0.5+0.5, (y/w)*0.5+0.5 ];
+}
+
+// ---------- time-of-day mood ----------
+const clamp01=x=>Math.max(0,Math.min(1,x));
+function mood(t){ // t: .16 sunrise · .5 noon · ~.8 golden · ~.88 sunset · .95+ night
+  const p=(t-0.16)/(0.86-0.16);                 // 0..1 across daylight
+  const elev = (p>=0&&p<=1) ? Math.sin(p*Math.PI) : -0.4;  // sun height, negative at night
+  const sy = elev;
+  // sun direction — low elev => long raking shadows (the golden-hour look)
+  const horiz=Math.sqrt(Math.max(0.05,1-Math.min(1,sy*sy)));
+  const az=(t-0.5)*2.4;                          // sweep the azimuth through the day
+  const dir=norm([Math.cos(az)*horiz, Math.max(sy,-0.5), 0.42+0.2*horiz]);
+  const day=Math.max(0,sy);
+  // warmth peaks when the sun is low but still up (golden hour); white at noon
+  const warmth = (sy>0? clamp01(1-sy/0.5):0) * clamp01(sy*20);
+  // night factor ramps in from dusk downward
+  const nf = clamp01((0.14 - sy)/0.34);
+  // sun / key light color + intensity
+  const white=[1.05,1.0,0.94], gold=[1.45,0.6,0.22];
+  let sunCol=mix(white,gold,warmth);
+  let sunInt=clamp01(sy*1.7)*1.35 + 0.02;
+  // sky gradient endpoints
+  const topDay=[0.34,0.55,0.92], horDay=[0.72,0.83,0.96];
+  const topGold=[0.42,0.40,0.60], horGold=[1.08,0.60,0.32];
+  const topNight=[0.02,0.03,0.09], horNight=[0.09,0.10,0.20];
+  let skyTop=mix(mix(topDay,topGold,warmth),topNight,nf);
+  let skyHor=mix(mix(horDay,horGold,warmth),horNight,nf);
+  // hemispheric ambient fed to the scene (sky above, warm/dark bounce below)
+  const skyAmb=mix(skyHor,skyTop,0.45).map(v=>v*0.85);
+  const gnd=mix([0.34,0.30,0.22],[0.05,0.05,0.09],nf);
+  const exposure=1.0 + 0.55*nf;                  // lift night so lamps/windows pop
+  const sunUp=clamp01(sy*4.0);                   // sun disc visibility in the sky
+  return {dir,sunCol,sunInt,skyAmb,gnd,skyTop,skyHor,nf,exposure,day,sunUp,warmth};
+}
+
+// ---------- UI state ----------
+const st={tod:0.775, play:true, bloom:true, shadows:true, lights:true};
+const todEl=document.getElementById('tod'), clockEl=document.getElementById('clock');
+function clockLabel(t){
+  if(t<0.18)return'Dawn'; if(t<0.42)return'Morning'; if(t<0.6)return'Midday';
+  if(t<0.8)return'Golden hour'; if(t<0.9)return'Dusk'; return'Night';
+}
+todEl.addEventListener('input',()=>{st.tod=+todEl.value/1000; st.play=false; setBtn('play',false); clockEl.textContent=clockLabel(st.tod);});
+function setBtn(id,on){const b=document.getElementById(id);b.classList.toggle('on',on);}
+document.getElementById('play').onclick=e=>{st.play=!st.play;e.target.classList.toggle('on',st.play);};
+document.getElementById('bloom').onclick=e=>{st.bloom=!st.bloom;e.target.classList.toggle('on',st.bloom);};
+document.getElementById('shadows').onclick=e=>{st.shadows=!st.shadows;e.target.classList.toggle('on',st.shadows);};
+document.getElementById('lights').onclick=e=>{st.lights=!st.lights;e.target.classList.toggle('on',st.lights);};
+clockEl.textContent=clockLabel(st.tod);
+// allow external control for screenshotting
+window.setTOD=(v)=>{st.tod=v;st.play=false;setBtn('play',false);todEl.value=v*1000;clockEl.textContent=clockLabel(v);};
+
+// ---------- render ----------
+const fpsEl=document.getElementById('fps'); let acc=0,frames=0,last=performance.now();
+function firefliesBuffer(time,nf){
+  const arr=[];
+  const c=[1.0,0.85,0.4];
+  for(const f of fireflies){
+    const yy=f.y+Math.sin(time*f.sp+f.ph)*0.25;
+    const xx=f.x+Math.cos(time*f.sp*0.7+f.ph)*0.3;
+    const s=0.05; const e=(0.6+0.4*Math.sin(time*3+f.ph))*nf;
+    // tiny billboard-ish quad (two tris) facing up-ish
+    const p0=[xx-s,yy,f.z-s],p1=[xx+s,yy,f.z-s],p2=[xx+s,yy,f.z+s],p3=[xx-s,yy,f.z+s];
+    for(const [a,b,cc] of [[p0,p1,p2],[p0,p2,p3]]) for(const p of [a,b,cc]) arr.push(p[0],p[1],p[2], 0,1,0, c[0],c[1],c[2], e);
+  }
+  return arr;
+}
+
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(st.play){ st.tod+=dt*0.045; if(st.tod>1)st.tod-=1; todEl.value=st.tod*1000; clockEl.textContent=clockLabel(st.tod); }
+  const m=mood(st.tod);
+  const {vp,eye}=cameraVP();
+  const lvp=lightVP(m.dir);
+
+  // ---- shadow pass ----
+  if(st.shadows){
+    gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFB);
+    gl.viewport(0,0,SM,SM); gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST); gl.useProgram(P.depth);
+    gl.uniformMatrix4fv(u.depth.uLightVP,false,new Float32Array(lvp));
+    gl.bindVertexArray(vao); gl.drawArrays(gl.TRIANGLES,0,vertCount);
+  }
+
+  // sun screen position (shared by sky disc + god-rays)
+  const sunWorld=[m.dir[0]*20,m.dir[1]*20,m.dir[2]*20];
+  const ss=project(vp,sunWorld);
+
+  // ---- scene pass -> HDR fbo ----
+  gl.bindFramebuffer(gl.FRAMEBUFFER,sceneFBO.f);
+  gl.viewport(0,0,W,H);
+  gl.clearColor(m.skyHor[0],m.skyHor[1],m.skyHor[2],1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  // sky gradient + sun disc (behind everything, writes no depth)
+  gl.disable(gl.DEPTH_TEST); gl.depthMask(false); gl.bindVertexArray(qvao);
+  gl.useProgram(P.sky);
+  gl.uniform3fv(u.sky.uTop,m.skyTop); gl.uniform3fv(u.sky.uHor,m.skyHor);
+  gl.uniform3fv(u.sky.uSunCol,m.sunCol); gl.uniform2f(u.sky.uSun,ss[0],ss[1]);
+  gl.uniform1f(u.sky.uAspect,W/H); gl.uniform1f(u.sky.uSunUp,m.sunUp);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
+  // geometry
+  gl.useProgram(P.scene);
+  gl.uniformMatrix4fv(u.scene.uVP,false,new Float32Array(vp));
+  gl.uniformMatrix4fv(u.scene.uLightVP,false,new Float32Array(lvp));
+  gl.uniform3fv(u.scene.uSunDir,m.dir); gl.uniform3fv(u.scene.uSunCol,m.sunCol);
+  gl.uniform3fv(u.scene.uSkyCol,m.skyAmb); gl.uniform3fv(u.scene.uGndCol,m.gnd);
+  gl.uniform3fv(u.scene.uCamPos,eye);
+  gl.uniform1f(u.scene.uSunInt,m.sunInt); gl.uniform1f(u.scene.uShadowOn,st.shadows?1:0);
+  gl.uniform1f(u.scene.uLightsOn,st.lights?1:0); gl.uniform1f(u.scene.uNight,m.nf);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,shadowTex); gl.uniform1i(u.scene.uShadow,0);
+  for(let i=0;i<emitters.length&&i<3;i++){
+    gl.uniform3fv(u.scene['uLPos['+i+']'],emitters[i].pos);
+    gl.uniform3fv(u.scene['uLCol['+i+']'],emitters[i].color);
+    gl.uniform1f(u.scene['uLRange['+i+']'],emitters[i].range);
+  }
+  gl.bindVertexArray(vao); gl.drawArrays(gl.TRIANGLES,0,vertCount);
+  // fireflies (additive, at night)
+  if(m.nf>0.05){
+    const fa=firefliesBuffer(now/1000,m.nf);
+    gl.bindVertexArray(fvao); gl.bindBuffer(gl.ARRAY_BUFFER,fvbo);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(fa),gl.DYNAMIC_DRAW);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.depthMask(false);
+    gl.drawArrays(gl.TRIANGLES,0,fa.length/10);
+    gl.disable(gl.BLEND); gl.depthMask(true);
+  }
+
+  // ---- bloom: bright pass + separable blur ----
+  gl.disable(gl.DEPTH_TEST); gl.bindVertexArray(qvao);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,bloomA.f); gl.viewport(0,0,bloomA.w,bloomA.h);
+  gl.useProgram(P.bright); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,sceneFBO.t);
+  gl.uniform1i(u.bright.uTex,0); gl.uniform1f(u.bright.uThresh, HDR?1.05:0.75);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  // blur H,V x2
+  gl.useProgram(P.blur);
+  for(let i=0;i<3;i++){
+    gl.bindFramebuffer(gl.FRAMEBUFFER,bloomB.f);gl.viewport(0,0,bloomB.w,bloomB.h);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,bloomA.t);gl.uniform1i(u.blur.uTex,0);
+    gl.uniform2f(u.blur.uDir,1.4,0); gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,bloomA.f);gl.viewport(0,0,bloomA.w,bloomA.h);
+    gl.bindTexture(gl.TEXTURE_2D,bloomB.t);gl.uniform2f(u.blur.uDir,0,1.4);gl.drawArrays(gl.TRIANGLES,0,3);
+  }
+
+  // ---- composite to screen ----
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,W,H);
+  gl.useProgram(P.comp);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,sceneFBO.t);gl.uniform1i(u.comp.uScene,0);
+  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,bloomA.t);gl.uniform1i(u.comp.uBloom,1);
+  gl.uniform1f(u.comp.uBloomOn,st.bloom?1:0); gl.uniform1f(u.comp.uExposure,m.exposure);
+  gl.uniform1f(u.comp.uNight,m.nf);
+  gl.uniform2f(u.comp.uSunScreen,ss[0],ss[1]); // sun screen pos for god-rays
+  gl.uniform1f(u.comp.uGodOn,(st.bloom&&m.day>0.02)?1:0);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+
+  // fps
+  frames++; acc+=dt; if(acc>=0.5){ fpsEl.textContent=Math.round(frames/acc)+' fps'+(HDR?' · HDR':' · LDR'); frames=0; acc=0; }
+  requestAnimationFrame(frame);
+}
+if(gl) requestAnimationFrame(frame);
+</script>
