@@ -38,6 +38,7 @@ const Renderer = (() => {
   }
 
   function centerOn(tx, ty) {
+    Tween.kill(cam); // an explicit recenter always wins over an in-flight pan
     const p = proj(tx, ty);
     cam.x = p.x;
     cam.y = p.y;
@@ -252,13 +253,20 @@ const Renderer = (() => {
   }
 
   function clampCam() {
-    cam.z = Math.min(2.0, Math.max(0.35, cam.z));
     const minX = proj(0, D.WORLD_H).x, maxX = proj(D.WORLD_W, 0).x;
-    const minY = -TH * 2, maxY = proj(D.WORLD_W, D.WORLD_H).y + TH * 2;
-    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    // vertical bounds hug the DRAWN content: the diorama treeline band above
+    // the north corner and the soil-cliff rim below the south corner
+    const minY = -TH * 1.2, maxY = proj(D.WORLD_W, D.WORLD_H).y + TH;
+    // dynamic zoom floor: the world must always cover the whole screen —
+    // no letterbox void on any aspect ratio (portrait phones hit the height)
+    const zFill = Math.max(vw / (maxX - minX), vh / (maxY - minY));
+    cam.z = Math.min(2.0, Math.max(Math.min(2.0, Math.max(0.35, zFill)), cam.z));
     const halfW = vw / 2 / cam.z, halfH = vh / 2 / cam.z;
-    cam.x = Math.min(Math.max(cam.x, Math.min(minX + halfW, cx)), Math.max(maxX - halfW, cx));
-    cam.y = Math.min(Math.max(cam.y, Math.min(minY + halfH, cy)), Math.max(maxY - halfH, cy));
+    // overscan: edge tiles may travel ~132 css px inward past the screen edge
+    // so nothing is stuck under the HUD — the styled world rim shows instead
+    const over = 132 / cam.z;
+    cam.x = Math.min(Math.max(cam.x, minX + halfW - over), maxX - halfW + over);
+    cam.y = Math.min(Math.max(cam.y, minY + halfH - over), maxY - halfH + over);
   }
 
   /* ================= PHASE 3: tween micro-framework =================
@@ -1850,6 +1858,28 @@ const Renderer = (() => {
       }
       sx.fillStyle = grad;
       sx.fillRect(0, 0, sw, sh);
+      // distant valley: three rolling-hill silhouettes + haze turn any
+      // off-world screen area into scenery instead of void (the world is a
+      // diamond — at overview zoom its diagonal edges expose the backdrop)
+      const HILL_DAY = [[118, 30, 76], [122, 34, 67], [126, 38, 57]];
+      const HILL_DUSK = [[305, 24, 54], [312, 26, 45], [320, 28, 37]];
+      const HILL_NIGHT = [[228, 30, 22], [228, 32, 18], [227, 34, 14]];
+      for (let i = 0; i < 3; i++) {
+        const c = mix3(HILL_DAY[i], HILL_DUSK[i], HILL_NIGHT[i], SUN.dusk, SUN.dark);
+        sx.fillStyle = hsl(c[0], c[1], c[2]);
+        const base = sh * (0.50 + i * 0.14);
+        const amp = sh * (0.04 - i * 0.009);
+        sx.beginPath();
+        sx.moveTo(0, sh);
+        for (let x = 0; x <= sw; x += 4) {
+          const y = base + Math.sin(x * (0.016 - i * 0.0035) + i * 17) * amp
+                  + Math.sin(x * 0.045 + i * 5) * amp * 0.4;
+          sx.lineTo(x, y);
+        }
+        sx.lineTo(sw, sh);
+        sx.closePath();
+        sx.fill();
+      }
     }
     if (SUN.dark > 0.98) { // full night: a flat deep blue is indistinguishable & cheaper
       ctx.fillStyle = hsl(SKY_NIGHT[1][0], SKY_NIGHT[1][1], SKY_NIGHT[1][2]);

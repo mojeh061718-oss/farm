@@ -275,8 +275,11 @@ function check(name, ok, detail) {
   await page.waitForTimeout(250);
   const pos = await page.evaluate(() => {
     const t = Game.state.tonis[0];
-    return t ? Renderer.tileToScreen(t.x + 0.5, t.y + 0.5) : { x: 195, y: 420 };
+    if (!t) return { x: 195, y: 420 };
+    Renderer.centerOn(t.x + 0.5, t.y + 0.5); // cancels any in-flight pan tween
+    return Renderer.tileToScreen(t.x + 0.5, t.y + 0.5);
   });
+  await page.waitForTimeout(250);
   await page.touchscreen.tap(pos.x, pos.y);
   await page.waitForTimeout(350);
   const paper = await page.evaluate(() => ({
@@ -421,7 +424,16 @@ function check(name, ok, detail) {
   await page.waitForTimeout(300);
 
   // ---- the seed picker offers it; planting consumes it and grows a glowing sprout ----
-  await page.tap('.tool-btn[data-tool="plant"]');
+  await page.evaluate(() => { // an empty tilled plot to tap for the seed sheet
+    const t = Game.state.tiles[7][9];
+    t.k = 'soil'; t.crop = null;
+    Renderer.centerOn(9.5, 7.5);
+  });
+  await page.waitForTimeout(300);
+  const psp = await page.evaluate(() => Renderer.tileToScreen(9.5, 7.5));
+  await page.touchscreen.tap(psp.x, psp.y); // soil → bubble
+  await page.waitForTimeout(300);
+  await page.tap('#bubble .act-plant');     // → seed sheet
   await page.waitForTimeout(350);
   const picker = await page.evaluate(() => ({
     card: !!document.querySelector('#sheet-body .mythic-card'),

@@ -219,7 +219,9 @@ function check(name, ok, detail) {
   });
   await page.waitForTimeout(250);
   const sp = await page.evaluate(() => Renderer.tileToScreen(9.5, 7.5));
-  await page.touchscreen.tap(sp.x, sp.y); // soil → seed sheet with a plant target
+  await page.touchscreen.tap(sp.x, sp.y); // soil → bubble
+  await page.waitForTimeout(300);
+  await page.tap('#bubble .act-plant');   // → seed sheet with a plant target
   await page.waitForTimeout(400);
   const preCoins = await page.evaluate(() => Game.state.coins);
   await page.evaluate(() => { [...document.querySelectorAll('#sheet-body .item-card')].find(c => c.classList.contains('off-season')).click(); });
@@ -233,7 +235,9 @@ function check(name, ok, detail) {
     !offPick.planted && offPick.coins === preCoins && offPick.warned, offPick);
   // wording no longer wraps over the art: the amber tag stays a single line
   await page.evaluate(() => { Game.state.day = DATA.SEASON_DAYS; Game.state.t = 0.6; });
-  await page.tap('.tool-btn[data-tool="plant"]');
+  await page.touchscreen.tap(sp.x, sp.y); // same empty soil tile → bubble → seed sheet
+  await page.waitForTimeout(300);
+  await page.tap('#bubble .act-plant');
   await page.waitForTimeout(400);
   const amber = await page.evaluate(() => {
     const tag = document.querySelector('.lock-tag.amber');

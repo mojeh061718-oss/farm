@@ -15,12 +15,10 @@ const UI = (() => {
   // idempotent innerHTML writer (renderSheet & updateHud rerun constantly)
   function setIcon(el, html) { if (el._ih !== html) { el._ih = html; el.innerHTML = html; } }
 
-  let tool = 'auto';
-  let seed = 'turnip';          // currently selected seed for plant tool
+  let seed = 'turnip';          // last seed picked (selected card in the seed sheet)
   let buildType = null;         // building being placed
   let sheetOpen = null;         // current sheet id
   let sheetTab = null;
-  let lastPaint = null;         // last tile painted during drag
 
   /* ---------------- sound: three synth voices, one pentatonic scale ----------------
      Graphics 2.0 Phase 3 (animation.md §6). Every pitched sound sits in
@@ -347,7 +345,6 @@ const UI = (() => {
     setIcon($('weather-emoji'), I.weather(s.weather));
     setIcon($('forecast'), '→' + I.weather(s.forecast));
     $('dayfill').style.width = (s.t * 100) + '%';
-    $('water-fill').style.width = (s.can.water / D.CAN_TIERS[s.can.tier].cap * 100) + '%';
 
     // fuel gauge appears once you own powered equipment
     const showFuel = Game.ownsPoweredGear() || s.fuel > 0;
@@ -527,13 +524,15 @@ const UI = (() => {
       card.onclick = () => {
         seed = 'toni_seed';
         SOUNDS.tap();
+        let sown = false;
         if (plantTarget) {
-          if (Game.plantToniSeed(plantTarget.x, plantTarget.y)) SOUNDS.plant();
+          sown = !!Game.plantToniSeed(plantTarget.x, plantTarget.y);
+          if (sown) SOUNDS.plant();
           plantTarget = null;
         }
-        setTool('plant');
         closeSheet();
-        toast('🌟 Choose a tilled plot for the Glowing Seed…');
+        toast(sown ? '🌟 The Glowing Seed is in the ground — give it a day…'
+          : '🌟 Tap a tilled plot and choose Plant to sow the Glowing Seed.');
       };
       grid.appendChild(card);
     }
@@ -562,19 +561,21 @@ const UI = (() => {
       card.onclick = () => {
         if (off) {
           // warn and select, but never auto-spend the seed on the tapped tile —
-          // the toast literally says it wastes money (drag-planting stays possible)
+          // the toast literally says it wastes money
           toast(`⚠️ ${item.name} grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')} — planting now wastes the seed money!`, 'bad');
           plantTarget = null;
         }
         seed = id;
         SOUNDS.tap();
+        let sown = false;
         if (plantTarget) {
-          if (Game.plant(plantTarget.x, plantTarget.y, id)) SOUNDS.plant();
+          sown = !!Game.plant(plantTarget.x, plantTarget.y, id);
+          if (sown) SOUNDS.plant();
           plantTarget = null;
         }
-        setTool('plant');
         closeSheet();
-        if (!off) toast(`${item.emoji} Planting ${item.name} — drag across tilled soil!`);
+        if (!off && sown) toast(`${item.emoji} ${item.name} planted!`);
+        updateHud();
       };
       grid.appendChild(card);
     }
@@ -673,7 +674,7 @@ const UI = (() => {
         <div class="emoji">${I.icon('sparkle')}</div>
         <div class="info">
           <div class="name">Fertilizer · 30% of the seed price (min ${$$(8)})</div>
-          <div class="sub">Use the Fert tool on growing crops: +25% growth speed and a 45% chance of a double harvest. Cheap crops pay ${$$(8)}, premium crops up to ${$$(D.fertCost('grapes'))}.</div>
+          <div class="sub">Tap a growing crop and choose Fertilize: +25% growth speed and a 45% chance of a double harvest. Cheap crops pay ${$$(8)}, premium crops up to ${$$(D.fertCost('grapes'))}.</div>
         </div>`;
       body.appendChild(fert);
     }
@@ -1461,7 +1462,7 @@ const UI = (() => {
       <div class="emoji">💡</div>
       <div class="info">
         <div class="name">How to play</div>
-        <div class="sub">Tap tiles to till, plant, water & harvest. Drag with a tool to work fast. Keep crops watered or they die; harvest before they rot; plant in the right season. Feed your animals or they get sick. Powered equipment needs fuel!</div>
+        <div class="sub">Tap any tile to see what it can do — till, plant, water, fertilize, harvest. Keep crops watered or they die; harvest before they rot; plant in the right season. Feed your animals or they get sick. Powered equipment needs fuel!</div>
       </div>`;
     body.appendChild(help);
 
@@ -1484,13 +1485,13 @@ const UI = (() => {
   function startBuild(type) {
     buildType = type;
     closeSheet();
+    closeBubble();
     const def = D.BUILDINGS[type];
     // start ghost near the camera focus
     const c = Renderer.screenToTile(Renderer.vw / 2, Renderer.vh / 2);
     Renderer.setGhost({ type, x: Math.round(c.x - def.w / 2), y: Math.round(c.y - def.h / 2) });
     $('build-label').innerHTML = `${I.building(type)} <span>Place the ${def.name}</span>`;
     $('buildbar').classList.remove('hidden');
-    $('toolbar').classList.add('hidden');
     toast('Tap the map to move it, then press ✓');
   }
 
@@ -1498,29 +1499,114 @@ const UI = (() => {
     buildType = null;
     Renderer.setGhost(null);
     $('buildbar').classList.add('hidden');
-    $('toolbar').classList.remove('hidden');
   }
 
-  // ---------------- tools ----------------
-  // tiny overlay on the Plant button showing which seed is armed
-  function updateSeedBadge() {
-    const btn = document.querySelector('.tool-btn[data-tool="plant"]');
-    if (!btn) return;
-    let b = btn.querySelector('.seed-badge');
-    if (!b) {
-      b = document.createElement('span');
-      b.className = 'seed-badge';
-      btn.appendChild(b);
+  /* ---------------- tile action bubble ----------------
+     Tapping a plain farmable tile pops a small bubble anchored to it, listing
+     only what that tile can do right now. One bubble at a time; a pan, pinch,
+     outside tap or executed action puts it away. Pure DOM — no canvas work. */
+  let bubbleAt = null;        // tile {x,y} the open bubble belongs to
+  let bubbleHideTimer = null;
+
+  function closeBubble() {
+    bubbleAt = null;
+    const el = $('bubble');
+    if (el.classList.contains('hidden') || bubbleHideTimer) return;
+    el.classList.add('closing');
+    bubbleHideTimer = setTimeout(() => {
+      bubbleHideTimer = null;
+      el.classList.add('hidden');
+      el.classList.remove('closing');
+      el.innerHTML = ''; // no stale actions linger in the DOM
+    }, 150);
+  }
+
+  // action list for a farmable tile — buildings, sprouts, locked land and the
+  // toni never reach here. Validity mirrors Game.applyTool/smartAction rules.
+  function tileActions(x, y) {
+    const t = Game.tileAt(x, y);
+    if (!t) return [];
+    const s = Game.state;
+    const c = t.crop;
+    const acts = [];
+    const digAct = label => ({ cls: 'act-dig', icon: I.icon('shovel'), label, run: () => Game.applyTool('shovel', x, y) });
+    if (c && c.dead) {
+      // explain WHY it died, then clear — the old smart-tap behavior
+      acts.push({ cls: 'act-clear', icon: I.icon('shovel'), label: 'Clear', primary: true, run: () => Game.smartAction(x, y) });
+    } else if (c && c.prog >= 1) {
+      acts.push({ cls: 'act-harvest', icon: I.icon('basket'), label: 'Harvest', primary: true, run: () => Game.applyTool('harvest', x, y) });
+      acts.push(digAct('Dig up'));
+    } else if (c) {
+      if (c.water <= 0.55) { // thirsty — same threshold the sim uses
+        const empty = s.can.water <= 0;
+        acts.push({
+          cls: 'act-water', icon: I.icon('drop'), label: 'Water',
+          chip: empty ? null : `💧${s.can.water}`,
+          disabled: empty,
+          hint: empty ? 'refill at the well' : null,
+          attention: !empty && ((c.wilt || 0) > 0.3 || !Game.seasonOK(c.id, x, y)),
+          run: () => { if (Game.applyTool('water', x, y) === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad'); },
+        });
+      }
+      if (!c.fert && !Game.isBlessed(x, y)) {
+        const cost = D.fertCost(c.id);
+        acts.push({
+          cls: 'act-fert', icon: I.icon('sparkle'), label: 'Fertilize',
+          chip: I.icon('coin') + fmt(cost), chipCls: 'gold',
+          run: () => { if (Game.applyTool('fert', x, y) === 'broke') toast(`Fertilizer costs ${$$(cost)} for this crop (30% of its seed price)!`, 'bad'); },
+        });
+      }
+      acts.push(digAct('Dig up'));
+    } else if (t.k === 'soil') {
+      acts.push({
+        cls: 'act-plant', icon: I.icon('sprout'), label: 'Plant', primary: true,
+        run: () => { plantTarget = { x, y }; openSheet('seeds'); },
+      });
+      acts.push(digAct('Un-till'));
+    } else if (t.k === 'grass') {
+      acts.push({
+        cls: 'act-till', icon: I.icon('hoe'), label: 'Till', primary: true,
+        run: () => { if (Game.applyTool('hoe', x, y) === 'nofuel') toast('⛽ Out of fuel — hand-tilling one plot. Buy diesel in the Shop!', 'bad'); },
+      });
     }
-    const show = tool === 'plant' && seed && D.ITEMS[seed];
-    b.textContent = show ? D.ITEMS[seed].emoji : '';
-    b.classList.toggle('hidden', !show);
+    return acts;
   }
 
-  function setTool(t) {
-    tool = t;
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
-    updateSeedBadge();
+  function openBubble(x, y, acts) {
+    const el = $('bubble');
+    if (bubbleHideTimer) { clearTimeout(bubbleHideTimer); bubbleHideTimer = null; }
+    el.classList.remove('closing');
+    bubbleAt = { x, y };
+    el.innerHTML = `<div class="bubble-card">${acts.map(a => `
+      <button class="bubble-act ${a.cls}${a.primary ? ' primary' : ''}${a.attention ? ' attention' : ''}"${a.disabled ? ' disabled' : ''} aria-label="${a.label}">
+        <span class="ba-btn">${a.icon}${a.chip ? `<span class="ba-chip${a.chipCls ? ' ' + a.chipCls : ''}">${a.chip}</span>` : ''}</span>
+        <span class="ba-label">${a.label}</span>${a.hint ? `<span class="ba-hint">${a.hint}</span>` : ''}
+      </button>`).join('')}</div><div class="bubble-tail"></div>`;
+    el.querySelectorAll('.bubble-act').forEach((b, i) => {
+      b.onclick = () => { acts[i].run(); updateHud(); closeBubble(); };
+    });
+    // anchor above the tile, clamped to the viewport; flip below near the top
+    el.classList.remove('hidden');
+    el.style.left = '0px';
+    el.style.top = '0px';
+    const a = Renderer.tileToScreen(x + 0.5, y + 0.5);
+    const M = 12, w = el.offsetWidth, h = el.offsetHeight;
+    const lift = 12 + 18 * Renderer.cam.z; // clear the tile art at any zoom
+    const left = Math.max(M, Math.min(a.x - w / 2, Renderer.vw - M - w));
+    let top = a.y - lift - h;
+    const below = top < M;
+    if (below) top = Math.min(a.y + lift * 0.75, Renderer.vh - M - h);
+    el.classList.toggle('below', below);
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    const tailX = Math.max(28, Math.min(a.x - left, w - 28)); // clear of the corner radius
+    el.querySelector('.bubble-tail').style.left = tailX + 'px';
+    el.style.transformOrigin = `${tailX}px ${below ? '-8px' : (h + 8) + 'px'}`;
+    // restart the pop-in even when hopping tile to tile
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+    SOUNDS.tap();
   }
 
   // ---------------- pointer input ----------------
@@ -1538,9 +1624,9 @@ const UI = (() => {
       canvas.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       moved = false;
-      lastPaint = null;
       if (pointers.size === 1) dragStart = { x: e.clientX, y: e.clientY, camX: Renderer.cam.x, camY: Renderer.cam.y };
       if (pointers.size === 2) {
+        closeBubble(); // a pinch is starting
         const [p1, p2] = [...pointers.values()];
         pinchDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
       }
@@ -1573,13 +1659,11 @@ const UI = (() => {
         return;
       }
 
-      if (tool === 'auto') { // pan
-        Renderer.cam.x = dragStart.camX - dx / Renderer.cam.z;
-        Renderer.cam.y = dragStart.camY - dy / Renderer.cam.z;
-        Renderer.clampCam();
-      } else if (moved) { // paint with tool
-        paintAt(e.clientX, e.clientY);
-      }
+      // one finger pans the camera
+      if (moved) closeBubble();
+      Renderer.cam.x = dragStart.camX - dx / Renderer.cam.z;
+      Renderer.cam.y = dragStart.camY - dy / Renderer.cam.z;
+      Renderer.clampCam();
     });
 
     const upHandler = e => {
@@ -1595,6 +1679,7 @@ const UI = (() => {
     // desktop niceties
     canvas.addEventListener('wheel', e => {
       e.preventDefault();
+      closeBubble();
       Renderer.cam.z *= e.deltaY < 0 ? 1.1 : 0.9;
       Renderer.clampCam();
     }, { passive: false });
@@ -1621,59 +1706,48 @@ const UI = (() => {
     Renderer.addStartle(wpt.x, wpt.y);
     const { x, y } = tileFromScreen(sx, sy);
 
-    // THE Sunflower: its tile opens the story/blessing — no tool ever touches it
+    // THE Sunflower: its tile opens the story/blessing — never a bubble
     const toni = Game.toniAt(x, y);
-    if (toni) { openToni(toni); return; }
+    if (toni) { closeBubble(); openToni(toni); return; }
 
-    if (tool === 'auto') {
-      const canWasFull = Game.state.can.water >= D.CAN_TIERS[Game.state.can.tier].cap;
-      const r = Game.smartAction(x, y);
-      // a well tap refills the can; when there was nothing to refill, open the
-      // well's panel instead (info + the sell-back row — otherwise unreachable)
-      if (r.act === 'well' && canWasFull) {
-        const t = Game.tileAt(x, y);
-        if (t && t.obj && t.obj.t === 'b') { openSheet('b:' + t.obj.i); SOUNDS.tap(); }
-      } else handleSmartResult(r, x, y);
-    } else if (tool === 'plant') {
-      const t = Game.tileAt(x, y);
-      if (t && t.k === 'soil' && !t.crop && !t.obj) {
-        if (seed === 'toni_seed') {
-          if (Game.plantToniSeed(x, y)) {
-            SOUNDS.plant();
-            if (!(Game.state.inventory.toni_seed > 0)) seed = 'turnip'; // last seed spent
-          }
-        } else if (Game.plant(x, y, seed)) SOUNDS.plant();
-      } else tapFallback(x, y);
-    } else {
-      const n = Game.applyTool(tool, x, y, seed);
-      if (n === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad');
-      if (n === 'broke') {
-        const t = Game.tileAt(x, y);
-        const cost = t && t.crop ? D.fertCost(t.crop.id) : 8;
-        toast(`Fertilizer costs ${$$(cost)} for this crop (30% of its seed price)!`, 'bad');
-      }
-      if (n === 'nofuel') toast('⛽ Out of fuel — hand-tilling one plot. Buy diesel in the Shop!', 'bad');
-      if (!n || typeof n === 'string') tapFallback(x, y);
-    }
-    updateHud();
-  }
+    // a second tap on the bubbled tile just puts the bubble away
+    if (bubbleAt && bubbleAt.x === x && bubbleAt.y === y) { closeBubble(); return; }
+    closeBubble();
 
-  // safe fallback while a tool is selected: only open buildings / land dialogs,
-  // never perform a different tool's action
-  function tapFallback(x, y) {
     const t = Game.tileAt(x, y);
     if (!t) return;
-    if (t.obj && t.obj.t === 'b') {
+
+    if (t.obj && t.obj.t === 'b') { // buildings keep their tap behaviors
       const b = Game.state.buildings[t.obj.i];
       if (!b) return;
       if (b.type === 'well') {
         // refill when there's room; a tap on an idle well opens its panel
+        // (info + the sell-back row — otherwise unreachable)
         if (!Game.refillCan()) { openSheet('b:' + t.obj.i); SOUNDS.tap(); }
-      } else { showBuildingCoverage(b); openSheet('b:' + t.obj.i); SOUNDS.tap(); }
-    } else if (!Game.isUnlocked(x, y)) {
-      const p = Game.parcelAt(x, y);
-      if (p >= 0) handleSmartResult({ act: 'parcel', index: p }, x, y);
+      } else {
+        showBuildingCoverage(b);
+        openSheet('b:' + t.obj.i);
+        SOUNDS.tap();
+      }
+      updateHud();
+      return;
     }
+
+    if (!Game.isUnlocked(x, y)) { // FOR SALE land keeps its confirm
+      const p = Game.parcelAt(x, y);
+      if (p >= 0) {
+        const def = D.PARCELS[p];
+        confirmBox('🚧', `Buy this ${def.w}×${def.h} parcel of land for ${$$(def.cost)}?`, 'Buy land', () => {
+          if (Game.buyParcel(p)) updateHud();
+        });
+      }
+      return;
+    }
+
+    if (Game.sproutAt(x, y)) { toast('🌟 Something is glowing beneath the soil…'); return; }
+
+    const acts = tileActions(x, y);
+    if (acts.length) openBubble(x, y, acts);
   }
 
   // tapping a greenhouse flashes its sheltered 6×6 zone on the map
@@ -1681,68 +1755,6 @@ const UI = (() => {
     if (b && b.type === 'greenhouse' && Renderer.flashCoverage) {
       Renderer.flashCoverage(b.x - 2, b.y - 2, b.x + 4, b.y + 4, 2);
     }
-  }
-
-  function handleSmartResult(r, x, y) {
-    switch (r.act) {
-      case 'seedsheet':
-        plantTarget = { x, y };
-        openSheet('seeds');
-        SOUNDS.tap();
-        break;
-      case 'building':
-        showBuildingCoverage(Game.state.buildings[r.index]);
-        openSheet('b:' + r.index);
-        SOUNDS.tap();
-        break;
-      case 'parcel': {
-        const p = D.PARCELS[r.index];
-        confirmBox('🚧', `Buy this ${p.w}×${p.h} parcel of land for ${$$(p.cost)}?`, 'Buy land', () => {
-          if (Game.buyParcel(r.index)) updateHud();
-        });
-        break;
-      }
-      case 'growing': {
-        const t = Game.tileAt(x, y);
-        if (t && t.crop) {
-          const def = D.CROPS[t.crop.id];
-          const c = t.crop;
-          let status;
-          if (!Game.seasonOK(c.id, x, y)) status = '⚠️ wrong season — it\'s withering!';
-          else if ((c.wilt || 0) > 0.3) status = '🥀 wilting — water it fast!';
-          else {
-            const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
-            status = `~${Math.ceil((1 - c.prog) * growTime)}s to go`;
-          }
-          toast(`${D.ITEMS[c.id].emoji} ${D.ITEMS[c.id].name} · ${status}`);
-        }
-        break;
-      }
-    }
-  }
-
-  function paintAt(sx, sy) {
-    const { x, y } = tileFromScreen(sx, sy);
-    if (lastPaint && lastPaint.x === x && lastPaint.y === y) return;
-    lastPaint = { x, y };
-    if (Game.toniAt(x, y)) return; // drags glide over the toni — it is untouchable
-    if (tool === 'plant') {
-      if (seed === 'toni_seed') {
-        if (Game.plantToniSeed(x, y)) {
-          SOUNDS.plant();
-          if (!(Game.state.inventory.toni_seed > 0)) seed = 'turnip';
-        }
-      } else if (Game.plant(x, y, seed)) SOUNDS.plant();
-    } else {
-      const r = Game.applyTool(tool, x, y, seed);
-      if (typeof r === 'string' && !paintAt.warned) {
-        paintAt.warned = true;
-        setTimeout(() => paintAt.warned = false, 1500);
-        if (r === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad');
-        if (r === 'nofuel') toast('⛽ Out of fuel — hand-tilling only. Buy diesel in the Shop!', 'bad');
-      }
-    }
-    updateHud();
   }
 
   // ---------------- new farm setup ----------------
@@ -1976,23 +1988,13 @@ const UI = (() => {
     bindInput(canvas);
     applyTextScale(); // restore Comfy Mode large text
 
-    // shovel icon flows through Icons so a real SVG can replace the emoji later
-    const shIcon = $('shovel-icon');
-    if (shIcon) shIcon.outerHTML = I.icon('shovel');
-
-    document.querySelectorAll('.tool-btn').forEach(b => {
-      b.addEventListener('click', () => {
-        SOUNDS.tap();
-        const t = b.dataset.tool;
-        if (t === 'plant') { plantTarget = null; openSheet('seeds'); }
-        if (t === 'fert' && tool !== 'fert') toast('✨ Tap growing crops to fertilize (30% of the seed price, min $8): faster growth + double-harvest chance!');
-        if (t === 'shovel' && Game.state && !Game.state._flags.shovelTold) {
-          Game.state._flags.shovelTold = true;
-          toast('⛏️ The shovel digs up living crops (50% seed refund), clears dead ones, and un-tills empty soil back to grass.');
-        }
-        setTool(t);
-      });
-    });
+    // any tap outside the bubble (HUD, side buttons, sheets) puts it away;
+    // canvas taps decide for themselves in handleTap (toggle / move / action)
+    document.addEventListener('pointerdown', e => {
+      if (!bubbleAt) return;
+      if (e.target === canvas || $('bubble').contains(e.target)) return;
+      closeBubble();
+    }, true);
 
     $('btn-shop').onclick = () => { SOUNDS.tap(); sheetTab = null; openSheet('shop'); };
     $('btn-market').onclick = () => { SOUNDS.tap(); openSheet('market'); };
@@ -2020,6 +2022,8 @@ const UI = (() => {
         $('levelup').classList.add('hidden');
       } else if (sheetShowing()) {
         closeSheet();
+      } else if (bubbleAt) {
+        closeBubble();
       } else if (buildType) {
         endBuild();
       }
@@ -2096,5 +2100,5 @@ const UI = (() => {
     }
   }
 
-  return { init, update, toast, updateHud, showAwaySummary, showSetup, fxArrive, get tool() { return tool; } };
+  return { init, update, toast, updateHud, showAwaySummary, showSetup, fxArrive };
 })();

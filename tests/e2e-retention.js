@@ -406,19 +406,27 @@ function check(name, ok, detail) {
   });
   check('market badge counts item types (250 eggs + milk → "2", not 99+)', badge === '2', badge);
 
-  // (e) the Plant tool button shows the armed seed
-  await page.tap('.tool-btn[data-tool="plant"]');
-  await page.waitForTimeout(400);
-  await page.evaluate(() => { [...document.querySelectorAll('#sheet-body .item-card')].find(c => !c.classList.contains('off-season')).click(); });
-  await page.waitForTimeout(300);
-  const seedBadge = await page.evaluate(() => {
-    const b = document.querySelector('.tool-btn[data-tool="plant"] .seed-badge');
-    const armed = b && !b.classList.contains('hidden') && b.textContent.length > 0;
-    document.querySelector('.tool-btn[data-tool="auto"]').click(); // switch away
-    const cleared = b.classList.contains('hidden');
-    return { armed, cleared };
+  // (e) bubble Plant → seed pick plants the tapped tile and closes everything
+  await page.evaluate(() => {
+    const t = Game.state.tiles[6][10];
+    t.k = 'soil'; t.crop = null;
+    Game.state.coins += 200;
+    Renderer.centerOn(10.5, 6.5);
   });
-  check('Plant button shows the armed seed; cleared when tool changes', seedBadge.armed && seedBadge.cleared, seedBadge);
+  await page.waitForTimeout(300);
+  const rsp = await page.evaluate(() => Renderer.tileToScreen(10.5, 6.5));
+  await page.touchscreen.tap(rsp.x, rsp.y); // soil → bubble
+  await page.waitForTimeout(300);
+  await page.tap('#bubble .act-plant');     // → seed sheet
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { [...document.querySelectorAll('#sheet-body .item-card')].find(c => !c.classList.contains('off-season') && !c.classList.contains('mythic-card')).click(); });
+  await page.waitForTimeout(400);
+  const picked = await page.evaluate(() => ({
+    crop: Game.state.tiles[6][10].crop && Game.state.tiles[6][10].crop.id,
+    sheetClosed: document.getElementById('sheet').classList.contains('hidden'),
+    bubbleClosed: document.getElementById('bubble').classList.contains('hidden'),
+  }));
+  check('seed pick from the bubble plants the tapped tile and closes up', !!picked.crop && picked.sheetClosed && picked.bubbleClosed, picked);
 
   // (f) Escape closes the top sheet / modal on desktop
   await page.tap('#btn-market');
