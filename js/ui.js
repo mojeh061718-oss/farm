@@ -513,6 +513,30 @@ const UI = (() => {
     const grid = document.createElement('div');
     grid.className = 'card-grid';
     const s = Game.state;
+
+    // the Glowing Seed: a mythic card above the ordinary seeds when one is held
+    if ((s.inventory.toni_seed || 0) > 0) {
+      const card = document.createElement('div');
+      card.className = 'item-card mythic-card' + (seed === 'toni_seed' ? ' selected' : '');
+      card.innerHTML = `
+        <span class="lock-tag mythic-tag">mythic</span>
+        <span class="plate">${I.item('toni_seed')}</span>
+        <div class="name">Glowing Seed</div>
+        <div class="sub">×${s.inventory.toni_seed} · plant it in tilled soil, give it a day… and hope</div>
+        <span class="mythic-price">beyond price</span>`;
+      card.onclick = () => {
+        seed = 'toni_seed';
+        SOUNDS.tap();
+        if (plantTarget) {
+          if (Game.plantToniSeed(plantTarget.x, plantTarget.y)) SOUNDS.plant();
+          plantTarget = null;
+        }
+        setTool('plant');
+        closeSheet();
+        toast('🌟 Choose a tilled plot for the Glowing Seed…');
+      };
+      grid.appendChild(card);
+    }
     // seconds left in the current season (days remaining + the rest of today)
     const seasonLeft = ((D.SEASON_DAYS - s.day) + (1 - s.t)) * D.DAY_LEN;
     const nextSeason = (s.season + 1) % 4;
@@ -707,7 +731,8 @@ const UI = (() => {
     setSheetHeader(I.icon('scales'), 'Market', 'Prices move daily — sell high!');
     setTabs(null);
     const s = Game.state;
-    const items = Object.entries(s.inventory).filter(([, q]) => q > 0);
+    // mythics (the Glowing Seed) live outside the market — never listed, never priced
+    const items = Object.entries(s.inventory).filter(([id, q]) => q > 0 && !(D.ITEMS[id] && D.ITEMS[id].mythic));
     if (!marketList) {
       marketList = items
         .sort((a, b) => Game.sellPrice(b[0]) * b[1] - Game.sellPrice(a[0]) * a[1])
@@ -1583,6 +1608,10 @@ const UI = (() => {
     Renderer.addStartle(wpt.x, wpt.y);
     const { x, y } = tileFromScreen(sx, sy);
 
+    // THE Sunflower: its tile opens the story/blessing — no tool ever touches it
+    const toni = Game.toniAt(x, y);
+    if (toni) { openToni(toni); return; }
+
     if (tool === 'auto') {
       const canWasFull = Game.state.can.water >= D.CAN_TIERS[Game.state.can.tier].cap;
       const r = Game.smartAction(x, y);
@@ -1595,7 +1624,12 @@ const UI = (() => {
     } else if (tool === 'plant') {
       const t = Game.tileAt(x, y);
       if (t && t.k === 'soil' && !t.crop && !t.obj) {
-        if (Game.plant(x, y, seed)) SOUNDS.plant();
+        if (seed === 'toni_seed') {
+          if (Game.plantToniSeed(x, y)) {
+            SOUNDS.plant();
+            if (!(Game.state.inventory.toni_seed > 0)) seed = 'turnip'; // last seed spent
+          }
+        } else if (Game.plant(x, y, seed)) SOUNDS.plant();
       } else tapFallback(x, y);
     } else {
       const n = Game.applyTool(tool, x, y, seed);
@@ -1678,8 +1712,14 @@ const UI = (() => {
     const { x, y } = tileFromScreen(sx, sy);
     if (lastPaint && lastPaint.x === x && lastPaint.y === y) return;
     lastPaint = { x, y };
+    if (Game.toniAt(x, y)) return; // drags glide over the toni — it is untouchable
     if (tool === 'plant') {
-      if (Game.plant(x, y, seed)) SOUNDS.plant();
+      if (seed === 'toni_seed') {
+        if (Game.plantToniSeed(x, y)) {
+          SOUNDS.plant();
+          if (!(Game.state.inventory.toni_seed > 0)) seed = 'turnip';
+        }
+      } else if (Game.plant(x, y, seed)) SOUNDS.plant();
     } else {
       const r = Game.applyTool(tool, x, y, seed);
       if (typeof r === 'string' && !paintAt.warned) {
@@ -1747,6 +1787,126 @@ const UI = (() => {
     document.addEventListener('pointerdown', dismiss, true);
   }
 
+  /* ---------------- THE Sunflower (the Toni Variety) ----------------
+     First tap → a 1930s front page. Closing it (and any later tap) → the
+     blessing card. Fresh ids (#toni-paper / #toni-card) inside one overlay
+     container — #modal is never repurposed. */
+  let toniOpen = null; // {x, y} of the flower whose story is on screen
+
+  function closeToni() {
+    const o = $('toni-overlay');
+    o.classList.add('hidden');
+    o.innerHTML = '';
+  }
+
+  function openToni(toni) {
+    SOUNDS.tap();
+    toniOpen = { x: toni.x, y: toni.y };
+    if (!toni.seen) {
+      toni.seen = true; // the story keeps, even if the page is closed mid-read
+      Game.save();
+      showToniPaper();
+    } else {
+      showToniCard();
+    }
+  }
+
+  // engraving-style sunflower: sepia strokes only, like a period woodcut
+  const TONI_ENGRAVING = `
+    <svg viewBox="0 0 120 150" class="tp-engraving" aria-hidden="true">
+      <g fill="none" stroke="#5f4626" stroke-width="1.3" stroke-linecap="round">
+        <path d="M60 142 C57 110 62 88 60 62"/>
+        <path d="M60 118 C48 112 40 114 34 106 C46 104 54 108 60 114"/>
+        <path d="M60 98 C72 92 80 94 87 86 C75 84 66 88 60 94"/>
+        ${[...Array(14)].map((_, i) => {
+          const a = (i / 14) * Math.PI * 2;
+          const x1 = 60 + Math.cos(a) * 14, y1 = 44 + Math.sin(a) * 14;
+          const x2 = 60 + Math.cos(a) * 30, y2 = 44 + Math.sin(a) * 30;
+          const px = -Math.sin(a) * 4.6, py = Math.cos(a) * 4.6;
+          return `<path d="M${(x1 + px).toFixed(1)} ${(y1 + py).toFixed(1)} Q${x2.toFixed(1)} ${y2.toFixed(1)} ${(x1 - px).toFixed(1)} ${(y1 - py).toFixed(1)}"/>`;
+        }).join('')}
+        <circle cx="60" cy="44" r="14"/>
+        <path d="M50 38 Q60 34 70 38 M48 44 Q60 40 72 44 M50 50 Q60 46 70 50 M54 55 Q60 52 66 55" stroke-width="0.9"/>
+        <path d="M22 142 h76 M30 146 h60" stroke-width="0.9"/>
+        <path d="M14 60 l7 3 M104 52 l-7 3 M20 90 l7 1 M100 96 l-7 1" stroke-width="0.8"/>
+      </g>
+    </svg>`;
+
+  function showToniPaper() {
+    const o = $('toni-overlay');
+    o.innerHTML = `
+      <div id="toni-paper" role="dialog" aria-label="The Valley Herald" style="background:rgba(24,16,6,.62)">
+        <div class="tp-sheet">
+          <div class="tp-page" id="toni-page1">
+            <div class="tp-ears"><span>est. 1897</span><span>Thursday Morning, August 14, 1930</span><span>TWO CENTS</span></div>
+            <h1 class="tp-masthead">The Valley Herald</h1>
+            <div class="tp-rule"></div>
+            <h2 class="tp-headline">THE GOLDEN GIANT BLOOMS AGAIN</h2>
+            <div class="tp-subhead">Elders insist the old story is true — “the brightest thing a field has ever held.”</div>
+            <div class="tp-cols">
+              <p><span class="tp-lede">VALLEY COUNTY —</span> Word reached this paper before dawn: a sunflower taller than a barn door, brighter than the noon sun, standing where yesterday there was nothing at all.</p>
+              <p>The elders tell it like this. Once in a great while, the big man upstairs leans over the rail of heaven with a single seed in his hand — and he lets it go. No one can say where it will land. No prayer can steer it. But whichever field it lands in wants for nothing, ever after.</p>
+              <figure class="tp-figure">
+                ${TONI_ENGRAVING}
+                <figcaption>Artist’s rendering. No photograph has ever done it justice.</figcaption>
+              </figure>
+              <p>Most farmers in this county put it in their prayers at night all the same — not for rain, not for prices — just for the chance that the seed might fall on their acre.</p>
+              <p>Those who have stood beneath one say the light of it stays with you. That everything near it grows kind and tall. That the rain comes when it is needed and the sun stays soft. That no frost has ever touched a field that holds one.</p>
+              <p>The old-timers call it a myth. The elders only smile, and say the myth is the part folks wrote down wrong: the flower is real, it is called the Toni Variety, and it is the biggest and brightest thing that has ever grown out of plain dirt.</p>
+            </div>
+            <button id="toni-flip" class="tp-btn">— flip the page —</button>
+          </div>
+          <div class="tp-page tp-blank hidden" id="toni-page2">
+            <p class="tp-l1">Some farmers</p>
+            <p class="tp-l2">never</p>
+            <p class="tp-l3">even see it.</p>
+            <p class="tp-l4">But some are lucky enough to have it.</p>
+            <button id="toni-fold" class="tp-btn">fold the paper away</button>
+          </div>
+        </div>
+      </div>`;
+    o.classList.remove('hidden');
+    $('toni-flip').onclick = () => {
+      SOUNDS.tap();
+      $('toni-page1').classList.add('hidden');
+      $('toni-page2').classList.remove('hidden');
+    };
+    $('toni-fold').onclick = () => { SOUNDS.tap(); showToniCard(); };
+  }
+
+  function showToniCard() {
+    const o = $('toni-overlay');
+    o.innerHTML = `
+      <div id="toni-card" role="dialog" aria-label="THE Sunflower" style="background:rgba(24,16,6,.62)">
+        <div class="tc-inner">
+          <div class="tc-flower">🌻</div>
+          <h2>THE Sunflower<span class="tc-var">— The Toni Variety —</span></h2>
+          <div class="tc-attrs">☀️ Endless sun · 🌧️ Rain when it’s needed · 💛 Love · ✨ Growth</div>
+          <p class="tc-thrive">Everything on this land will thrive, forever.</p>
+          <p class="tc-plain">This parcel is now blessed — crops here water themselves, never fail, and harvest themselves into your barn.</p>
+          <button id="toni-ok" class="chunky green">OK</button>
+          <button id="toni-story" class="tc-link">read the old story again</button>
+          <button id="toni-harvest" class="tc-link tc-quiet">The flower can be harvested… if you can bear to.</button>
+        </div>
+      </div>`;
+    o.classList.remove('hidden');
+    $('toni-ok').onclick = () => { SOUNDS.tap(); closeToni(); };
+    $('toni-story').onclick = () => { SOUNDS.tap(); showToniPaper(); };
+    $('toni-harvest').onclick = () => { SOUNDS.tap(); startToniHarvest(); };
+  }
+
+  // harvesting the flower: two confirms, on purpose — this is goodbye
+  function startToniHarvest() {
+    const at = toniOpen;
+    if (!at) return;
+    closeToni();
+    confirmBox('🌻', 'Are you sure you want to harvest THE Sunflower?\nThe blessing will end, and the land will wake.', 'Harvest…', () => {
+      confirmBox('🌟', 'This is goodbye — the flower becomes a single Glowing Seed, and this parcel returns to ordinary time.\n\nHarvest it, forever?', 'Harvest it', () => {
+        if (Game.harvestToni(at.x, at.y)) updateHud();
+      });
+    });
+  }
+
   function showAwaySummary(away) {
     const secs = away.seconds || 0;
     const h = Math.floor(secs / 3600);
@@ -1756,7 +1916,12 @@ const UI = (() => {
     const lines = []; // itemized — only what actually happened
     if (away.crops > 0) lines.push(`🌾 ${plural(away.crops, 'crop')} finished growing`);
     if (away.produce > 0) lines.push(`📦 ${plural(away.produce, 'animal product')} ready`);
-    if (away.droneHarvest > 0) lines.push(`🤖 drones banked ${plural(away.droneHarvest, 'harvest')}`);
+    if (away.droneHarvest > 0) {
+      // on a toni farm the blessing does the tending — say so (drones otherwise)
+      const blessed = Game.state && (Game.state.tonis || []).length > 0;
+      lines.push(blessed ? `🌻 the land tended itself — ${plural(away.droneHarvest, 'harvest')} banked`
+        : `🤖 drones banked ${plural(away.droneHarvest, 'harvest')}`);
+    }
     if (away.expiredOrders > 0) lines.push(`📋 ${plural(away.expiredOrders, 'order')} expired — fresh ones arrived`);
     if (away.lost > 0) {
       const by = away.lostBy || {};
@@ -1828,7 +1993,11 @@ const UI = (() => {
     // desktop: Escape closes the top-most layer (modal > splash > sheet > build)
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
-      if (!$('modal-backdrop').classList.contains('hidden')) {
+      if (!$('toni-overlay').classList.contains('hidden')) {
+        // primary close: the paper folds to the blessing card; the card closes
+        if (document.getElementById('toni-paper')) showToniCard();
+        else closeToni();
+      } else if (!$('modal-backdrop').classList.contains('hidden')) {
         const no = $('modal-no');
         if (no.style.display !== 'none') no.click();
       } else if (!$('levelup').classList.contains('hidden')) {
@@ -1877,6 +2046,7 @@ const UI = (() => {
         case 'harvest':   Renderer.fxHarvest(f.x, f.y, f.data); break;
         case 'clear':     Renderer.fxClear(f.x, f.y); break;
         case 'lightning': Renderer.fxLightning(f.x, f.y); break;
+        case 'toni':      Renderer.fxToniSpawn(f.x, f.y); break;
         default:          Renderer.addBurst(f.x, f.y, f.color);
       }
     });

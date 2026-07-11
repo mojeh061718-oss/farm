@@ -979,3 +979,177 @@ button.mini:active, #sheet-close:active {
     transition-duration: 1ms !important;
   }
 }
+
+/* ============ THE Sunflower (the Toni Variety) ============ */
+/* mythic seed card in the seed picker */
+.item-card.mythic-card {
+  border-color: #e3b93c;
+  background: linear-gradient(165deg, #fffbe8, #fdf0c2);
+  box-shadow: 0 0 14px rgba(255, 205, 60, .35), var(--e1, 0 1px 2px rgba(46,32,19,.15));
+}
+.item-card.mythic-card.selected { border-color: #c99a1d; }
+.item-card .lock-tag.mythic-tag { background: linear-gradient(90deg, #c99a1d, #e3b93c); }
+.mythic-price {
+  align-self: center;
+  font-size: 0.6875rem; font-weight: 800; font-style: italic;
+  color: #a67c14; padding: 4px 10px;
+  border: 1.5px dashed #e3b93c; border-radius: 999px;
+}
+
+/* ---- overlay container ---- */
+#toni-overlay {
+  position: fixed; inset: 0;
+  z-index: 85; /* above every HUD layer & modal (60); only toasts (90) ride higher */
+}
+/* the rgba dim itself is INLINE in the wrapper markup (ui.js): a stylesheet
+   background on these dynamically-shown layers gets dropped by Chromium's
+   compositor over the full-screen canvas — inline paint is reliable */
+#toni-paper, #toni-card {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  animation: fade-in .2s linear;
+  padding: 12px;
+}
+
+/* ---- the 1930s front page ---- */
+.tp-sheet {
+  width: min(560px, 96vw);
+  max-height: min(92vh, 92dvh);
+  overflow-y: auto;
+  transform: rotate(.5deg);
+  color: #2e2418;
+  font-family: Georgia, 'Times New Roman', serif;
+  /* cream paper, sun-foxed corners, flecks of age — all gradients, no assets */
+  background:
+    radial-gradient(1.6px 1.6px at 18% 22%, rgba(122, 82, 30, .22), transparent 100%),
+    radial-gradient(1.4px 1.4px at 64% 57%, rgba(122, 82, 30, .18), transparent 100%),
+    radial-gradient(1.8px 1.8px at 41% 83%, rgba(122, 82, 30, .16), transparent 100%),
+    radial-gradient(1.3px 1.3px at 87% 34%, rgba(122, 82, 30, .2), transparent 100%),
+    radial-gradient(120% 90% at 15% 8%, rgba(139, 94, 40, .14), transparent 55%),
+    radial-gradient(110% 120% at 88% 94%, rgba(120, 74, 22, .18), transparent 52%),
+    radial-gradient(60% 40% at 70% 25%, rgba(150, 100, 34, .07), transparent 70%),
+    linear-gradient(163deg, #f4ead2 0%, #eeddb7 52%, #e6d1a4 100%);
+  box-shadow: 0 18px 60px rgba(10, 6, 2, .55), inset 0 0 42px rgba(110, 72, 22, .18);
+  border: 1px solid rgba(90, 60, 20, .35);
+}
+.tp-page { padding: 22px 26px 26px; }
+.tp-ears {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 0.6875rem; font-variant: small-caps; letter-spacing: .06em;
+  border-bottom: 1px solid #6b5432;
+  padding-bottom: 4px;
+}
+.tp-masthead {
+  text-align: center;
+  font-size: clamp(1.9rem, 8.6vw, 2.9rem);
+  font-weight: 700;
+  letter-spacing: .01em;
+  margin: 10px 0 6px;
+  font-variant: small-caps;
+  text-shadow: 0 1px 0 rgba(255, 248, 226, .6);
+}
+.tp-rule { border-top: 3px double #4a3a1e; border-bottom: 1px solid #4a3a1e; height: 5px; margin-bottom: 14px; }
+.tp-headline {
+  text-align: center;
+  font-size: clamp(1.35rem, 6.4vw, 2rem);
+  line-height: 1.12;
+  letter-spacing: .02em;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.tp-subhead {
+  text-align: center;
+  font-style: italic;
+  font-size: 0.9375rem;
+  border-top: 1px solid #6b5432; border-bottom: 1px solid #6b5432;
+  padding: 7px 10px;
+  margin: 0 auto 16px;
+  max-width: 46ch;
+}
+.tp-cols {
+  column-count: 2; column-gap: 22px;
+  column-rule: 1px solid rgba(90, 66, 30, .45);
+  font-size: 0.875rem; line-height: 1.52;
+  text-align: justify; hyphens: auto; -webkit-hyphens: auto;
+}
+.tp-cols p { margin-bottom: 0.8em; text-indent: 1.4em; }
+.tp-cols p:first-child { text-indent: 0; }
+.tp-lede { font-variant: small-caps; font-weight: 700; letter-spacing: .04em; }
+.tp-figure {
+  break-inside: avoid;
+  margin: 6px 0 10px;
+  padding: 8px 8px 6px;
+  border: 1px solid #6b5432;
+  background: rgba(255, 248, 224, .35);
+  text-align: center;
+}
+.tp-engraving { width: 100%; max-width: 170px; height: auto; opacity: .92; }
+.tp-figure figcaption { font-size: 0.71875rem; font-style: italic; margin-top: 4px; line-height: 1.35; }
+.tp-btn {
+  display: block;
+  margin: 20px auto 2px;
+  font-family: inherit;
+  font-size: 0.875rem; font-variant: small-caps; letter-spacing: .12em;
+  color: #2e2418;
+  background: transparent;
+  border: 1px solid #6b5432;
+  border-radius: 2px;
+  padding: 9px 26px;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(90, 60, 20, .5);
+}
+.tp-btn:active { transform: translateY(1px); box-shadow: none; }
+
+/* page 2: nearly blank — the pause is the message */
+.tp-page.tp-blank {
+  min-height: min(72vh, 560px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+}
+.tp-blank p { opacity: 0; animation: tp-fade 1.4s ease forwards; }
+.tp-l1 { font-size: 1.375rem; animation-delay: .2s; }
+.tp-l2 { font-size: 1.5rem; font-style: italic; margin-top: 13vh; animation-delay: 1s; }
+.tp-l3 { font-size: 1.375rem; margin-top: 13vh; animation-delay: 1.8s; }
+.tp-l4 { font-size: 0.9375rem; font-style: italic; margin-top: 15vh; color: #4c3b22; animation-delay: 3s; }
+.tp-blank .tp-btn { opacity: 0; animation: tp-fade 1.2s ease forwards; animation-delay: 3.8s; margin-top: 5vh; }
+@keyframes tp-fade { to { opacity: 1; } }
+
+/* ---- the blessing card ---- */
+.tc-inner {
+  background: var(--panel);
+  border: 3px solid #e3b93c;
+  border-radius: var(--r-xl);
+  box-shadow: 0 0 60px rgba(255, 205, 60, .5), var(--e3, 0 12px 30px rgba(20,12,4,.4));
+  width: min(360px, 92vw);
+  max-height: min(88vh, 88dvh); overflow-y: auto;
+  padding: 24px 22px 16px;
+  text-align: center;
+}
+.tc-flower { font-size: 3rem; filter: drop-shadow(0 0 14px rgba(255, 205, 60, .8)); }
+.tc-inner h2 { font-size: 1.25rem; font-weight: 900; margin: 8px 0 2px; }
+.tc-var { display: block; font-size: 0.8125rem; font-weight: 800; color: #a67c14; font-style: italic; margin-top: 2px; }
+.tc-attrs {
+  font-size: 0.8125rem; font-weight: 800;
+  background: #fdf6dd; border: 1.5px solid #ecd9a8; border-radius: 12px;
+  padding: 7px 10px; margin: 12px 0 10px;
+}
+.tc-thrive { font-size: 0.9375rem; font-weight: 900; color: #7a4f00; margin-bottom: 8px; }
+.tc-plain { font-size: 0.8125rem; font-weight: 700; line-height: 1.5; color: #5d4a30; margin-bottom: 14px; }
+#toni-ok { width: 100%; }
+.tc-link {
+  display: block; width: 100%;
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: 0.75rem; font-weight: 800;
+  color: #8a6a20; text-decoration: underline;
+  padding: 9px 4px 3px;
+}
+.tc-link.tc-quiet { color: #a89877; font-style: italic; font-weight: 700; text-decoration: none; padding-top: 6px; }
+.tc-link.tc-quiet:hover { text-decoration: underline; }
+
+/* single column paper on narrow phones (320px must read comfortably) */
+@media (max-width: 430px) {
+  .tp-page { padding: 16px 14px 20px; }
+  .tp-cols { column-count: 1; }
+  .tp-sheet { transform: rotate(.3deg); }
+}

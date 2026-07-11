@@ -478,6 +478,17 @@ window.Icons = (() => {
     <g fill="#a8703a"><circle cx="10.6" cy="10.8" r=".7"/><circle cx="13.4" cy="10.8" r=".7"/><circle cx="12" cy="13.3" r=".7"/></g>
   </symbol>
 
+  <symbol id="i-item-toni_seed" viewBox="0 0 24 24">
+    <g fill="#ffe082" opacity=".9">
+      <path d="M12 1.2 13 5l-1 1-1-1z"/><path d="M12 22.8 11 19l1-1 1 1z"/>
+      <path d="M1.2 12 5 11l1 1-1 1z"/><path d="M22.8 12 19 13l-1-1 1-1z"/>
+      <path d="M4.4 4.4 7.4 6.4l-.4 1.4-1.4.4z"/><path d="M19.6 19.6l-3-2 .4-1.4 1.4-.4z"/>
+    </g>
+    <ellipse cx="12" cy="12" rx="4.6" ry="6.2" fill="#ffd75e" stroke="#c07f13" stroke-width="1.2"/>
+    <ellipse cx="10.8" cy="10" rx="1.6" ry="2.4" fill="#fff3a0"/>
+    <path d="M12 6.2v11.6" stroke="#e0a92e" stroke-width="1" fill="none"/>
+  </symbol>
+
   <symbol id="i-item-grapes" viewBox="0 0 24 24">
     <path d="M12 6.2c0-1.3.6-2.4 1.7-3.2" fill="none" stroke="#5b3e25" stroke-width="1.6" stroke-linecap="round"/>
     <path d="M12.4 5.4c2.2-1.9 4.6-2.3 7.1-1.2-1 2.4-3.1 3.6-6.4 3.4-.6 0-1-.5-1-1.1z" fill="#64b953" stroke="#2f6e28" stroke-width="1.2" stroke-linejoin="round"/>
