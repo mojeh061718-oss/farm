@@ -9,6 +9,10 @@
 
 const Renderer = (() => {
   const D = DATA;
+  // active-farm world dimensions — refreshed from Game.state each frame so farms
+  // of different sizes render correctly (replaces the old fixed WW/H).
+  let WW = DATA.WORLD_W, WH = DATA.WORLD_H;
+  let PARCELS = DATA.PARCELS; // active-farm parcel layout, refreshed each frame
   // isometric diamond tile: 2:1 ratio
   const TW = 96;
   const TH = 48;
@@ -253,10 +257,11 @@ const Renderer = (() => {
   }
 
   function clampCam() {
-    const minX = proj(0, D.WORLD_H).x, maxX = proj(D.WORLD_W, 0).x;
+    if (typeof Game !== 'undefined' && Game.state) { WW = Game.state.w || D.WORLD_W; WH = Game.state.h || D.WORLD_H; PARCELS = Game.state.parcels || D.PARCELS; }
+    const minX = proj(0, WH).x, maxX = proj(WW, 0).x;
     // vertical bounds hug the DRAWN content: the diorama treeline band above
     // the north corner and the soil-cliff rim below the south corner
-    const minY = -TH * 1.2, maxY = proj(D.WORLD_W, D.WORLD_H).y + TH;
+    const minY = -TH * 1.2, maxY = proj(WW, WH).y + TH;
     // dynamic zoom floor: the world must always cover the whole screen —
     // no letterbox void on any aspect ratio (portrait phones hit the height)
     const zFill = Math.max(vw / (maxX - minX), vh / (maxY - minY));
@@ -604,8 +609,8 @@ const Renderer = (() => {
       anim.timer = 1.2;
       anim.wp = 0;
       const ang = Math.atan2(anim.y - wy, anim.x - wx);
-      anim.tx = Math.max(0.5, Math.min(D.WORLD_W - 0.5, anim.x + Math.cos(ang) * 2.2));
-      anim.ty = Math.max(0.5, Math.min(D.WORLD_H - 0.5, anim.y + Math.sin(ang) * 2.2));
+      anim.tx = Math.max(0.5, Math.min(WW - 0.5, anim.x + Math.cos(ang) * 2.2));
+      anim.ty = Math.max(0.5, Math.min(WH - 0.5, anim.y + Math.sin(ang) * 2.2));
       const p = proj(anim.x, anim.y);
       for (let i = 0; i < 3; i++) {
         spawnP(p.x + (Math.random() - 0.5) * 10, p.y - 8 - Math.random() * 6, {
@@ -792,11 +797,18 @@ const Renderer = (() => {
   // gameplay zoom (5664×3078 ≈ 70 MB — measured, within a modern phone's
   // canvas budget; DPR-2 devices never pay it). Decided per device at load,
   // independent of dynamic-resolution steps (no rebake when the store steps).
-  const GS = (window.devicePixelRatio || 1) > 2.05 ? 3 : 2;
+  let GS = (window.devicePixelRatio || 1) > 2.05 ? 3 : 2;
+  // ground-bake supersample drops on large farms so the bake canvas stays within
+  // phone memory (a 36×26 world at 3× would be a ~150MB texture)
+  function updateGS() {
+    const base = (window.devicePixelRatio || 1) > 2.05 ? 3 : 2;
+    const area = WW * WH;
+    GS = area > 900 ? Math.min(base, 1.5) : area > 500 ? Math.min(base, 2) : base;
+  }
   const ground = {
     c: null, g: null, mip: null, mg: null, season: -1,
     minX: 0, minY: 0, w: 0, h: 0,
-    sig: new Int8Array(D.WORLD_W * D.WORLD_H),
+    sig: new Int8Array(WW * WH),
   };
   // half- and quarter-res mips of the ground bake: far zoom samples the mip
   // whose scale is nearest 1:1 instead of minifying the full-res bake >2:1
@@ -963,7 +975,7 @@ const Renderer = (() => {
     const NC = { x: c.x, y: c.y - H / 2 }, EC = { x: c.x + W / 2, y: c.y },
           SC = { x: c.x, y: c.y + H / 2 }, WC = { x: c.x - W / 2, y: c.y };
     // neighbor-soil flags — beds sharing an edge merge into one field
-    const soilAt = (nx, ny) => nx >= 0 && ny >= 0 && nx < D.WORLD_W && ny < D.WORLD_H && state.tiles[ny][nx].k === 'soil';
+    const soilAt = (nx, ny) => nx >= 0 && ny >= 0 && nx < WW && ny < WH && state.tiles[ny][nx].k === 'soil';
     const nNE = soilAt(x, y - 1), nSE = soilAt(x + 1, y), nSW = soilAt(x, y + 1), nNW = soilAt(x - 1, y);
     // soil tones: base hue/sat/lum shifted by state
     let sh = 24, ss = 40, sl = 34;
@@ -1126,7 +1138,7 @@ const Renderer = (() => {
     g.fillStyle = gcol;
     for (const [dx, dy, A, B] of edges) {
       const nx = x + dx, ny = y + dy;
-      const nt = nx < 0 || ny < 0 || nx >= D.WORLD_W || ny >= D.WORLD_H ? null : state.tiles[ny][nx];
+      const nt = nx < 0 || ny < 0 || nx >= WW || ny >= WH ? null : state.tiles[ny][nx];
       if (nt && nt.k === 'soil') continue;
       for (let i = 0; i < 7; i++) {
         const u = (i + 0.5 + (hash(x * 3 + i, y * 5 + dx) - 0.5) * 0.7) / 7;
@@ -1146,7 +1158,7 @@ const Renderer = (() => {
 
   // distant treeline band + meadow fade behind the two north edges (baked)
   function paintBackdrop(g, pal) {
-    const W = D.WORLD_W, H = D.WORLD_H;
+    const W = WW, H = WH;
     const f = pal.far;
     // soft meadow band so the map never meets raw void (hazy, low-contrast)
     g.fillStyle = hsl(f[0], f[1] - 14, f[2] + 30, 0.8);
@@ -1179,7 +1191,7 @@ const Renderer = (() => {
 
   // soil-cliff rim with scalloped grass lip on the two south map edges (baked)
   function paintCliff(g, pal) {
-    const W = D.WORLD_W, H = D.WORLD_H;
+    const W = WW, H = WH;
     const drop = 26;
     const faces = [
       { a: proj(0, H), b: proj(W, H), lit: true },   // SW-facing (lit) face
@@ -1404,7 +1416,7 @@ const Renderer = (() => {
 
   function segGate(a, b, state) { // fence-edge crossings of one lane segment
     for (const pi of state.unlockedParcels) {
-      const p = D.PARCELS[pi];
+      const p = PARCELS[pi];
       const edges = [
         { x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y, horiz: true },
         { x0: p.x, y0: p.y + p.h, x1: p.x + p.w, y1: p.y + p.h, horiz: true },
@@ -1463,8 +1475,8 @@ const Renderer = (() => {
   function openPoint(rects, p) {
     if (!laneHit(rects, p.x, p.y)) return p;
     let best = null, bd = 1e9;
-    for (let y = 0; y < D.WORLD_H; y++)
-      for (let x = 0; x < D.WORLD_W; x++) {
+    for (let y = 0; y < WH; y++)
+      for (let x = 0; x < WW; x++) {
         const cx = x + 0.5, cy = y + 0.5;
         if (laneHit(rects, cx, cy)) continue;
         const d = (cx - p.x) * (cx - p.x) + (cy - p.y) * (cy - p.y);
@@ -1474,7 +1486,7 @@ const Renderer = (() => {
   }
   // A* over tile centers (8-dir, no corner cutting) → string-pulled waypoints
   function gridRoute(rects, A, B) {
-    const W = D.WORLD_W, H = D.WORLD_H, N = W * H;
+    const W = WW, H = WH, N = W * H;
     const bl = new Uint8Array(N);
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++)
@@ -1659,7 +1671,7 @@ const Renderer = (() => {
   }
 
   function groundGeom() {
-    const W = D.WORLD_W, H = D.WORLD_H;
+    const W = WW, H = WH;
     ground.minX = proj(0, H).x - TW / 2 - 56;
     ground.minY = -118;
     ground.w = (proj(W, 0).x + TW / 2 + 56) - ground.minX;
@@ -1668,7 +1680,7 @@ const Renderer = (() => {
 
   // full synchronous bake — used once at boot, before anything is on screen
   function bakeGround(state, pal) {
-    const W = D.WORLD_W, H = D.WORLD_H;
+    const W = WW, H = WH;
     groundGeom();
     if (!ground.c) {
       ground.c = document.createElement('canvas');
@@ -1710,7 +1722,7 @@ const Renderer = (() => {
     bakeJob.c.height = Math.ceil(ground.h * GS);
     bakeJob.g = bakeJob.c.getContext('2d');
     bakeJob.g.setTransform(GS, 0, 0, GS, -ground.minX * GS, -ground.minY * GS);
-    const W = D.WORLD_W, H = D.WORLD_H;
+    const W = WW, H = WH;
     const g = bakeJob.g;
     // small fixed raster units — canvas paint is deferred, so a time budget
     // would only measure command *recording*; ~2 units/frame keeps the real
@@ -1781,7 +1793,7 @@ const Renderer = (() => {
     for (let dy = -1; dy <= 1; dy++)
       for (let dx = -1; dx <= 1; dx++) {
         const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= D.WORLD_W || ny >= D.WORLD_H) continue;
+        if (nx < 0 || ny < 0 || nx >= WW || ny >= WH) continue;
         paintGroundTile(g, state, nx, ny, pal);
       }
     // re-lay paths / pond over the repainted patch (both live in this layer)
@@ -1789,12 +1801,12 @@ const Renderer = (() => {
     for (let dy = -1; dy <= 1; dy++)
       for (let dx = -1; dx <= 1; dx++) {
         const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= D.WORLD_W || ny >= D.WORLD_H) continue;
+        if (nx < 0 || ny < 0 || nx >= WW || ny >= WH) continue;
         if (state.tiles[ny][nx].k === 'soil') paintSoilTile(g, state, nx, ny, pal);
       }
     if (nearPond(x, y)) paintPond(g, state, pal);
     g.restore();
-    ground.sig[y * D.WORLD_W + x] = tileSig(state, x, y);
+    ground.sig[y * WW + x] = tileSig(state, x, y);
     // keep the far-zoom mip in sync with the repainted patch
     refreshMip(
       (c.x - TW / 2 - 2 - ground.minX) * GS, (c.y - TH / 2 - 2 - ground.minY) * GS,
@@ -1802,7 +1814,24 @@ const Renderer = (() => {
     );
   }
 
+  // when the active farm's size changes (farm switch), the ground cache buffers
+  // must be resized and fully re-baked at the new dimensions
+  function ensureGroundSize() {
+    const need = WW * WH;
+    if (ground.sig.length !== need) ground.sig = new Int8Array(need);
+    const key = WW + 'x' + WH;
+    if (ground._dimKey !== key) {
+      ground._dimKey = key;
+      updateGS();            // adapt supersample to the new farm's size
+      ground.c = null;       // realloc the bake canvas at the new size
+      ground.season = -1;    // force a fresh bake
+      if (bakeJob) bakeJob.active = false;
+      paths.sig = null;      // recompute paths for the new farm
+    }
+  }
+
   function updateGround(state, pal) {
+    ensureGroundSize();
     if (!ground.c) { // boot: synchronous first bake, nothing on screen yet
       if (paths.sig !== pathSig(state)) computePaths(state);
       bakeGround(state, pal);
@@ -1820,7 +1849,7 @@ const Renderer = (() => {
       stepGroundBake(state, pal);
       return;
     }
-    const W = D.WORLD_W, H = D.WORLD_H;
+    const W = WW, H = WH;
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++) {
         if (ground.sig[y * W + x] !== tileSig(state, x, y)) repaintTile(state, pal, x, y);
@@ -2087,7 +2116,7 @@ const Renderer = (() => {
     fenceSide(state, p.x, p.y, 0, 1, p.h, -1, 0, snow, age, p.w, i);
   }
   function drawFenceFront(state, i) {      // S + E edges (depth-sorted entity)
-    const p = D.PARCELS[i];
+    const p = PARCELS[i];
     const snow = Game.state && Game.state.season === 3;
     const age = fenceAge(i);
     fenceSide(state, p.x, p.y + p.h, 1, 0, p.w, 0, 1, snow, age, p.w + p.h, i);
@@ -2129,8 +2158,8 @@ const Renderer = (() => {
 
   function drawParcels(state) {
     const snow = state.season === 3;
-    for (let i = 0; i < D.PARCELS.length; i++) {
-      const p = D.PARCELS[i];
+    for (let i = 0; i < PARCELS.length; i++) {
+      const p = PARCELS[i];
       if (state.unlockedParcels.includes(i)) drawFenceBack(state, p, snow, i);
       else drawSurvey(p);
     }
@@ -2139,13 +2168,13 @@ const Renderer = (() => {
   // FOR SALE sign at the parcel's front corner post: smaller, tilted, with a
   // hanging price tag. Briefly replaced by a popping SOLD! board on purchase.
   function signAnchor(index) {
-    const p = D.PARCELS[index];
+    const p = PARCELS[index];
     return proj(p.x + p.w - 0.45, p.y + p.h - 0.32);
   }
 
   function drawSign(state, index, fall, alpha) {
     const c = signAnchor(index);
-    const p = D.PARCELS[index];
+    const p = PARCELS[index];
     shadow(c.x, c.y + 3, 15, 5);
     ctx.save();
     ctx.translate(c.x, c.y);
@@ -2213,7 +2242,7 @@ const Renderer = (() => {
       for (const i of state.unlockedParcels) {
         if (!knownParcels.includes(i)) {
           soldFx.push({ i, age: 0 });
-          const p = D.PARCELS[i];
+          const p = PARCELS[i];
           addBurst(p.x + p.w - 0.45, p.y + p.h - 0.32, '#f2c23e');
           unlockAnim.set(i, time + 0.45);            // fence starts after the camera lands
           signFalls.push({ i, age: 0, dusted: false });
@@ -2808,6 +2837,8 @@ const Renderer = (() => {
     loom:     { mat: 'timber', baseH: 42, roofH: 24, door: 'panel',
                 props: [['spool', 2.22, 1.3], ['spool', 2.3, 1.7], ['crate', 0.5, 2.32]] },
     greenhouse: { baseH: 34, roofH: 22, props: [['crate', 2.2, 1.5]] },
+    farmhouse: { mat: 'siding', baseH: 46, roofH: 32, door: 'panel', chimney: true, awning: ['#7a9b56', '#f4ead2'],
+                props: [['crate', 2.2, 1.4], ['barrel', -0.22, 1.55], ['churn', 2.3, 1.8]] },
   };
 
   function wallPoint(A, B, u, v) { // point along wall edge A->B at height v
@@ -4529,8 +4560,8 @@ const Renderer = (() => {
   (function buildDecor() {
     const h2 = (a, b) => (hash(a, b) * 43.9871) % 1;
     const CS = 3; // cluster cell size in tiles
-    for (let cy = 0; cy < Math.ceil(D.WORLD_H / CS); cy++) {
-      for (let cx = 0; cx < Math.ceil(D.WORLD_W / CS); cx++) {
+    for (let cy = 0; cy < Math.ceil(WH / CS); cy++) {
+      for (let cx = 0; cx < Math.ceil(WW / CS); cx++) {
         const hc = h2(cx * 17 + 3, cy * 23 + 7);
         if (hc < 0.34) continue; // deliberate empty meadows
         const sx = cx * CS + h2(cx + 1, cy + 5) * CS;
@@ -4541,7 +4572,7 @@ const Renderer = (() => {
           const r = Math.sqrt(h2(i * 7 + 2, cx * 5 + cy)) * 1.9;
           const px = sx + Math.cos(a) * r;
           const py = sy + Math.sin(a) * r * 0.8;
-          if (px < 0.4 || py < 0.4 || px > D.WORLD_W - 0.4 || py > D.WORLD_H - 0.4) continue;
+          if (px < 0.4 || py < 0.4 || px > WW - 0.4 || py > WH - 0.4) continue;
           if (Math.abs(px - POND.cx) < POND.rx + 0.9 && Math.abs(py - POND.cy) < POND.ry + 0.9) continue;
           const hk = h2(Math.round(px * 23), Math.round(py * 29));
           let kind, variant = Math.floor(hk * 61) % 3;
@@ -4862,7 +4893,7 @@ const Renderer = (() => {
         const p = proj(cart.x, CART_Y);
         burstDust(p.x - 6, p.y - 4, 4, 5);
       }
-      if (cart.x > D.WORLD_W + 2.5) cart = null;
+      if (cart.x > WW + 2.5) cart = null;
     }
   }
 
@@ -4959,8 +4990,8 @@ const Renderer = (() => {
     if (state.season === 0 || state.season === 1) {
       for (let i = 0; i < 5; i++) {
         const seed = i * 217.7;
-        const range = proj(D.WORLD_W, D.WORLD_H).y;
-        const bx = ((seed * 3 + time * 26 + Math.sin(time * 0.9 + i * 2) * 60) % (TW * D.WORLD_W)) - TW * D.WORLD_W / 2;
+        const range = proj(WW, WH).y;
+        const bx = ((seed * 3 + time * 26 + Math.sin(time * 0.9 + i * 2) * 60) % (TW * WW)) - TW * WW / 2;
         const by = ((seed * 7) % range) + Math.sin(time * 2.4 + i) * 24;
         const flap = Math.abs(Math.sin(time * 9 + i * 3));
         ctx.fillStyle = ['#c46a8a', '#d9b23c', '#9a8ab8', '#7ab8c4', '#cc8a6a'][i];
@@ -4973,8 +5004,8 @@ const Renderer = (() => {
       ctx.fillStyle = 'rgba(186, 92, 38, .8)';
       for (let i = 0; i < 8; i++) {
         const seed = i * 133.3;
-        const range = proj(D.WORLD_W, D.WORLD_H).y;
-        const lx = ((seed * 5 + time * 34 + Math.sin(time * 1.4 + i) * 30) % (TW * D.WORLD_W)) - TW * D.WORLD_W / 2;
+        const range = proj(WW, WH).y;
+        const lx = ((seed * 5 + time * 34 + Math.sin(time * 1.4 + i) * 30) % (TW * WW)) - TW * WW / 2;
         const ly = ((seed * 11 + time * 46) % range);
         ctx.save();
         ctx.translate(lx, ly);
@@ -5616,6 +5647,8 @@ const Renderer = (() => {
   // ---------------- main render ----------------
   function render(state, dt) {
     if (!state) return;
+    WW = state.w || D.WORLD_W; WH = state.h || D.WORLD_H; // active-farm dims
+    PARCELS = state.parcels || D.PARCELS;
     time += dt;
     fdt = dt;
     dynRes(dt);                          // resolution step (if any) lands before drawing
@@ -5665,9 +5698,9 @@ const Renderer = (() => {
     // viewport culling: visible tile window from the 4 screen corners
     const c1 = screenToTile(0, 0), c2 = screenToTile(vw, 0), c3 = screenToTile(0, vh), c4 = screenToTile(vw, vh);
     const vx0 = Math.max(0, Math.floor(Math.min(c1.x, c2.x, c3.x, c4.x)) - 2);
-    const vx1 = Math.min(D.WORLD_W - 1, Math.ceil(Math.max(c1.x, c2.x, c3.x, c4.x)) + 3);
+    const vx1 = Math.min(WW - 1, Math.ceil(Math.max(c1.x, c2.x, c3.x, c4.x)) + 3);
     const vy0 = Math.max(0, Math.floor(Math.min(c1.y, c2.y, c3.y, c4.y)) - 2);
-    const vy1 = Math.min(D.WORLD_H - 1, Math.ceil(Math.max(c1.y, c2.y, c3.y, c4.y)) + 3);
+    const vy1 = Math.min(WH - 1, Math.ceil(Math.max(c1.y, c2.y, c3.y, c4.y)) + 3);
 
     // world-space rain: splash ticks land ON the farm, roofs drip (LOD-gated)
     const raining = state.weather === 'rain' || state.weather === 'storm';
@@ -5722,8 +5755,8 @@ const Renderer = (() => {
       pushEnt(b.x + def.w - 1 + b.y + def.h - 1 + 0.62, K_BLDG, i, 0);
     }
 
-    for (let i = 0; i < D.PARCELS.length; i++) {
-      const p = D.PARCELS[i];
+    for (let i = 0; i < PARCELS.length; i++) {
+      const p = PARCELS[i];
       if (p.x > vx1 + 1 || p.x + p.w < vx0 - 1 || p.y > vy1 + 1 || p.y + p.h < vy0 - 1) continue;
       if (!state.unlockedParcels.includes(i)) {
         pushEnt(p.x + p.w + p.y + p.h - 0.6, K_SIGN, i, 0);

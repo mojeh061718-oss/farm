@@ -3,6 +3,76 @@
 
 const Game = (() => {
   const D = DATA;
+  // active-farm world dimensions (per-farm; default to the home valley).
+  // WW/WH replace the old fixed WW/H so farms can be different sizes.
+  let WW = DATA.WORLD_W, WH = DATA.WORLD_H;
+  function syncDims() { WW = (state && state.w) || DATA.WORLD_W; WH = (state && state.h) || DATA.WORLD_H; }
+  // the active farm's parcel layout (home = the 9-parcel valley; bought farms
+  // are one big fully-owned plot). Per-farm so worlds can differ.
+  function parcels() { return (state && state.parcels) || DATA.PARCELS; }
+
+  /* ===================== MULTIPLE FARMS =====================
+     One shared wallet/level/inventory/calendar; the LAND (tiles, buildings,
+     animals, parcels, dims) is per-farm. The live `state.*` fields hold the
+     ACTIVE farm; state.farms[] holds snapshots of the others. */
+  const FARM_FIELDS = ['tiles', 'buildings', 'animals', 'unlockedParcels', 'sprouts', 'tonis', 'w', 'h', 'parcels', 'farmName'];
+  function ensureFarms() {
+    if (!state.farms) { // migrate a single-farm save into farms[0]
+      const home = { id: 'home', tid: 'home', label: state.farmName || 'Home Valley' };
+      for (const k of FARM_FIELDS) home[k] = state[k];
+      state.farms = [home];
+      state.activeFarm = 0;
+    }
+  }
+  function snapshotActiveFarm() {
+    ensureFarms();
+    const f = state.farms[state.activeFarm] || (state.farms[state.activeFarm] = {});
+    for (const k of FARM_FIELDS) f[k] = state[k];
+    f.label = state.farmName || f.label;
+  }
+  function hydrateFarm(i) {
+    const f = state.farms[i];
+    for (const k of FARM_FIELDS) state[k] = f[k];
+    state.activeFarm = i;
+    syncDims();
+  }
+  function ownedFarms() { ensureFarms(); return state.farms.map((f, i) => ({ i, id: f.id, label: f.label || f.farmName, tid: f.tid, w: f.w || D.WORLD_W, h: f.h || D.WORLD_H, active: i === state.activeFarm })); }
+  function switchFarm(i) {
+    ensureFarms();
+    if (i < 0 || i >= state.farms.length || i === state.activeFarm) return false;
+    snapshotActiveFarm();
+    hydrateFarm(i);
+    save();
+    emit('farmswitch', i);
+    return true;
+  }
+  function ownsTemplate(tid) { ensureFarms(); return state.farms.some(f => f.tid === tid); }
+  // buy a whole property from the Realtor and switch to it
+  function buyFarm(tid) {
+    ensureFarms();
+    const t = D.FARM_TEMPLATES.find(x => x.id === tid);
+    if (!t) return false;
+    if (ownsTemplate(tid)) { toast('You already own that farm.', 'bad'); return false; }
+    if (state.coins < t.price) { toast('Not enough cash for that land!', 'bad'); return false; }
+    state.coins -= t.price;
+    snapshotActiveFarm();
+    const tiles = [];
+    for (let y = 0; y < t.h; y++) { const row = []; for (let x = 0; x < t.w; x++) row.push({ k: 'grass', crop: null, obj: null }); tiles.push(row); }
+    const farm = {
+      id: 'f' + Math.floor(rnd() * 1e9), tid, label: t.name, farmName: t.name,
+      w: t.w, h: t.h, tiles, buildings: [], animals: [], sprouts: [], tonis: [],
+      unlockedParcels: [0],
+      parcels: [{ x: 0, y: 0, w: t.w, h: t.h, cost: 0 }], // whole property, fully owned
+    };
+    state.farms.push(farm);
+    hydrateFarm(state.farms.length - 1);
+    // a starter well + a couple of tilled beds on the new land
+    placeBuildingRaw('well', Math.floor(t.w / 2), Math.floor(t.h / 2) - 1);
+    save();
+    emit('farmbought', state.activeFarm);
+    toast(`🏡 Welcome to ${t.name}! Your new land is ready.`, 'good');
+    return true;
+  }
   const SAVE_KEY = 'harvest-empire-save-v3';
 
   let state = null;
@@ -43,13 +113,13 @@ const Game = (() => {
   }
 
   function tileAt(x, y) {
-    if (x < 0 || y < 0 || x >= D.WORLD_W || y >= D.WORLD_H) return null;
+    if (x < 0 || y < 0 || x >= WW || y >= WH) return null;
     return state.tiles[y][x];
   }
 
   function parcelAt(x, y) {
-    for (let i = 0; i < D.PARCELS.length; i++) {
-      const p = D.PARCELS[i];
+    for (let i = 0; i < parcels().length; i++) {
+      const p = parcels()[i];
       if (x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) return i;
     }
     return -1;
@@ -95,8 +165,8 @@ const Game = (() => {
   function spawnToni() {
     if (toniStands()) return null; // the land holds only one
     const cand = [];
-    for (let y = 0; y < D.WORLD_H; y++)
-      for (let x = 0; x < D.WORLD_W; x++)
+    for (let y = 0; y < WH; y++)
+      for (let x = 0; x < WW; x++)
         if (isUnlocked(x, y) && !state.tiles[y][x].obj && !toniAt(x, y) && !sproutAt(x, y)) cand.push([x, y]);
     if (!cand.length) return null;
     const [x, y] = pick(cand); // rises out of whatever is there — crops stay
@@ -125,7 +195,7 @@ const Game = (() => {
       blessCache = [];
       for (const t of ts) {
         const p = parcelAt(t.x, t.y);
-        if (p >= 0 && !seen.has(p)) { seen.add(p); blessCache.push(D.PARCELS[p]); }
+        if (p >= 0 && !seen.has(p)) { seen.add(p); blessCache.push(parcels()[p]); }
       }
       blessSrc = ts; blessLen = ts.length;
     }
@@ -222,7 +292,7 @@ const Game = (() => {
   function devToniDemo() {
     if (toniStands()) { toast('🌻 The land can only hold one — harvest the flower that stands first.'); return null; }
     let spot = null;
-    for (let y = 0; y < D.WORLD_H && !spot; y++) for (let x = 0; x < D.WORLD_W; x++) {
+    for (let y = 0; y < WH && !spot; y++) for (let x = 0; x < WW; x++) {
       const t = state.tiles[y][x];
       if (isUnlocked(x, y) && !t.obj && !t.crop && !toniAt(x, y) && !sproutAt(x, y)) { spot = [x, y, t]; break; }
     }
@@ -242,10 +312,11 @@ const Game = (() => {
 
   // ---------------- new game ----------------
   function newGame() {
+    WW = D.WORLD_W; WH = D.WORLD_H; // the home valley is the default size
     const tiles = [];
-    for (let y = 0; y < D.WORLD_H; y++) {
+    for (let y = 0; y < WH; y++) {
       const row = [];
-      for (let x = 0; x < D.WORLD_W; x++) row.push({ k: 'grass', crop: null, obj: null });
+      for (let x = 0; x < WW; x++) row.push({ k: 'grass', crop: null, obj: null });
       tiles.push(row);
     }
 
@@ -253,6 +324,7 @@ const Game = (() => {
       v: 3,
       farmName: 'My Farm',
       diff: 'classic',
+      w: D.WORLD_W, h: D.WORLD_H, // active-farm dimensions
       setupDone: false,
       coins: 3000,             // dollars
       fuel: 0,                 // gallons
@@ -295,7 +367,11 @@ const Game = (() => {
     // starter farm: a well and four tilled plots
     placeBuildingRaw('well', 7, 5);
     for (const [x, y] of [[9, 7], [10, 7], [9, 8], [10, 8]]) state.tiles[y][x].k = 'soil';
+    // a farmhouse for a lived-in, premium feel (decorative — no panel), at the
+    // top of the starting plot
+    if (D.BUILDINGS.farmhouse) placeBuildingRaw('farmhouse', 9, 5);
 
+    ensureFarms(); // register this as the home farm (farms[0])
     return state;
   }
 
@@ -318,9 +394,12 @@ const Game = (() => {
     let idx = state.buildings.indexOf(null);
     if (idx === -1) { state.buildings.push(b); idx = state.buildings.length - 1; }
     else state.buildings[idx] = b;
-    for (let dy = 0; dy < def.h; dy++)
-      for (let dx = 0; dx < def.w; dx++)
-        state.tiles[y + dy][x + dx].obj = { t: 'b', i: idx };
+    // decor buildings (the farmhouse) render but never occupy tiles — the land
+    // under them stays farmable, and they collide with nothing
+    if (!def.decor)
+      for (let dy = 0; dy < def.h; dy++)
+        for (let dx = 0; dx < def.w; dx++)
+          state.tiles[y + dy][x + dx].obj = { t: 'b', i: idx };
     return idx;
   }
 
@@ -351,8 +430,10 @@ const Game = (() => {
   const seedFrom = str => parseInt(fnv(str), 16) >>> 0;
 
   function validSave(st) {
-    return st && st.v === 3 && Array.isArray(st.tiles) && st.tiles.length === D.WORLD_H
-      && Number.isFinite(st.coins) && st.setupDone;
+    // dimension-agnostic: farms may be any size, so validate structure (a
+    // non-empty rectangular tile grid) rather than a fixed row count.
+    return st && st.v === 3 && Array.isArray(st.tiles) && st.tiles.length >= 1
+      && Array.isArray(st.tiles[0]) && Number.isFinite(st.coins) && st.setupDone;
   }
 
   let noSave = false; // hard-reset latch: nothing may write after an erase
@@ -398,6 +479,11 @@ const Game = (() => {
     state = st;
     state._flags = state._flags || {};
     state._flags.deaths = state._flags.deaths || { dry: 0, rot: 0, season: 0 };
+    // ---- multi-farm: derive dims from the tile grid for pre-multifarm saves ----
+    state.w = state.w || (state.tiles && state.tiles[0] ? state.tiles[0].length : D.WORLD_W);
+    state.h = state.h || (state.tiles ? state.tiles.length : D.WORLD_H);
+    syncDims();
+    ensureFarms(); // wrap a pre-multifarm save into farms[0]
     for (const a of state.animals) if (!a.uid) a.uid = animalUid++;
     animalUid = Math.max(animalUid, ...state.animals.map(a => a.uid + 1), 1);
 
@@ -505,7 +591,7 @@ const Game = (() => {
     return stars;
   }
   // offered once the whole valley is owned
-  function canPrestige() { return !!state && state.unlockedParcels.length >= D.PARCELS.length; }
+  function canPrestige() { return !!state && state.unlockedParcels.length >= parcels().length; }
 
   // simulate compressed time that passed while the game was closed
   // (kinder than live play: no thirst, wilt or rot — crops finish and wait)
@@ -660,9 +746,10 @@ const Game = (() => {
       const item = producedPool.length && rnd() < 0.75 ? pick(producedPool) : pick(pool);
       // asks stay small and are capped so a productive farm can actually fill them
       // (previously they scaled with production the player was simultaneously selling)
+      // scales with recent production (via `scale`) but is capped so a delivery
+      // stays assemble-able — never the 10-15+ pile the old formula could ask for
       const want = Math.round((2 + rnd() * 2) * (0.8 + scale * 0.15));
-      const have = state.inventory[item] || 0;
-      const qty = Math.max(2, Math.min(8, want, Math.max(2, have + 4)));
+      const qty = Math.max(2, Math.min(8, want));
       reqs[item] = (reqs[item] || 0) + qty;
     }
     // payout rides the player's LIVE prices (market, reputation, difficulty)
@@ -1049,7 +1136,7 @@ const Game = (() => {
   }
 
   function buyParcel(index) {
-    const p = D.PARCELS[index];
+    const p = parcels()[index];
     if (!p || state.unlockedParcels.includes(index)) return false;
     if (state.coins < p.cost) { toast('Not enough cash!', 'bad'); return false; }
     state.coins -= p.cost;
@@ -1524,7 +1611,7 @@ const Game = (() => {
   function atRiskCrops() {
     const next = (state.season + 1) % 4;
     const out = [];
-    for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
+    for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
       const c = state.tiles[y][x].crop;
       if (!c || c.dead) continue;
       if (D.CROPS[c.id].seasons.includes(next)) continue;
@@ -1656,7 +1743,7 @@ const Game = (() => {
     // storms can flatten unprotected crops
     if (state.weather === 'storm' && !state._offline) {
       let smashed = 0;
-      for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
+      for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
         const t = state.tiles[y][x];
         if (t.crop && !t.crop.dead && !isProtected(x, y) && !isBlessed(x, y) && rnd() < 0.12 * eventMult()) {
           t.crop.dead = true; t.crop.deadCause = 'storm'; smashed++; state.stats.lost++;
@@ -1673,7 +1760,7 @@ const Game = (() => {
     // crows steal a mature crop on clear days if unprotected
     if ((state.weather === 'sun' || state.weather === 'cloud') && !state._offline && rnd() < 0.3 * eventMult()) {
       const targets = [];
-      for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
+      for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
         const t = state.tiles[y][x];
         if (t.crop && !t.crop.dead && t.crop.prog >= 1 && !isProtected(x, y) && !isBlessed(x, y)) targets.push([x, y]);
       }
@@ -1691,7 +1778,7 @@ const Game = (() => {
     // winter frost kills non-winter crops — greenhouse coverage spares its 6×6 zone
     if (state.season === 3 && !state._offline && rnd() < 0.4 * eventMult()) {
       let frozen = 0;
-      for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
+      for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
         const t = state.tiles[y][x];
         if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3) && !greenhouseAt(x, y) && !isBlessed(x, y)) {
           t.crop.dead = true;
@@ -1748,7 +1835,7 @@ const Game = (() => {
         if (state.now >= state.sprouts[i].at) revealSprout(i);
 
     // crops: growth, thirst, wilting, rot
-    for (let ty = 0; ty < D.WORLD_H; ty++) for (let tx = 0; tx < D.WORLD_W; tx++) {
+    for (let ty = 0; ty < WH; ty++) for (let tx = 0; tx < WW; tx++) {
       const c = state.tiles[ty][tx].crop;
       if (!c || c.dead) continue;
       let bl = false;
@@ -1872,7 +1959,7 @@ const Game = (() => {
     for (const [item, qty] of Object.entries(state.inventory)) v += D.ITEMS[item].base * qty;
     for (const b of state.buildings) if (b) v += D.BUILDINGS[b.type].cost;
     for (const a of state.animals) v += D.ANIMALS[a.type].cost;
-    for (const i of state.unlockedParcels) v += D.PARCELS[i].cost;
+    for (const i of state.unlockedParcels) v += parcels()[i].cost;
     return Math.round(v);
   }
 
@@ -1885,6 +1972,7 @@ const Game = (() => {
     on, emit, toast,
     newGame, applySetup, load, save, resetGame, fastForward,
     startNewLegacy, canPrestige, legacyStars,
+    ownedFarms, switchFarm, buyFarm, ownsTemplate,
     exportCode, importCode, backupDue,
     workOddJobs, oddJobsAvailable, oddJobsPay,
     tick,
