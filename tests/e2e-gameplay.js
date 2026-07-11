@@ -522,10 +522,8 @@ function check(name, ok, detail) {
   });
   await page.waitForTimeout(350);
   const gsp = await page.evaluate(() => Renderer.tileToScreen(15.5, 5.5));
-  await page.touchscreen.tap(gsp.x, gsp.y); // soil → bubble
-  await page.waitForTimeout(300);
-  await page.tap('#bubble .act-plant');     // → seed sheet
-  await page.waitForTimeout(350);
+  await page.touchscreen.tap(gsp.x, gsp.y); // soil → seed sheet opens directly
+  await page.waitForTimeout(400);
   const seedTags = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('#sheet-body .item-card')];
     const find = name => cards.find(c => c.textContent.includes(name));

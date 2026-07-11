@@ -580,6 +580,17 @@ const UI = (() => {
       grid.appendChild(card);
     }
     body.appendChild(grid);
+
+    // when opened by tapping a bare plot, offer to un-till it right here —
+    // un-tilling is a deliberate choice, so it lives inside this chooser
+    if (plantTarget) {
+      const pt = plantTarget;
+      const untill = document.createElement('button');
+      untill.className = 'seed-untill';
+      untill.innerHTML = `${I.icon('shovel')} Un-till this plot`;
+      untill.onclick = () => { SOUNDS.tap(); Game.applyTool('shovel', pt.x, pt.y); plantTarget = null; closeSheet(); updateHud(); };
+      body.appendChild(untill);
+    }
   }
 
   // ---------------- shop ----------------
@@ -1522,50 +1533,37 @@ const UI = (() => {
   }
 
   // action list for a farmable tile — buildings, sprouts, locked land and the
-  // toni never reach here. Validity mirrors Game.applyTool/smartAction rules.
+  // The bubble is only ever shown for a GROWING crop that still has a genuine
+  // choice left — every other tile type resolves to a one-tap auto-action or
+  // the seed picker in handleTap. Actions here: Water (only when the can is
+  // empty — a full can auto-waters), Fertilize (an optional spend), Dig up
+  // (deliberate/destructive). Validity mirrors Game.applyTool rules.
   function tileActions(x, y) {
     const t = Game.tileAt(x, y);
-    if (!t) return [];
+    const c = t && t.crop;
+    if (!c || c.dead) return [];
     const s = Game.state;
-    const c = t.crop;
     const acts = [];
-    const digAct = label => ({ cls: 'act-dig', icon: I.icon('shovel'), label, run: () => Game.applyTool('shovel', x, y) });
-    if (c && c.dead) {
-      // explain WHY it died, then clear — the old smart-tap behavior
-      acts.push({ cls: 'act-clear', icon: I.icon('shovel'), label: 'Clear', primary: true, run: () => Game.smartAction(x, y) });
-    } else if (c) { // ripe crops harvest on tap (handleTap) and never reach here
-      if (c.water <= 0.55) { // thirsty — same threshold the sim uses
-        const empty = s.can.water <= 0;
-        acts.push({
-          cls: 'act-water', icon: I.icon('drop'), label: 'Water',
-          chip: empty ? null : `💧${s.can.water}`,
-          disabled: empty,
-          hint: empty ? 'refill at the well' : null,
-          attention: !empty && ((c.wilt || 0) > 0.3 || !Game.seasonOK(c.id, x, y)),
-          run: () => { if (Game.applyTool('water', x, y) === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad'); },
-        });
-      }
-      if (!c.fert && !Game.isBlessed(x, y)) {
-        const cost = D.fertCost(c.id);
-        acts.push({
-          cls: 'act-fert', icon: I.icon('sparkle'), label: 'Fertilize',
-          chip: I.icon('coin') + fmt(cost), chipCls: 'gold',
-          run: () => { if (Game.applyTool('fert', x, y) === 'broke') toast(`Fertilizer costs ${$$(cost)} for this crop (30% of its seed price)!`, 'bad'); },
-        });
-      }
-      acts.push(digAct('Dig up'));
-    } else if (t.k === 'soil') {
+    if (c.water <= 0.55) { // reached here only with an empty can (else auto-watered)
+      const empty = s.can.water <= 0;
       acts.push({
-        cls: 'act-plant', icon: I.icon('sprout'), label: 'Plant', primary: true,
-        run: () => { plantTarget = { x, y }; openSheet('seeds'); },
-      });
-      acts.push(digAct('Un-till'));
-    } else if (t.k === 'grass') {
-      acts.push({
-        cls: 'act-till', icon: I.icon('hoe'), label: 'Till', primary: true,
-        run: () => { if (Game.applyTool('hoe', x, y) === 'nofuel') toast('⛽ Out of fuel — hand-tilling one plot. Buy diesel in the Shop!', 'bad'); },
+        cls: 'act-water', icon: I.icon('drop'), label: 'Water',
+        chip: empty ? null : `💧${s.can.water}`,
+        disabled: empty,
+        hint: empty ? 'refill at the well' : null,
+        attention: !empty && ((c.wilt || 0) > 0.3 || !Game.seasonOK(c.id, x, y)),
+        run: () => { if (Game.applyTool('water', x, y) === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad'); },
       });
     }
+    if (!c.fert && !Game.isBlessed(x, y)) {
+      const cost = D.fertCost(c.id);
+      acts.push({
+        cls: 'act-fert', icon: I.icon('sparkle'), label: 'Fertilize',
+        chip: I.icon('coin') + fmt(cost), chipCls: 'gold',
+        run: () => { if (Game.applyTool('fert', x, y) === 'broke') toast(`Fertilizer costs ${$$(cost)} for this crop (30% of its seed price)!`, 'bad'); },
+      });
+    }
+    acts.push({ cls: 'act-dig', icon: I.icon('shovel'), label: 'Dig up', run: () => Game.applyTool('shovel', x, y) });
     return acts;
   }
 
@@ -1743,10 +1741,23 @@ const UI = (() => {
 
     if (Game.sproutAt(x, y)) { toast('🌟 Something is glowing beneath the soil…'); return; }
 
-    // ripe crops harvest on a single tap — no bubble to wade through
-    const rc = t.crop;
-    if (rc && !rc.dead && rc.prog >= 1) { Game.applyTool('harvest', x, y); updateHud(); return; }
+    // One tap does the obvious thing. A chooser appears ONLY when there is a
+    // real decision to make (which seed) or a real choice/deliberate action
+    // (spend on fertilizer, or dig up a living crop).
+    const c = t.crop;
+    if (c && !c.dead && c.prog >= 1) { Game.applyTool('harvest', x, y); updateHud(); return; } // Harvest
+    if (c && c.dead) { Game.smartAction(x, y); updateHud(); return; }                           // Clear (explains first)
+    if (!c && t.k === 'grass') {                                                                // Till
+      if (Game.applyTool('hoe', x, y) === 'nofuel') toast('⛽ Out of fuel — hand-tilling one plot. Buy diesel in the Shop!', 'bad');
+      updateHud(); return;
+    }
+    if (!c && t.k === 'soil') { plantTarget = { x, y }; openSheet('seeds'); return; }           // choose a seed
+    if (c && c.water <= 0.55 && Game.state.can.water > 0) {                                     // thirsty → just water it
+      Game.applyTool('water', x, y); updateHud(); return;
+    }
 
+    // what's left is a growing crop with a genuine choice (fertilize / dig, or
+    // a refill-the-can hint) → the bubble
     const acts = tileActions(x, y);
     if (acts.length) openBubble(x, y, acts);
   }

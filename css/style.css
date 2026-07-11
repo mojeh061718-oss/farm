@@ -728,6 +728,20 @@ button.mini:disabled {
   margin: 14px 2px 8px;
 }
 
+.seed-untill {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--r-m);
+  background: var(--parchment);
+  color: var(--ink-soft);
+  font-weight: 800;
+  font-size: 0.9375rem;
+  box-shadow: var(--well);
+}
+.seed-untill .ic, .seed-untill .ic-emoji { width: 18px; height: 18px; }
+
 .empty-note {
   text-align: center;
   color: var(--ink-soft);
