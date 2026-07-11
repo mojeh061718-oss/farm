@@ -25,6 +25,13 @@ const Game = (() => {
   const pick = arr => arr[Math.floor(rnd() * arr.length)];
 
   function diff() { return D.DIFFICULTIES.find(d => d.id === state.diff) || D.DIFFICULTIES[1]; }
+  // effective weather harshness: on escalating modes the skies get meaner as the
+  // farm gets rich, so late-game disasters still threaten a fat bank (+up to 70%).
+  function eventMult() {
+    const d = diff();
+    if (!d.escalate) return d.eventMult;
+    return d.eventMult * (1 + Math.min(0.7, farmValue() / 350000));
+  }
 
   function rollWeather(season) {
     const table = D.WEATHER_TABLE[season];
@@ -142,11 +149,15 @@ const Game = (() => {
     }
   }
 
-  // while a toni stands, its parcel is locked in place — one gentle, throttled notice
+  // while a toni stands, its parcel is locked in place — explain it the first
+  // couple of times, then stay silent (a 6s throttle spammed it ~58×/run)
   function toniLockNotice() {
-    if (!state._offline && state.now >= (state._flags.toniWarnUntil || 0)) {
-      state._flags.toniWarnUntil = state.now + 6;
-      toast('🌻 The land is at peace — nothing can be disturbed while the flower stands.');
+    if (!state._offline) {
+      state._flags.toniLockN = (state._flags.toniLockN || 0) + 1;
+      if (state._flags.toniLockN <= 2 && state.now >= (state._flags.toniWarnUntil || 0)) {
+        state._flags.toniWarnUntil = state.now + 6;
+        toast('🌻 The land is at peace — nothing can be disturbed while the flower stands. Tap the flower itself to learn its story.');
+      }
     }
     return false;
   }
@@ -272,6 +283,9 @@ const Game = (() => {
       produced: {},
       stats: { tilled: 0, planted: 0, watered: 0, harvested: 0, sold: 0, collected: 0, orders: 0, crafted: 0, fertilized: 0, earned: 0, lost: 0, recent: 0, prodMark: 0 },
       settings: { sound: false },
+      autoFuel: false, // keep powered gear topped up from coins each dawn
+      autoSell: false, // sell surplus produce each dawn (keeps order/craft inputs)
+      legacy: legacyStars(), // permanent +10%/star sell bonus carried across farms
       lastSaved: Date.now(),
       _flags: { deaths: { dry: 0, rot: 0, season: 0 } },
     };
@@ -480,6 +494,19 @@ const Game = (() => {
     } catch (e) {}
   }
 
+  // ---- Legacy (prestige) — carried across farms, never part of the save ----
+  const LEGACY_KEY = 'harvest-empire-legacy';
+  function legacyStars() { try { return parseInt(localStorage.getItem(LEGACY_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
+  // start a fresh valley, banking one Legacy Star (+10% permanent sell price)
+  function startNewLegacy() {
+    const stars = legacyStars() + 1;
+    try { localStorage.setItem(LEGACY_KEY, String(stars)); } catch (e) {}
+    resetGame();
+    return stars;
+  }
+  // offered once the whole valley is owned
+  function canPrestige() { return !!state && state.unlockedParcels.length >= D.PARCELS.length; }
+
   // simulate compressed time that passed while the game was closed
   // (kinder than live play: no thirst, wilt or rot — crops finish and wait)
   function fastForward(elapsed, realSeconds) {
@@ -570,6 +597,7 @@ const Game = (() => {
     if (state.market.hot === item) m *= 1.5;
     if (marketDayItems().includes(item)) m *= 1.5;
     m *= (1 + D.repBonus(state.level)) * diff().sellBonus;
+    m *= 1 + 0.10 * (state.legacy || 0); // Legacy Stars: +10% each, permanently
     return Math.max(1, Math.round(base * m));
   }
 
@@ -626,11 +654,15 @@ const Game = (() => {
     // quantities scale with RECENT production (decayed daily harvest+collect),
     // not lifetime wealth — a slumping or fresh farm gets small orders again
     const scale = 1 + Math.min(6, (state.stats.recent || 0) / 10);
-    const n = 1 + Math.floor(rnd() * Math.min(3, 1 + scale / 2));
+    const n = 1 + Math.floor(rnd() * 2); // 1–2 line items — assemble-able, not a shopping list
     const reqs = {};
     for (let i = 0; i < n; i++) {
-      const item = producedPool.length && rnd() < 0.7 ? pick(producedPool) : pick(pool);
-      const qty = Math.max(2, Math.round((2 + rnd() * 3) * (0.7 + scale * 0.25)));
+      const item = producedPool.length && rnd() < 0.75 ? pick(producedPool) : pick(pool);
+      // asks stay small and are capped so a productive farm can actually fill them
+      // (previously they scaled with production the player was simultaneously selling)
+      const want = Math.round((2 + rnd() * 2) * (0.8 + scale * 0.15));
+      const have = state.inventory[item] || 0;
+      const qty = Math.max(2, Math.min(8, want, Math.max(2, have + 4)));
       reqs[item] = (reqs[item] || 0) + qty;
     }
     // payout rides the player's LIVE prices (market, reputation, difficulty)
@@ -861,7 +893,7 @@ const Game = (() => {
     if (state.can.water >= cap) return false;
     state.can.water = cap;
     emit('sound', 'water');
-    toast('Watering can refilled! 💧', 'good');
+    // no toast — the can meter shows it, and this fired ~70×/run as pure noise
     return true;
   }
 
@@ -1029,9 +1061,9 @@ const Game = (() => {
     return true;
   }
 
-  function sprinkle(b) {
-    for (let dy = -1; dy <= 1; dy++)
-      for (let dx = -1; dx <= 1; dx++) {
+  function sprinkle(b) { // 5×5 — one affordable unit now covers a real plot
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
         const t = tileAt(b.x + dx, b.y + dy);
         if (t && t.crop && !t.crop.dead) t.crop.water = 1;
       }
@@ -1174,7 +1206,7 @@ const Game = (() => {
   function feedAll(bIdx) {
     let n = 0;
     state.animals.forEach((a, i) => { if (a.home === bIdx && feedAnimal(i)) n++; });
-    if (n) { emit('sound', 'plant'); toast(`Fed ${n} animal${n > 1 ? 's' : ''}! 🌾`, 'good'); }
+    if (n) emit('sound', 'plant'); // no toast — happy animals are visible feedback; fired ~66×/run
     return n;
   }
 
@@ -1430,21 +1462,27 @@ const Game = (() => {
     return state.goalsDone;
   }
 
-  // the HUD chip shows the cursor-th incomplete goal; tapping it cycles so a
-  // hard goal never blocks the player from seeing (and chasing) later ones
-  function currentGoal() {
+  // Incomplete goals ranked by how close they are to done — so the chip always
+  // surfaces the goal the player is about to finish and NEVER freezes on a goal
+  // they're ignoring (the #1 playtest complaint). Tapping cycles to the next.
+  function rankedGoals() {
     const done = goalsDoneList();
-    const todo = D.GOALS.filter(g => !done.includes(g.id));
+    return D.GOALS.filter(g => !done.includes(g.id))
+      .map(g => { const [c, n] = g.check(state); return { g, prog: n > 0 ? Math.min(1, c / n) : 0 }; })
+      .sort((a, b) => b.prog - a.prog || D.GOALS.indexOf(a.g) - D.GOALS.indexOf(b.g))
+      .map(r => r.g);
+  }
+
+  function currentGoal() {
+    const todo = rankedGoals();
     if (!todo.length) return null;
     return todo[(state.goalCursor || 0) % todo.length];
   }
 
   function cycleGoal() {
-    const done = goalsDoneList();
-    const todo = D.GOALS.filter(g => !done.includes(g.id));
+    const todo = rankedGoals();
     if (todo.length < 2) return;
-    state.goalCursor = ((state.goalCursor || 0) % todo.length) + 1;
-    if (state.goalCursor >= todo.length) state.goalCursor = 0;
+    state.goalCursor = ((state.goalCursor || 0) + 1) % todo.length;
   }
 
   function checkGoal() {
@@ -1534,10 +1572,41 @@ const Game = (() => {
     state._flags.crowDone = false;
     state._flags.frostDone = false;
 
+    // auto-fuel: top the tank up from coins before the drones run, so an idle
+    // player's automation never silently strands itself for want of $3 of diesel
+    if (state.autoFuel && !state._offline) {
+      const need = D.FUEL.dronePerDay * state.buildings.filter(b => b && b.type === 'drone').length + 1;
+      if ((state.fuel || 0) < need && state.coins > state.market.fuelPrice * 5) buyFuel(5);
+    }
+
     // drones harvest & replant first, THEN sprinklers water — so freshly
     // replanted crops don't spend their first day dry
     runDrones();
     for (const b of state.buildings) if (b && b.type === 'sprinkler') sprinkle(b);
+
+    // auto-sell: liquidate surplus produce each dawn (keeps a buffer + never
+    // touches mythics), so a hands-off player's barn turns into coins instead
+    // of a hoard. Runs quietly; the coin counter is the feedback.
+    if (state.autoSell && !state._offline) {
+      let earned = 0;
+      for (const [item, qty] of Object.entries(state.inventory)) {
+        if (qty <= 0 || (D.ITEMS[item] && D.ITEMS[item].mythic)) continue;
+        const keep = 4; // leave a little for orders & recipes
+        if (qty > keep) earned += sellItem(item, qty - keep);
+      }
+      if (earned > 0) toast(`💰 Auto-sold surplus for ${D.$(Math.round(earned))}.`, 'good');
+    }
+
+    // teach selling: a hoarder can sit on a fortune in produce while feeling
+    // broke. Nudge once when the barn is worth far more than the wallet.
+    if (!state.autoSell && !state._flags.soldTip && !state._offline && state.now >= (state._flags.quietUntil || 0)) {
+      let invVal = 0;
+      for (const [it, q] of Object.entries(state.inventory)) invVal += (D.ITEMS[it] ? D.ITEMS[it].base : 0) * q;
+      if (invVal > 2000 && invVal > state.coins * 2) {
+        state._flags.soldTip = true;
+        toast(`🧺 Your barn holds ~${D.$(invVal)} of goods — visit the ⚖️ Market to cash in (or turn on Auto-Sell in ⚙️ Menu).`);
+      }
+    }
 
     // hungry animals lose happiness; at rock bottom they fall sick
     // (half speed while away — an empty trough overnight isn't neglect)
@@ -1573,7 +1642,7 @@ const Game = (() => {
       let smashed = 0;
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
-        if (t.crop && !t.crop.dead && !isProtected(x, y) && !isBlessed(x, y) && rnd() < 0.12 * diff().eventMult) {
+        if (t.crop && !t.crop.dead && !isProtected(x, y) && !isBlessed(x, y) && rnd() < 0.12 * eventMult()) {
           t.crop.dead = true; t.crop.deadCause = 'storm'; smashed++; state.stats.lost++;
           if (smashed <= 4) fx('lightning', x + .5, y + .5);
         }
@@ -1586,7 +1655,7 @@ const Game = (() => {
 
   function middayEvents() {
     // crows steal a mature crop on clear days if unprotected
-    if ((state.weather === 'sun' || state.weather === 'cloud') && !state._offline && rnd() < 0.3 * diff().eventMult) {
+    if ((state.weather === 'sun' || state.weather === 'cloud') && !state._offline && rnd() < 0.3 * eventMult()) {
       const targets = [];
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
@@ -1604,7 +1673,7 @@ const Game = (() => {
 
   function nightfallEvents() {
     // winter frost kills non-winter crops — greenhouse coverage spares its 6×6 zone
-    if (state.season === 3 && !state._offline && rnd() < 0.4 * diff().eventMult) {
+    if (state.season === 3 && !state._offline && rnd() < 0.4 * eventMult()) {
       let frozen = 0;
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
@@ -1673,7 +1742,7 @@ const Game = (() => {
       let wilting = false;
       if (!state._offline && !rescued) {
         if (off) { c.wilt = (c.wilt || 0) + dt / (0.8 * D.DAY_LEN); wilting = true; }
-        else if (c.water <= 0) { c.wilt = (c.wilt || 0) + dt / (D.WILT_DAYS * D.DAY_LEN); wilting = true; }
+        else if (c.water <= 0) { c.wilt = (c.wilt || 0) + dt / ((diff().wiltDays || D.WILT_DAYS) * D.DAY_LEN); wilting = true; }
       }
       if (!wilting && c.wilt > 0) c.wilt = Math.max(0, c.wilt - dt / D.DAY_LEN);
       if (c.wilt >= 1) {
@@ -1738,8 +1807,9 @@ const Game = (() => {
         if (o.expires != null && state.now >= o.expires) { state.orders.splice(i, 1); expired++; }
       }
       if (expired) {
+        // no toast: a player ignoring the board racked up 67–96 "expired" toasts
+        // per run — pure failure-spam. Orders refresh silently; the board badge tells the story.
         state.orderTimer = Math.min(state.orderTimer, 8);
-        toast(`📋 ${expired} order${expired > 1 ? 's' : ''} expired — fresh ones are on the way.`);
         emit('orders');
       }
     }
@@ -1794,6 +1864,7 @@ const Game = (() => {
     get state() { return state; },
     on, emit, toast,
     newGame, applySetup, load, save, resetGame, fastForward,
+    startNewLegacy, canPrestige, legacyStars,
     exportCode, importCode, backupDue,
     workOddJobs, oddJobsAvailable, oddJobsPay,
     tick,

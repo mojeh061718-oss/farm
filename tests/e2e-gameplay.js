@@ -321,8 +321,10 @@ function check(name, ok, detail) {
     out.payoutOk = o1.coins === Math.ceil(total * 1.25 / 5) * 5;
     out.deadlineOk = (o1.expires - o1.posted) >= 3 * DATA.DAY_LEN - 1e-6;
     out.smallQty = Object.values(o1.reqs).every(q => q <= 5); // recent=0 → small board
-    // drain pending goal rewards so fulfil deltas are pure order payouts
-    s.stats.orders = 10; s.stats.earned = 1e6; s.stats.collected = 10; G.checkGoal();
+    // drain ALL goal rewards so fulfil deltas are pure order payouts (a goal can
+    // legitimately complete on fulfil/level-up, so mark every goal done up front)
+    s.stats.orders = 10; s.stats.earned = 1e6; s.stats.collected = 10;
+    s.goalsDone = DATA.GOALS.map(g => g.id); s.goalIndex = s.goalsDone.length;
     // rush: fulfilled within 1 day pays +25%
     for (const [item, qty] of Object.entries(o1.reqs)) s.inventory[item] = (s.inventory[item] || 0) + qty;
     const c0 = s.coins;

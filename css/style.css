@@ -1194,3 +1194,21 @@ button.mini:active, #sheet-close:active {
   .tp-cols { column-count: 1; }
   .tp-sheet { transform: rotate(.3deg); }
 }
+
+/* ---- Compendium (completion scoreboard) ---- */
+.comp-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.comp-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.75rem; font-weight: 800;
+  padding: 4px 8px; border-radius: 999px;
+  background: rgba(0,0,0,.05); color: var(--muted, #8a7d60);
+  border: 1px solid rgba(0,0,0,.06);
+  opacity: .6;
+}
+.comp-chip .ic { width: 1em; height: 1em; }
+.comp-chip.got {
+  opacity: 1; color: #3f6b2e;
+  background: rgba(126,166,83,.18);
+  border-color: rgba(126,166,83,.4);
+}
+.row-card .actions .mini.toggle.on { box-shadow: inset 0 0 0 2px rgba(255,255,255,.4); }

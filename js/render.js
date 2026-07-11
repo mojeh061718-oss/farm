@@ -2366,6 +2366,30 @@ const Renderer = (() => {
       return;
     }
 
+    // out-of-season telegraph: an immature crop planted where it can't survive is
+    // doomed — flag it LOUDLY from the moment it goes in the ground (playtest found
+    // 292 silent season-deaths in a single run). Ripe crops are exempt.
+    if (crop.prog < 1 && typeof Game !== 'undefined' && Game.seasonOK && !Game.seasonOK(crop.id, x, y)
+        && !(Game.isBlessed && Game.isBlessed(x, y))) {
+      const pulse = 0.6 + 0.4 * Math.sin(time * 3 + x + y);
+      ctx.save();
+      // a bright red ring hugs the doomed plot so it reads at a glance
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = '#e8371a';
+      ctx.lineWidth = 2 + pulse;
+      ctx.beginPath(); ctx.ellipse(cx, cy + 3, 17, 9, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.3 * pulse;
+      ctx.fillStyle = '#e8371a';
+      ctx.beginPath(); ctx.ellipse(cx, cy + 3, 17, 9, 0, 0, Math.PI * 2); ctx.fill();
+      // 🍂 badge on a dark disc — legible over any crop or soil colour
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(28,18,10,.72)';
+      ctx.beginPath(); ctx.arc(cx, cy - 24, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '15px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🍂', cx, cy - 24);
+      ctx.restore();
+    }
+
     const wilt = crop.wilt || 0;
     const storm = stormK > 0;
     let sway = Math.sin(time * 2.2 + x * 1.7 + y) * 0.05;

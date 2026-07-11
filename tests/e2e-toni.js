@@ -49,6 +49,7 @@ function check(name, ok, detail) {
     const G = Game, s = Game.state, out = {};
     s.coins += 50000;
     s.level = 60; // no level-up splash over the flow below
+    s.goalsDone = DATA.GOALS.map(g => g.id); s.goalIndex = s.goalsDone.length; // drain goals: level 60 would otherwise complete the level-15 goal mid-flow
     s.t = 0.1; s.weather = 'sun'; s.forecast = 'sun';
     s._flags.crowDone = true;
     document.getElementById('toasts').innerHTML = '';
