@@ -481,6 +481,51 @@ const Game = (() => {
     return best;
   }
 
+  // The classic 20×15 home valley's parcels, by INDEX (for the migration below).
+  const OLD_HOME_PARCELS = [
+    { x: 7, y: 5, w: 6, h: 6 }, { x: 13, y: 5, w: 5, h: 6 }, { x: 2, y: 5, w: 5, h: 6 },
+    { x: 7, y: 11, w: 6, h: 3 }, { x: 7, y: 2, w: 6, h: 3 }, { x: 13, y: 11, w: 5, h: 3 },
+    { x: 13, y: 2, w: 5, h: 3 }, { x: 2, y: 11, w: 5, h: 3 }, { x: 2, y: 2, w: 5, h: 3 },
+  ];
+  const rectsOverlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  // Grow an old 20×15 home into the new big valley IN PLACE. The new world shares
+  // the old origin (0,0) and is a strict superset, so every crop, building, Toni
+  // and tilled tile stays exactly where it was — we just enlarge the grid and
+  // re-own the new parcels that cover the player's old land (nothing is stranded;
+  // a fully-owned old valley stays fully owned). The rest becomes new land to buy.
+  function expandOldHome(F) {
+    const NEW = D.PARCELS, nw = D.WORLD_W, nh = D.WORLD_H, ow = F.w, oh = F.h;
+    const grid = [];
+    for (let y = 0; y < nh; y++) {
+      const row = [];
+      for (let x = 0; x < nw; x++) {
+        const t = (y < oh && x < ow && F.tiles[y]) ? F.tiles[y][x] : null;
+        row.push(t || { k: 'grass', crop: null, obj: null });
+      }
+      grid.push(row);
+    }
+    F.tiles = grid; F.w = nw; F.h = nh;
+    // re-derive ownership: keep every new parcel that covers old owned land
+    const ownedOld = (F.unlockedParcels || [0]).map(i => OLD_HOME_PARCELS[i]).filter(Boolean);
+    let unlocked = NEW.map((p, i) => i).filter(i => i === 0 || ownedOld.some(o => rectsOverlap(NEW[i], o)));
+    if ((F.unlockedParcels || []).length >= OLD_HOME_PARCELS.length) unlocked = NEW.map((_, i) => i); // was fully owned → stays fully owned
+    F.unlockedParcels = unlocked;
+    F.parcels = NEW.map(p => ({ ...p }));
+  }
+  // one-time: enlarge every original home valley in the save (active + snapshots)
+  function expandHomesOnce() {
+    if (state._flags.homeExpanded) return;
+    state._flags.homeExpanded = true;
+    const isOldHome = f => f && f.w === 20 && f.h === 15; // no bought template is 20×15
+    ensureFarms();
+    for (let i = 0; i < state.farms.length; i++) {
+      if (i === state.activeFarm) { if (isOldHome(state)) expandOldHome(state); }
+      else if (isOldHome(state.farms[i])) expandOldHome(state.farms[i]);
+    }
+    syncDims();
+    snapshotActiveFarm(); // refresh the active snapshot to match the migrated live state
+  }
+
   function adoptState(st) {
     state = st;
     state._flags = state._flags || {};
@@ -528,6 +573,8 @@ const Game = (() => {
       state._flags.ghAreaNotice = true;
       state._flags.pendingToast = '🪴 Greenhouses now protect a 6×6 area around them!';
     }
+    // the home valley grew: expand any classic 20×15 home into the big new one
+    expandHomesOnce();
   }
 
   function load() {

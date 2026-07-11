@@ -168,12 +168,12 @@ function check(name, ok, detail) {
   await page.evaluate(() => {
     const s = Game.state;
     s.coins += 40000;
-    Game.buyParcel(1); // unlock x13..17 for later placements
+    Game.buyParcel(1); // unlock a neighbouring parcel for later placements
     Game.placeBuilding('greenhouse', 11, 8); // footprint (11,8)-(12,9), coverage x9..14 y6..11
-    Renderer.centerOn(11.5, 8.5);
-    Renderer.cam.z = 0.85;
   });
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(800); // let the land-purchase camera ceremony finish
+  await page.evaluate(() => { Renderer.centerOn(11.5, 8.5); Renderer.cam.z = 0.85; });
+  await page.waitForTimeout(200);
   await tapTile(11, 8); // tap the greenhouse → coverage flash + panel
   await page.waitForTimeout(250);
   const ghPanel = await page.evaluate(() => document.getElementById('sheet-title').textContent);

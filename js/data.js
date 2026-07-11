@@ -4,8 +4,8 @@
 const DATA = (() => {
 
   // ---- World / time ----
-  const WORLD_W = 20;         // tiles
-  const WORLD_H = 15;
+  const WORLD_W = 34;         // tiles — the home valley is a big, roomy homestead
+  const WORLD_H = 26;
   const DAY_LEN = 120;        // real seconds per in-game day (slower, calmer cycle)
   const SEASON_DAYS = 10;     // days per season
   const NIGHT_START = 0.87;   // fraction of day when night falls
@@ -165,8 +165,8 @@ const DATA = (() => {
   const FARM_TEMPLATES = [
     { id: 'meadow',   name: 'Bluebell Meadow',  w: 14, h: 11, price: 12000,  blurb: 'A snug little plot — cozy and quick to fill.' },
     { id: 'grove',    name: 'Willow Grove',     w: 24, h: 18, price: 45000,  blurb: 'A roomy spread with space for a real operation.' },
-    { id: 'estate',   name: 'Goldfield Estate', w: 30, h: 22, price: 120000, blurb: 'A grand estate — acres of open land.' },
-    { id: 'frontier', name: 'Big Sky Frontier', w: 36, h: 26, price: 300000, blurb: 'Massive frontier land as far as the eye can see.' },
+    { id: 'estate',   name: 'Goldfield Estate', w: 38, h: 28, price: 120000, blurb: 'A grand estate — acres of open land, bigger than the home valley.' },
+    { id: 'frontier', name: 'Big Sky Frontier', w: 44, h: 32, price: 300000, blurb: 'Massive frontier land as far as the eye can see.' },
   ];
 
   // ---- Recipes (processing buildings) ----
@@ -201,16 +201,19 @@ const DATA = (() => {
   ];
 
   // ---- Land parcels (cost only, no level requirements) ----
+  // The home valley: a big 34×26 world. The free starting plot (index 0) is now
+  // a generous 16×8 spread — the whole classic middle band — and eight large
+  // parcels fan outward around it by price. Costs keep the classic sequence.
   const PARCELS = [
-    { x: 7,  y: 5,  w: 6, h: 6, cost: 0 },
-    { x: 13, y: 5,  w: 5, h: 6, cost: 1000 },
-    { x: 2,  y: 5,  w: 5, h: 6, cost: 2500 },
-    { x: 7,  y: 11, w: 6, h: 3, cost: 6000 },
-    { x: 7,  y: 2,  w: 6, h: 3, cost: 12000 },
-    { x: 13, y: 11, w: 5, h: 3, cost: 20000 },
-    { x: 13, y: 2,  w: 5, h: 3, cost: 32000 },
-    { x: 2,  y: 11, w: 5, h: 3, cost: 45000 },
-    { x: 2,  y: 2,  w: 5, h: 3, cost: 60000 },
+    { x: 2,  y: 5,  w: 16, h: 8, cost: 0 },     // free starting plot — big central band
+    { x: 18, y: 5,  w: 16, h: 8, cost: 1000 },  // right-middle
+    { x: 2,  y: 2,  w: 16, h: 3, cost: 2500 },  // top-left band
+    { x: 18, y: 2,  w: 16, h: 3, cost: 6000 },  // top-right band
+    { x: 2,  y: 13, w: 16, h: 7, cost: 12000 }, // lower-left
+    { x: 18, y: 13, w: 16, h: 7, cost: 20000 }, // lower-right
+    { x: 2,  y: 20, w: 11, h: 6, cost: 32000 }, // far bottom-left
+    { x: 13, y: 20, w: 11, h: 6, cost: 45000 }, // far bottom-centre
+    { x: 24, y: 20, w: 10, h: 6, cost: 60000 }, // far bottom-right
   ];
 
   // ---- Goals (a guiding arc — rewards, never gates) ----
