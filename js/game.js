@@ -341,8 +341,11 @@ const Game = (() => {
       && Number.isFinite(st.coins) && st.setupDone;
   }
 
+  let noSave = false; // hard-reset latch: nothing may write after an erase
   function save() {
-    if (!state) return;
+    // never persist a pre-setup shell — validSave would reject it on load and
+    // the recovery path would resurrect an old backup instead
+    if (!state || noSave || !state.setupDone) return;
     state.lastSaved = Date.now();
     const json = JSON.stringify(state);
     try { localStorage.setItem(SAVE_KEY, json); } catch (e) { /* storage full/blocked */ }
@@ -470,8 +473,11 @@ const Game = (() => {
   }
 
   function resetGame() {
-    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-    newGame();
+    noSave = true; // pagehide/autosave must not resurrect the farm on reload
+    try {
+      localStorage.removeItem(SAVE_KEY);
+      for (const k of BACKUP_KEYS) localStorage.removeItem(k);
+    } catch (e) {}
   }
 
   // simulate compressed time that passed while the game was closed
