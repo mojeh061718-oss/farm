@@ -19,7 +19,7 @@ My goal was simple and a little unhinged: **touch every single feature.** Every 
 - **Lifetime totals:** earned **$149,686**, sold **2,098** goods, harvested **971** crops, crafted **104** artisan goods, collected **890** animal products, fertilized **214** crops, planted **518** seeds… and **lost 343 crops.**
 - **Cause of death, all 343:** `season` **292**, `thirst` 24, `crow` 16, `storm` 11, `rot` 0, `frost` 0.
 
-Read that last line twice. **85% of everything I lost died because I planted it out of season.** That's the whole story of my run, and it's the thing I most want the team to read about. More below.
+**85% of everything I lost died because I planted it out of season.** That's the whole story of my run, and the thing I most want the team to read. More below.
 
 ---
 
@@ -118,11 +118,11 @@ That **155→237 jump between Days 70 and 80** is Y2 Winter, when I got cocky an
 
 ## 6. Systems & Content Analysis
 
-**Worth it, and shining:** The processing chain is the star. Bakery/Creamery/Press/Loom transform a plant-and-harvest loop into a supply-chain game, and the wool→cloth→quilt ladder ($1,500 top end) gives the economy a real ceiling to climb toward. Fertilizer is a clean, always-correct investment (I used it 214 times without a second thought). The drone + sprinkler automation genuinely delivers on the "self-running farm" promise and is a satisfying thing to build toward.
+**Worth it, and shining:** The processing chain is the star. Bakery/Creamery/Press/Loom turn a plant-and-harvest loop into a supply-chain game, and the wool→cloth→quilt ladder ($1,500 top end) gives the economy a real ceiling. Fertilizer is a clean, always-correct investment (214 uses, no regrets). Drone + sprinkler automation delivers on the "self-running farm" promise.
 
-**Underexplained, and it cost me:** *Seasons.* The single most important survival mechanic in the game — the one responsible for 85% of my deaths — is communicated by one rate-limited, two-second toast. The *Greenhouse* is underexplained twice over: its coverage is invisible and its "you need several" nature isn't enforced by any feedback until your crops are already dead. The *Feed Mill* is so quietly presented that a completionist skipped it entirely and paid the cash tax 166 times. These three — season death, greenhouse coverage, feed mill value — are the discoverability black holes.
+**Underexplained, and it cost me:** *Seasons* — the most important survival mechanic, responsible for 85% of my deaths, communicated by one rate-limited two-second toast. The *Greenhouse* is underexplained twice: coverage is invisible, and its "build several" nature isn't reinforced until crops are already dead. The *Feed Mill* is so quiet a completionist skipped it and paid the cash tax 166 times. Season death, greenhouse coverage, feed-mill value — the three discoverability black holes.
 
-**Underpowered / underused:** My tool tiers. I never left Rototiller/Hose Cart because the game stopped selling me on the Tractor and Irrigation Rig once I was past the early game. They may be great; I'll never know, and that's a UX miss. Extra craft lanes fall in the same bucket — I never bought one because I never understood the throughput I was leaving on the table.
+**Underpowered / underused:** Tool tiers — I never left Rototiller/Hose Cart because the game stopped selling me the Tractor and Irrigation Rig past the early game. Extra craft lanes are the same story: never bought, because I never saw the throughput I was leaving on the table.
 
 **What a completionist runs out of:** *New buildings* (frozen at 11 on Day 48), *new goals* (17/18 by Day 48, the 18th unreachable), and *affordable land* (stuck at 5/9). After the halfway mark, "touch everything" had touched everything the game surfaced, and the back 50 days became a cash plateau with no fresh checkbox to chase. The content is rich — 18 crops, 12 buildings, 14 recipes, 6 animals, 9 parcels — but the *guidance and pacing* run dry well before the days do. Give me a compendium, a longer goal ladder, and honest telegraphing of the mechanics quietly killing me, and this becomes a completionist's dream instead of a completionist's very well-documented disaster.
 
