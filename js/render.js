@@ -4026,19 +4026,25 @@ const Renderer = (() => {
     const t = state.tonis[i];
     const c = proj(t.x + 0.5, t.y + 0.5);
     const H = TONI_HEAD[TONI_STYLE];
-    shadow(c.x + 3, c.y + 4, 20, 7.5);
+    // rising from the seed: ~3s ease-out bloom when newly transformed
+    let rise = 1;
+    if (t.rise != null) {
+      const k = Math.min(1, (state.now - t.rise) / 3);
+      rise = 0.12 + 0.88 * (1 - Math.pow(1 - k, 3));
+    }
+    shadow(c.x + 3, c.y + 4, 20 * rise, 7.5 * Math.max(0.4, rise));
     // stately sway — slower and calmer than any crop
     let sway = Math.sin(time * 0.8 + t.x * 1.7 + t.y) * 0.028;
     if (stormK > 0) sway += Math.sin(time * 2.1 - (t.x + t.y) * 0.6) * 0.07 * stormK;
-    blit(toniSprite(), c.x, c.y + 2, sway);
-    // head position under the ground-anchored sway rotation
-    const hx = c.x + H.x - H.y * sway, hy = c.y + 2 + H.y + H.x * sway;
+    blit(toniSprite(), c.x, c.y + 2, sway, rise);
+    // head position under the ground-anchored sway rotation (tracks the rise)
+    const hx = c.x + (H.x - H.y * sway) * rise, hy = c.y + 2 + (H.y + H.x * sway) * rise;
 
     // soft additive halo — subtle by day, blooming at dusk & night
     const nightK = Math.max(SUN.dusk, SUN.dark);
     const breathe = 0.85 + 0.15 * Math.sin(time * 1.1 + t.x);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = (0.065 + 0.22 * nightK) * breathe; // a warm shimmer, not a bubble
+    ctx.globalAlpha = (0.065 + 0.22 * nightK) * breathe * (1 + (1 - rise) * 2.2); // a warm shimmer — blooming brighter as she rises
     ctx.drawImage(sprites.toniGlow, hx - 38, hy - 38, 76, 76);
 
     if (TONI_STYLE === 'C') {

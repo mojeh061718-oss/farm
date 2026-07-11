@@ -40,8 +40,8 @@ function check(name, ok, detail) {
 
   // ---- rarity constants (exact spec values) ----
   const rare = await page.evaluate(() => DATA.TONI);
-  check('rarity: plant roll 1/30000, glowing seed 1/25',
-    Math.abs(rare.plantChance - 1 / 30000) < 1e-12
+  check('rarity: plant roll 1/1000, glowing seed 1/25',
+    Math.abs(rare.plantChance - 1 / 1000) < 1e-12
     && Math.abs(rare.seedChance - 1 / 25) < 1e-12, rare);
 
   // ---- the roll lives on the seed: planting can BE the seed ----
@@ -55,21 +55,30 @@ function check(name, ok, detail) {
     G.plant(9, 7, 'turnip');             // the bystander crop the blessing tests use
     s.tiles[7][9].crop.water = 1;
     const mr = Math.random;
-    Math.random = () => 0;               // the 1/30000 plant roll must hit
+    Math.random = () => 0;               // the 1/1000 plant roll must hit
     G.plant(10, 8, 'turnip');
     Math.random = mr;
+    // total stealth: the crop IS a normal turnip — same id, same timer, no toni yet
+    const c0 = s.tiles[8][10].crop;
+    out.hidden = !!c0 && c0.id === 'turnip' && c0.toni === true && s.tonis.length === 0;
+    out.toastsAtPlant = document.getElementById('toasts').textContent;
+    // she rises only at maturity
+    c0.water = 1; c0.prog = 0.98;
+    G.tick(2); G.tick(1); // ripen, then the next tick transforms
     const t = s.tonis[0];
     out.spawned = s.tonis.length === 1 && !!t;
     out.atTile = t && t.x === 10 && t.y === 8;
     out.seedGone = !s.tiles[8][10].crop; // the seed was never a turnip at all
+    out.rises = t && t.rise != null;
     out.unlocked = t && G.isUnlocked(t.x, t.y);
     out.noBuilding = t && !s.tiles[t.y][t.x].obj;
     out.fresh = t && t.seen === false && t.day >= 1;
     out.toasts = document.getElementById('toasts').textContent;
     return out;
   });
-  check('planting a seed can spawn the toni AT that tile (seed consumed, seen=false)',
-    act.spawned && act.atTile && act.seedGone && act.unlocked && act.noBuilding && act.fresh, act);
+  check('tagged seed grows as a NORMAL crop — no toni, no tell at planting', act.hidden && act.toastsAtPlant === '', act);
+  check('at maturity the toni rises AT that tile (crop consumed, rise animation armed, seen=false)',
+    act.spawned && act.atTile && act.seedGone && act.rises && act.unlocked && act.noBuilding && act.fresh, act);
   check('no announcement toast on spawn — found by eye only', act.toasts === '', act.toasts);
 
   // ---- two coexist; offline plants NEVER roll ----
@@ -100,18 +109,21 @@ function check(name, ok, detail) {
   const bless = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     out.blessed = G.isBlessed(9, 7);
+    G.tick(0.5); // settle a ripe-at-boundary cycle: auto-harvest can swap the crop object
     // fastForward above ripened the turnip → auto-harvest banks + replants (frozen snapshot)
     const c = s.tiles[7][9].crop;
     out.replanted = !!c && c.id === 'turnip' && c.prog < 1;
     out.banked = (s.inventory.turnip || 0) >= 1;
     // pins: water full, wilt/rot zero — the blessing holds them there
     s.t = 0.2; s.weather = 'sun';
-    c.water = 0.2; c.wilt = 0.6; c.rot = 0.4;
+    let cl = s.tiles[7][9].crop;
+    cl.water = 0.2; cl.wilt = 0.6; cl.rot = 0.4;
     G.tick(1);
-    out.pinned = c.water === 1 && c.wilt === 0 && c.rot === 0;
+    cl = s.tiles[7][9].crop;             // re-read: the cycle may have replaced it
+    out.pinned = cl.water === 1 && cl.wilt === 0 && cl.rot === 0;
     // unfertilized crops grow at the fertilizer speed ("love") — measured from
     // a low prog so the crop can't ripen (and self-harvest) mid-measurement
-    c.prog = 0.1;
+    cl.prog = 0.1;
     G.tick(4);
     out.speed = (s.tiles[7][9].crop.prog - 0.1) * DATA.CROPS.turnip.grow / 4;
     out.speedOK = Math.abs(out.speed - 1.25) < 0.03;

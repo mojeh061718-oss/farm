@@ -717,13 +717,10 @@ const Game = (() => {
     state.stats.planted++;
     fx('plant', x + .5, y + .5, null, def.color);
     // any seed, cheapest or priciest, might be the one He dropped: the roll
-    // happens ONLY here, at planting, and the flower grows from this very
-    // tile. Math.random read at the roll — nothing seeded, nothing scheduled.
-    if (!state._offline && Math.random() < D.TONI.plantChance) {
-      t.crop = null; // the seed was never a turnip at all
-      addToni(x, y);
-      fx('toni', x + .5, y + .5);
-    }
+    // happens ONLY here, at planting — and it tells NO ONE. The crop grows
+    // exactly as the seed it was planted as (same timer, same sprite); the
+    // truth waits for maturity. Math.random read at the roll.
+    if (!state._offline && Math.random() < D.TONI.plantChance) t.crop.toni = true;
     checkGoal();
     return true;
   }
@@ -1654,6 +1651,13 @@ const Game = (() => {
       }
 
       if (c.prog >= 1) {
+        if (c.toni) { // the seed was never a turnip at all — she rises now
+          state.tiles[ty][tx].crop = null;
+          const tn = addToni(tx, ty);
+          tn.rise = state.now;
+          fx('toni', tx + .5, ty + .5);
+          continue;
+        }
         if (bl) { toniAutoHarvest(tx, ty); continue; } // ripe blessed crops bank themselves
         // ripe crops rot if you leave them standing (never while away)
         if (!state._offline) {

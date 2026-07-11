@@ -54,7 +54,7 @@ const DATA = (() => {
   // Mythic. Genuinely random — no seeds, no pity timers. Some farms will
   // never see one. That's the point. Harvesting one yields a single Glowing
   // Seed; a planted Glowing Seed reveals a new Toni at seedChance.
-  const TONI = { plantChance: 1 / 30000, seedChance: 1 / 25 }; // rolled ONLY when a seed is planted / when a Glowing Seed reveals
+  const TONI = { plantChance: 1 / 1000, seedChance: 1 / 25 }; // plantChance: silent roll when any seed is planted; seedChance: Glowing Seed reveal
 
   // ---- Items (everything sellable / storable) ----
   const ITEMS = {
