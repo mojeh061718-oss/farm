@@ -58,7 +58,7 @@ html, body {
   overflow: hidden;
 }
 @supports (height: 100dvh) {
-  body { height: 100dvh; } /* track iOS Safari's dynamic viewport (toolbar collapse) */
+  html, body { height: 100dvh; } /* track iOS Safari's dynamic viewport (toolbar collapse) */
 }
 html, body {
   font-family: ui-rounded, "SF Pro Rounded", Nunito, "Segoe UI", system-ui, sans-serif;
@@ -71,7 +71,10 @@ html, body {
 }
 
 #game {
-  position: absolute; inset: 0;
+  /* fixed → the canvas is full-bleed to the real screen (viewport-fit=cover),
+     so the world paints edge-to-edge, including behind the iOS home indicator.
+     Prevents the dark safe-area strip that 100dvh leaves under the app. */
+  position: fixed; inset: 0;
   width: 100%; height: 100%;
   display: block;
   touch-action: none;
