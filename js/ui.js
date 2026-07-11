@@ -2248,8 +2248,19 @@ const UI = (() => {
       Renderer.centerOn((s.w || 20) / 2, (s.h || 15) / 2);
       updateHud(); updateGoalChip();
     };
-    Game.on('farmswitch', onFarmChange);
     Game.on('farmbought', onFarmChange);
+    Game.on('farmswitch', (i, digest) => {
+      onFarmChange();
+      // one gentle "while you were away" digest for the farm you just returned to
+      if (digest && (digest.banked > 0 || digest.grew > 0)) {
+        const s = Game.state;
+        const name = (s.farmName || 'This farm');
+        const parts = [];
+        if (digest.banked > 0) parts.push(`banked ${digest.banked} harvest${digest.banked > 1 ? 's' : ''}`);
+        if (digest.grew > 0) parts.push(`${digest.grew} crop${digest.grew > 1 ? 's' : ''} ripened`);
+        setTimeout(() => Game.toast(`🌻 While you were away, ${name} ${parts.join(' & ')}.`, 'good'), 350);
+      }
+    });
 
     updateHud();
   }
