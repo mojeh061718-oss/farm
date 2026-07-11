@@ -71,7 +71,141 @@ const Game = (() => {
   function seasonOK(cropId, x, y) {
     if (D.CROPS[cropId].seasons.includes(state.season)) return true;
     if (x === undefined) return hasBuilding('greenhouse');
-    return greenhouseAt(x, y);
+    return greenhouseAt(x, y) || isBlessed(x, y);
+  }
+
+  // ---------------- THE Sunflower (the Toni Variety) ----------------
+  // Once in a great while, the big man upstairs lets a single seed go.
+  // No announcement, no toast — it has to be found by eye.
+  function toniAt(x, y) {
+    if (!state.tonis) return null;
+    for (const t of state.tonis) if (t.x === x && t.y === y) return t;
+    return null;
+  }
+
+  function spawnToni() {
+    const cand = [];
+    for (let y = 0; y < D.WORLD_H; y++)
+      for (let x = 0; x < D.WORLD_W; x++)
+        if (isUnlocked(x, y) && !state.tiles[y][x].obj && !toniAt(x, y) && !sproutAt(x, y)) cand.push([x, y]);
+    if (!cand.length) return null;
+    const [x, y] = pick(cand); // rises out of whatever is there — crops stay
+    const t = addToni(x, y);
+    fx('toni', x + .5, y + .5); // one golden shimmer if on-screen, nothing more
+    return t;
+  }
+
+  function addToni(x, y) {
+    const t = { x, y, day: absDay(), seen: false };
+    state.tonis.push(t);
+    blessSrc = null; // same array identity/length can hide a content change
+    return t;
+  }
+
+  // a whisper of a chance on any common action — live play only. Math.random
+  // is read AT the roll (live property lookup, not the cached `rnd` binding):
+  // nothing seeded, nothing deterministic — and tests can stub exactly one roll.
+  function maybeToni() {
+    if (!state._offline && Math.random() < D.TONI.actionChance) spawnToni();
+  }
+
+  // the parcel a toni stands on is blessed while the toni exists (it never
+  // dies). Rect list memoized off the tonis array — recomputed only when a
+  // toni appears or a different save is adopted, so zero-toni farms pay
+  // nothing and the tick loop never scans parcels per tile.
+  let blessCache = null, blessSrc = null, blessLen = -1;
+  function blessedRects() {
+    const ts = state.tonis;
+    if (!ts || !ts.length) return null;
+    if (blessSrc !== ts || blessLen !== ts.length) {
+      const seen = new Set();
+      blessCache = [];
+      for (const t of ts) {
+        const p = parcelAt(t.x, t.y);
+        if (p >= 0 && !seen.has(p)) { seen.add(p); blessCache.push(D.PARCELS[p]); }
+      }
+      blessSrc = ts; blessLen = ts.length;
+    }
+    return blessCache;
+  }
+
+  function isBlessed(x, y) {
+    const rects = blessedRects();
+    if (!rects) return false;
+    for (const p of rects) if (x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) return true;
+    return false;
+  }
+
+  const toniFxAt = {}; // per-parcel golden-fx throttle (≤1/s, render-side only)
+  function toniAutoHarvest(x, y) {
+    if (!harvest(x, y, true)) return;
+    const p = parcelAt(x, y);
+    if (!state._offline && state.now - (toniFxAt[p] || -9) >= 1) {
+      toniFxAt[p] = state.now;
+      fx('burst', x + .5, y + .4, null, '#ffd75e');
+    }
+  }
+
+  // while a toni stands, its parcel is locked in place — one gentle, throttled notice
+  function toniLockNotice() {
+    if (!state._offline && state.now >= (state._flags.toniWarnUntil || 0)) {
+      state._flags.toniWarnUntil = state.now + 6;
+      toast('🌻 The land is at peace — nothing can be disturbed while the flower stands.');
+    }
+    return false;
+  }
+
+  // harvesting the flower (2-step confirm lives in the UI): the blessing ends,
+  // the land wakes, and a single Glowing Seed remains
+  function harvestToni(x, y) {
+    const i = (state.tonis || []).findIndex(t => t.x === x && t.y === y);
+    if (i < 0) return false;
+    state.tonis.splice(i, 1);
+    blessSrc = null; // drop the rect memo — the parcel may just have woken
+    state.inventory.toni_seed = (state.inventory.toni_seed || 0) + 1;
+    fx('burst', x + .5, y + .4, null, '#ffd75e');
+    fx('float', x + .5, y, '🌟', '#ffe082');
+    toast('🌟 A single Glowing Seed rests in your hand. The land wakes.', 'good');
+    save();
+    return true;
+  }
+
+  // ---- the Glowing Seed: plant it, wait a day, and hope ----
+  function sproutAt(x, y) {
+    if (!state.sprouts) return null;
+    for (const s of state.sprouts) if (s.x === x && s.y === y) return s;
+    return null;
+  }
+
+  function plantToniSeed(x, y) {
+    const t = tileAt(x, y);
+    if (!t || !isUnlocked(x, y) || t.k !== 'soil' || t.crop || t.obj) return false;
+    if (toniAt(x, y) || sproutAt(x, y)) return false;
+    if (isBlessed(x, y)) return toniLockNotice();
+    if ((state.inventory.toni_seed || 0) < 1) return false;
+    state.inventory.toni_seed--;
+    if (state.inventory.toni_seed <= 0) delete state.inventory.toni_seed;
+    state.sprouts.push({ x, y, at: state.now + D.DAY_LEN }); // reveals in one day
+    fx('plant', x + .5, y + .5, null, '#ffe082');
+    toast('🌟 The Glowing Seed is in the ground. Give it a day.', 'good');
+    return true;
+  }
+
+  // reveal: rolled with Math.random AT THIS MOMENT (property lookup, not the
+  // cached rnd binding) so it stays genuinely non-deterministic — and tests
+  // can stub Math.random for exactly one reveal.
+  function revealSprout(i) {
+    const sp = state.sprouts[i];
+    state.sprouts.splice(i, 1);
+    const t = tileAt(sp.x, sp.y);
+    if (Math.random() < D.TONI.seedChance) {
+      addToni(sp.x, sp.y); // the story begins again
+      fx('toni', sp.x + .5, sp.y + .5);
+    } else if (t && !t.crop && !t.obj) {
+      // a kind consolation — ripe and ready, no seed money spent
+      t.crop = { id: 'sunflower', prog: 1, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
+      toast('🌻 A beautiful sunflower… but an ordinary one.');
+    }
   }
 
   // ---------------- new game ----------------
@@ -106,6 +240,8 @@ const Game = (() => {
       market: { mults: {}, hot: 'turnip', fuelPrice: D.FUEL.startPrice },
       orders: [],
       orderTimer: 20,
+      tonis: [],
+      sprouts: [],
       unlockedParcels: [0],
       goalIndex: 0,
       goalCursor: 0,
@@ -231,11 +367,14 @@ const Game = (() => {
     state.feedCredits = state.feedCredits || 0;
     state.usedNames = state.usedNames || [...new Set(state.animals.map(a => a.name))];
     state.produced = state.produced || {};
-    for (const k of Object.keys(state.inventory || {})) state.produced[k] = 1;
+    for (const k of Object.keys(state.inventory || {}))
+      if (!D.ITEMS[k] || !D.ITEMS[k].mythic) state.produced[k] = 1; // orders never ask for mythics
     state.stats.recent = state.stats.recent || 0;
     state.stats.prodMark = state.stats.prodMark || 0;
     // ---- 3.0 additive migrations ----
     state.goalCursor = state.goalCursor || 0;
+    state.tonis = state.tonis || [];
+    state.sprouts = state.sprouts || [];
     if (!state.daily) regenDaily();
     // orders gain deadlines (floored so slow items are never impossible)
     for (const o of state.orders || []) {
@@ -385,7 +524,8 @@ const Game = (() => {
     const key = state.year + '-' + state.season;
     if (!mdCache || mdCache.key !== key) {
       const rng = mulberry32(seedFrom(key));
-      const ids = Object.keys(D.ITEMS);
+      // mythics excluded — the filtered list also keeps pre-toni picks identical
+      const ids = Object.keys(D.ITEMS).filter(id => !D.ITEMS[id].mythic);
       const items = [];
       const n = 2 + Math.floor(rng() * 2);
       while (items.length < n) {
@@ -455,7 +595,7 @@ const Game = (() => {
     const pool = availableItems();
     // 70% of picks come from what this farm has actually produced — orders ask
     // for things the player demonstrably makes (fresh farms fall back to pool)
-    const producedPool = Object.keys(state.produced || {}).filter(id => D.ITEMS[id]);
+    const producedPool = Object.keys(state.produced || {}).filter(id => D.ITEMS[id] && !D.ITEMS[id].mythic);
     // quantities scale with RECENT production (decayed daily harvest+collect),
     // not lifetime wealth — a slumping or fresh farm gets small orders again
     const scale = 1 + Math.min(6, (state.stats.recent || 0) / 10);
@@ -529,6 +669,7 @@ const Game = (() => {
   const PROCESSED = new Set(Object.values(D.RECIPES).map(r => r.out));
 
   function sellItem(item, qty) {
+    if (D.ITEMS[item] && D.ITEMS[item].mythic) return 0; // mythics are beyond money
     const have = state.inventory[item] || 0;
     qty = Math.min(qty, have);
     if (qty <= 0) return 0;
@@ -558,6 +699,7 @@ const Game = (() => {
   function till(x, y) {
     const t = tileAt(x, y);
     if (!t || !isUnlocked(x, y) || t.k !== 'grass' || t.obj) return false;
+    if (isBlessed(x, y)) return toniLockNotice();
     t.k = 'soil';
     state.stats.tilled++;
     fx('till', x + .5, y + .5, null, '#7d5c3c');
@@ -568,7 +710,8 @@ const Game = (() => {
   function plant(x, y, cropId) {
     const t = tileAt(x, y);
     const def = D.CROPS[cropId];
-    if (!t || !def || t.k !== 'soil' || t.crop || t.obj) return false;
+    if (!t || !def || t.k !== 'soil' || t.crop || t.obj || sproutAt(x, y)) return false;
+    if (isBlessed(x, y)) return toniLockNotice(); // the frozen field plants itself
     if (state.coins < def.seed) { toast('Not enough cash for seeds! (Tip: work odd jobs from the ⚙️ Menu)', 'bad'); return false; }
     // planting out of season is allowed — but the crop will wither and die.
     if (!seasonOK(cropId, x, y) && state.now >= (state._flags.offWarnUntil || 0) && !state._offline) {
@@ -580,6 +723,7 @@ const Game = (() => {
     if (state.weather === 'rain' || state.weather === 'storm') t.crop.water = 1;
     state.stats.planted++;
     fx('plant', x + .5, y + .5, null, def.color);
+    maybeToni();
     checkGoal();
     return true;
   }
@@ -593,6 +737,7 @@ const Game = (() => {
     state.stats.watered++;
     dailyProgress('water');
     fx('water', x + .5, y + .35, null, '#4a90b8');
+    maybeToni();
     checkGoal();
     return true;
   }
@@ -600,6 +745,7 @@ const Game = (() => {
   function fertilize(x, y) {
     const t = tileAt(x, y);
     if (!t || !t.crop || t.crop.dead || t.crop.fert || t.crop.prog >= 1) return false;
+    if (isBlessed(x, y)) return false; // silent no-op: blessed soil already grows with love
     const cost = D.fertCost(t.crop.id);
     if (state.coins < cost) return 'broke';
     state.coins -= cost;
@@ -633,6 +779,10 @@ const Game = (() => {
       t.crop.rot = 0;
       t.crop.regrown = true;
       t.crop.fert = false;
+    } else if (isBlessed(x, y)) {
+      // the blessed field is a frozen snapshot: single-harvest crops replant
+      // themselves, free — its composition never changes while the toni stands
+      t.crop = { id, prog: 0, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
     } else {
       t.crop = null;
     }
@@ -641,6 +791,7 @@ const Game = (() => {
       fx('float', x + .5, y, `+${n} ${D.ITEMS[id].emoji}`, n > 1 ? '#ffe082' : '#fff');
       fx('harvest', x + .5, y + .4, null, def.color, { n, id });
     }
+    maybeToni();
     checkGoal();
     return n;
   }
@@ -657,7 +808,8 @@ const Game = (() => {
   // or un-till empty soil back to grass (the ground layer repaints itself)
   function dig(x, y) {
     const t = tileAt(x, y);
-    if (!t || !isUnlocked(x, y) || t.obj) return false;
+    if (!t || !isUnlocked(x, y) || t.obj || sproutAt(x, y)) return false;
+    if (toniAt(x, y) || isBlessed(x, y)) return toniLockNotice(); // untouchable while the flower stands
     if (t.crop) {
       if (t.crop.dead) return clearDead(x, y);
       const refund = Math.round(D.CROPS[t.crop.id].seed * 0.5);
@@ -771,6 +923,7 @@ const Game = (() => {
       return { act: 'growing' };
     }
 
+    if (sproutAt(x, y)) { toast('🌟 Something is glowing beneath the soil…'); return { act: 'sprout' }; }
     if (t.k === 'soil') return { act: 'seedsheet', x, y };
     if (t.k === 'grass') {
       const r = applyTool('hoe', x, y);
@@ -787,6 +940,7 @@ const Game = (() => {
       for (let dx = 0; dx < def.w; dx++) {
         const t = tileAt(x + dx, y + dy);
         if (!t || !isUnlocked(x + dx, y + dy) || t.k !== 'grass' || t.obj || t.crop) return false;
+        if (toniAt(x + dx, y + dy) || sproutAt(x + dx, y + dy) || isBlessed(x + dx, y + dy)) return false;
       }
     return true;
   }
@@ -811,6 +965,7 @@ const Game = (() => {
     const b = state.buildings[index];
     if (!b) return false;
     const def = D.BUILDINGS[b.type];
+    if (isBlessed(b.x, b.y)) return toniLockNotice(); // locked in place under the blessing
     if (def.capacity && animalsIn(index).length > 0) {
       toast('Sell or move the animals first!', 'bad');
       return false;
@@ -1013,6 +1168,7 @@ const Game = (() => {
       addXp(gainXp);
       emit('sound', 'harvest');
       fx('float', b.x + 1, b.y, `+${n} 📦`, '#fff');
+      maybeToni();
       checkGoal();
     }
     return n;
@@ -1290,7 +1446,7 @@ const Game = (() => {
       const c = state.tiles[y][x].crop;
       if (!c || c.dead) continue;
       if (D.CROPS[c.id].seasons.includes(next)) continue;
-      if (greenhouseAt(x, y)) continue;
+      if (greenhouseAt(x, y) || isBlessed(x, y)) continue;
       out.push({ x, y, id: c.id, ripe: c.prog >= 1, prog: c.prog });
     }
     return out;
@@ -1350,6 +1506,10 @@ const Game = (() => {
     state._flags.crowDone = false;
     state._flags.frostDone = false;
 
+    // once in a great while, a seed falls from the rail of heaven (live dawns
+    // only; Math.random read at the roll — see maybeToni)
+    if (!state._offline && Math.random() < D.TONI.dawnChance) spawnToni();
+
     // drones harvest & replant first, THEN sprinklers water — so freshly
     // replanted crops don't spend their first day dry
     runDrones();
@@ -1373,7 +1533,7 @@ const Game = (() => {
       const m = state.market.mults[id];
       state.market.mults[id] = clamp(m * (0.82 + rnd() * 0.36) + (m < 0.6 ? 0.08 : 0), 0.05, 1.6);
     }
-    state.market.hot = pick(Object.keys(D.ITEMS));
+    state.market.hot = pick(Object.keys(D.ITEMS).filter(id => !D.ITEMS[id].mythic));
     state.market.fuelPrice = Math.round(clamp(state.market.fuelPrice * (0.9 + rnd() * 0.2), D.FUEL.min, D.FUEL.max) * 10) / 10;
 
     // mid-season Market Day banner
@@ -1389,7 +1549,7 @@ const Game = (() => {
       let smashed = 0;
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
-        if (t.crop && !t.crop.dead && !isProtected(x, y) && rnd() < 0.12 * diff().eventMult) {
+        if (t.crop && !t.crop.dead && !isProtected(x, y) && !isBlessed(x, y) && rnd() < 0.12 * diff().eventMult) {
           t.crop.dead = true; t.crop.deadCause = 'storm'; smashed++; state.stats.lost++;
           if (smashed <= 4) fx('lightning', x + .5, y + .5);
         }
@@ -1406,7 +1566,7 @@ const Game = (() => {
       const targets = [];
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
-        if (t.crop && !t.crop.dead && t.crop.prog >= 1 && !isProtected(x, y)) targets.push([x, y]);
+        if (t.crop && !t.crop.dead && t.crop.prog >= 1 && !isProtected(x, y) && !isBlessed(x, y)) targets.push([x, y]);
       }
       if (targets.length) {
         const [x, y] = pick(targets);
@@ -1424,7 +1584,7 @@ const Game = (() => {
       let frozen = 0;
       for (let y = 0; y < D.WORLD_H; y++) for (let x = 0; x < D.WORLD_W; x++) {
         const t = state.tiles[y][x];
-        if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3) && !greenhouseAt(x, y)) {
+        if (t.crop && !t.crop.dead && !D.CROPS[t.crop.id].seasons.includes(3) && !greenhouseAt(x, y) && !isBlessed(x, y)) {
           t.crop.dead = true;
           t.crop.deadCause = 'frost';
           frozen++;
@@ -1467,14 +1627,23 @@ const Game = (() => {
     // crops finish and wait. A rescue window after an away season-flip pauses
     // wilt the same way until the player has had time to react.
     const rescued = state.now < (state._flags.rescueUntil || 0);
+    const bless = blessedRects(); // toni parcels, computed once per tick — null on ordinary farms
+
+    // glowing seedlings reveal after their day in the ground
+    if (state.sprouts && state.sprouts.length)
+      for (let i = state.sprouts.length - 1; i >= 0; i--)
+        if (state.now >= state.sprouts[i].at) revealSprout(i);
 
     // crops: growth, thirst, wilting, rot
     for (let ty = 0; ty < D.WORLD_H; ty++) for (let tx = 0; tx < D.WORLD_W; tx++) {
       const c = state.tiles[ty][tx].crop;
       if (!c || c.dead) continue;
+      let bl = false;
+      if (bless) for (const p of bless) if (tx >= p.x && tx < p.x + p.w && ty >= p.y && ty < p.y + p.h) { bl = true; break; }
+      if (bl) { c.water = 1; c.wilt = 0; c.rot = 0; } // the blessing: never dry, never failing
       const off = !seasonOK(c.id, tx, ty);
       if (raining) c.water = 1;
-      else if (!state._offline) c.water = Math.max(0, c.water - dt / drain);
+      else if (!state._offline && !bl) c.water = Math.max(0, c.water - dt / drain);
 
       // wilting: dry crops and out-of-season crops decline; watered ones recover
       let wilting = false;
@@ -1492,6 +1661,7 @@ const Game = (() => {
       }
 
       if (c.prog >= 1) {
+        if (bl) { toniAutoHarvest(tx, ty); continue; } // ripe blessed crops bank themselves
         // ripe crops rot if you leave them standing (never while away)
         if (!state._offline) {
           c.rot = (c.rot || 0) + dt / (D.ROT_DAYS * D.DAY_LEN);
@@ -1500,7 +1670,7 @@ const Game = (() => {
       } else if ((c.water > 0 || state._offline) && !off) {
         const def = D.CROPS[c.id];
         const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
-        const speed = c.fert ? 1.25 : 1;
+        const speed = (c.fert || bl) ? 1.25 : 1; // blessed soil grows with love
         c.prog = Math.min(1, c.prog + (dt * speed) / growTime);
       }
     }
@@ -1595,6 +1765,7 @@ const Game = (() => {
     tick,
     // world queries
     tileAt, parcelAt, isUnlocked, hasBuilding, isProtected, seasonOK, greenhouseAt,
+    spawnToni, toniAt, isBlessed, harvestToni, plantToniSeed, sproutAt,
     buildingsOf, animalsIn, readyIn, feedCostFor, canCraft, canFulfill,
     currentGoal, cycleGoal, sellPrice, fuelPrice, availableItems, farmValue, ownsPoweredGear,
     atRiskCrops, runningJobs, orderRush, marketDayItems,

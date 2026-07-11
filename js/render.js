@@ -679,6 +679,8 @@ const Renderer = (() => {
     sprites.lightWarm = bakeRadial(256, 255, 176, 96, 1);     // window light
     sprites.lightCool = bakeRadial(128, 130, 185, 255, 1);    // drone LED
     sprites.lightFly = bakeRadial(96, 210, 230, 110, 1);      // firefly
+    sprites.toniGlow = bakeRadial(128, 255, 228, 130, 0.5);   // the Toni's halo
+    sprites.lightGold = bakeRadial(256, 255, 214, 110, 1);    // the Toni's night light
   }
 
   // ---------------- per-frame light registry (pooled) ----------------
@@ -3852,6 +3854,290 @@ const Renderer = (() => {
     }
   }
 
+  /* ================= THE SUNFLOWER (the Toni Variety) =================
+     A mythic once-in-a-farm bloom, slightly taller than the barn (baseH 46 +
+     roofH 28 = 74px → ~84px here), eternal across seasons. Static art
+     (stem + head + baked halo) lives in the atlas per LOD; sway, sparkles
+     and the night light run per frame. Three candidate looks live behind
+     TONI_STYLE — flip the one line below to change the flower everywhere. */
+  let TONI_STYLE = 'A'; // the owner's pick: 'A' Cathedral ('B' Willowy Giant / 'C' Sunburst kept as alternates)
+  // head anchor (px above the ground point) per style — halo/light/sparkles follow it.
+  // The barn silhouette (front base → vane) is ~130px; petal tips land ~145-152.
+  const TONI_HEAD = { A: { x: 2, y: -120 }, B: { x: 13, y: -130 }, C: { x: 0, y: -116 } };
+
+  // tapered stem ribbon through 3 points, base width → tip width
+  function toniStem(g, x0, y0, cx, cy, x1, y1, w0, w1, col) {
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(x0 - w0, y0);
+    g.quadraticCurveTo(cx - (w0 + w1) / 2, cy, x1 - w1, y1);
+    g.lineTo(x1 + w1, y1);
+    g.quadraticCurveTo(cx + (w0 + w1) / 2, cy, x0 + w0, y0);
+    g.closePath();
+    g.fill();
+  }
+
+  function toniLeaf(g, x0, y0, x1, y1, w, col, vein) {
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const dx = x1 - x0, dy = y1 - y0;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len * w, ny = dx / len * w;
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.quadraticCurveTo(mx + nx, my + ny, x1, y1);
+    g.quadraticCurveTo(mx - nx * 0.7, my - ny * 0.7, x0, y0);
+    g.fill();
+    if (vein) {
+      g.strokeStyle = vein;
+      g.lineWidth = 0.8;
+      g.beginPath();
+      g.moveTo(x0, y0);
+      g.quadraticCurveTo(mx + nx * 0.2, my + ny * 0.2, x1, y1);
+      g.stroke();
+    }
+  }
+
+  // one ring of petals around (hx, hy). pointed=true → sun-ray silhouettes
+  function toniPetals(g, hx, hy, n, r0, r1, wid, ky, rot, col, tip, pointed) {
+    for (let i = 0; i < n; i++) {
+      const a = rot + (i / n) * PI2;
+      const ca = Math.cos(a), sa = Math.sin(a) * ky;
+      const bx = hx + ca * r0, by = hy + sa * r0;
+      const tx = hx + Math.cos(a) * r1, ty = hy + Math.sin(a) * ky * r1;
+      const px = -Math.sin(a) * wid, py = Math.cos(a) * ky * wid;
+      g.fillStyle = col;
+      g.beginPath();
+      g.moveTo(bx + px, by + py);
+      if (pointed) {
+        g.lineTo(tx, ty); // crisp ray tip
+        g.lineTo(bx - px, by - py);
+      } else {
+        g.quadraticCurveTo(tx + px * 0.55, ty + py * 0.55, tx, ty);
+        g.quadraticCurveTo(tx - px * 0.55, ty - py * 0.55, bx - px, by - py);
+      }
+      g.closePath();
+      g.fill();
+      if (tip) { // bright petal tip wash
+        g.fillStyle = tip;
+        g.beginPath();
+        const u = pointed ? 0.55 : 0.5;
+        g.moveTo(bx + px * u + (tx - bx) * 0.45, by + py * u + (ty - by) * 0.45);
+        if (pointed) { g.lineTo(tx, ty); g.lineTo(bx - px * u + (tx - bx) * 0.45, by - py * u + (ty - by) * 0.45); }
+        else {
+          g.quadraticCurveTo(tx + px * 0.4, ty + py * 0.4, tx, ty);
+          g.quadraticCurveTo(tx - px * 0.4, ty - py * 0.4, bx - px * u + (tx - bx) * 0.45, by - py * u + (ty - by) * 0.45);
+        }
+        g.closePath();
+        g.fill();
+      }
+    }
+  }
+
+  // warm brown core with a golden-angle seed spiral
+  function toniCore(g, hx, hy, r, ky, lod) {
+    g.fillStyle = '#5c3a16';
+    g.beginPath(); g.ellipse(hx, hy, r, r * ky, 0, 0, PI2); g.fill();
+    g.fillStyle = '#7a4e22';
+    g.beginPath(); g.ellipse(hx - r * 0.12, hy - r * 0.14 * ky, r * 0.86, r * 0.86 * ky, 0, 0, PI2); g.fill();
+    if (lod) {
+      const N = 46;
+      for (let i = 0; i < N; i++) {
+        const sr = r * 0.88 * Math.sqrt(i / N), sa = i * 2.39996;
+        g.fillStyle = i % 2 ? '#8a5c2c' : '#4a2e12';
+        g.beginPath();
+        g.arc(hx + Math.cos(sa) * sr, hy + Math.sin(sa) * sr * ky, 0.62, 0, PI2);
+        g.fill();
+      }
+      g.fillStyle = 'rgba(255,240,190,.30)'; // soft top-left catchlight
+      g.beginPath(); g.ellipse(hx - r * 0.3, hy - r * 0.32 * ky, r * 0.32, r * 0.24 * ky, -0.5, 0, PI2); g.fill();
+    }
+  }
+
+  function paintToni(g, lod, style) {
+    const H = TONI_HEAD[style];
+    // baked halo behind everything (per-frame additive glow rides on top)
+    const halo = g.createRadialGradient(H.x, H.y, 2, H.x, H.y, 38);
+    halo.addColorStop(0, 'rgba(255,236,150,.24)');
+    halo.addColorStop(0.55, 'rgba(255,220,120,.10)');
+    halo.addColorStop(1, 'rgba(255,210,110,0)');
+    g.fillStyle = halo;
+    g.fillRect(H.x - 40, H.y - 40, 80, 80);
+
+    const stemD = '#3f6f26', stemL = '#579536';
+    const leafD = '#47822c', leafL = '#63a83e', vein = 'rgba(30,60,16,.5)';
+    if (style === 'A') {
+      // ---- The Cathedral: one colossal round head, facing slightly out ----
+      toniStem(g, 0, 3, -6, -60, H.x - 0.5, H.y + 8, 3.4, 1.7, stemD);
+      toniStem(g, -1.1, 3, -7, -60, H.x - 1.3, H.y + 8, 1.5, 0.7, stemL);
+      toniLeaf(g, -2.4, -28, -20, -42, 6.2, leafD, vein);
+      toniLeaf(g, -3.6, -52, 15, -66, 5.6, leafL, vein);
+      toniLeaf(g, -3.2, -74, -17, -88, 5, leafD, vein);
+      if (lod) {
+        toniLeaf(g, -1.8, -38, 12, -46, 4, leafL, vein);
+        toniLeaf(g, -2, -92, 10, -101, 3.6, leafL, vein);
+      }
+      toniPetals(g, H.x, H.y, 16, 7.5, 27, 4.6, 0.94, 0.19, '#ffb400', lod ? '#ffce33' : null, false);
+      toniPetals(g, H.x, H.y, 13, 6.5, 22, 4.6, 0.94, 0.42, '#ffe24a', '#fff3a0', false);
+      toniCore(g, H.x - 0.8, H.y + 1, 10, 0.94, lod);
+    } else if (style === 'B') {
+      // ---- The Willowy Giant: slender S-curve, head nodding to one side ----
+      toniStem(g, 0, 3, -10, -40, -6, -72, 2.6, 1.9, stemD);       // lower bow
+      toniStem(g, -6, -72, -1, -104, H.x - 4, H.y + 5, 1.9, 1.1, stemD); // upper reach
+      toniStem(g, -0.9, 3, -10.8, -40, -6.8, -72, 1.1, 0.8, stemL);
+      toniStem(g, -6.8, -72, -1.9, -104, H.x - 4.8, H.y + 5, 0.8, 0.5, stemL);
+      toniLeaf(g, -3.6, -26, -18, -38, 4.6, leafD, vein);
+      toniLeaf(g, -6, -48, 8, -60, 4.2, leafL, vein);
+      toniLeaf(g, -6.4, -70, -19, -82, 4.2, leafD, vein);
+      toniLeaf(g, -4, -92, 9, -102, 3.6, leafL, vein);
+      if (lod) toniLeaf(g, -2, -108, 8, -115, 3, leafL, vein);
+      // nodding head: rings drawn tilted (squashed on one axis + offset core)
+      g.save();
+      g.translate(H.x, H.y);
+      g.rotate(0.34); // gentle nod toward the field it watches over
+      toniPetals(g, 0, 0, 15, 6.2, 23.5, 4, 0.82, 0.13, '#ffc44a', lod ? '#ffd75e' : null, false);
+      toniPetals(g, 0, 0, 12, 5.6, 19, 4, 0.82, 0.4, '#ffdf7e', '#fff0b6', false);
+      toniCore(g, 2, 1.6, 8.8, 0.82, lod);
+      g.restore();
+    } else {
+      // ---- The Sunburst: pointed ray silhouettes, white-hot heart ----
+      toniStem(g, 0, 3, 6, -56, H.x + 1.5, H.y + 8, 3.5, 1.9, stemD);
+      toniStem(g, 1.1, 3, 7, -56, H.x + 2.4, H.y + 8, 1.5, 0.7, stemL);
+      toniLeaf(g, 3.4, -28, 20, -42, 6, leafD, vein);
+      toniLeaf(g, 4.6, -52, -13, -65, 5.2, leafL, vein);
+      toniLeaf(g, 4, -74, 17, -87, 4.6, leafD, vein);
+      if (lod) toniLeaf(g, 2.4, -92, -9, -100, 3.6, leafL, vein);
+      toniPetals(g, H.x, H.y, 12, 8, 30, 4.2, 0.96, 0.26, '#ffb400', '#ffd23c', true);
+      toniPetals(g, H.x, H.y, 12, 7.5, 21.5, 4.4, 0.96, 0.26 + Math.PI / 12, '#ffe24a', '#fff3a0', true);
+      toniCore(g, H.x, H.y, 9.4, 0.96, lod);
+      g.fillStyle = 'rgba(255,243,160,.9)'; // the hottest heart in the game
+      g.beginPath(); g.ellipse(H.x, H.y, 3.1, 3, 0, 0, PI2); g.fill();
+      g.fillStyle = '#fffbe0';
+      g.beginPath(); g.arc(H.x - 0.6, H.y - 0.8, 1.4, 0, PI2); g.fill();
+    }
+  }
+
+  function toniSprite() {
+    return Atlas.get('toni', TONI_STYLE, 'x', LOD, 108, 184, 54, 168,
+      (g, lod) => paintToni(g, lod, TONI_STYLE));
+  }
+
+  function drawToni(state, i) {
+    const t = state.tonis[i];
+    const c = proj(t.x + 0.5, t.y + 0.5);
+    const H = TONI_HEAD[TONI_STYLE];
+    shadow(c.x + 3, c.y + 4, 20, 7.5);
+    // stately sway — slower and calmer than any crop
+    let sway = Math.sin(time * 0.8 + t.x * 1.7 + t.y) * 0.028;
+    if (stormK > 0) sway += Math.sin(time * 2.1 - (t.x + t.y) * 0.6) * 0.07 * stormK;
+    blit(toniSprite(), c.x, c.y + 2, sway);
+    // head position under the ground-anchored sway rotation
+    const hx = c.x + H.x - H.y * sway, hy = c.y + 2 + H.y + H.x * sway;
+
+    // soft additive halo — subtle by day, blooming at dusk & night
+    const nightK = Math.max(SUN.dusk, SUN.dark);
+    const breathe = 0.85 + 0.15 * Math.sin(time * 1.1 + t.x);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (0.065 + 0.22 * nightK) * breathe; // a warm shimmer, not a bubble
+    ctx.drawImage(sprites.toniGlow, hx - 38, hy - 38, 76, 76);
+
+    if (TONI_STYLE === 'C') {
+      // faint god-ray shimmer at dusk/night, slowly wheeling
+      if (nightK > 0.05) {
+        ctx.globalAlpha = 0.05 * nightK;
+        ctx.fillStyle = '#ffe9a0';
+        for (let k = 0; k < 5; k++) {
+          const a = time * 0.18 + (k / 5) * PI2;
+          ctx.beginPath();
+          ctx.moveTo(hx, hy);
+          ctx.lineTo(hx + Math.cos(a - 0.09) * 72, hy + Math.sin(a - 0.09) * 54);
+          ctx.lineTo(hx + Math.cos(a + 0.09) * 72, hy + Math.sin(a + 0.09) * 54);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      // pooled ring of light at the base
+      ctx.globalAlpha = 0.16 + 0.10 * nightK + 0.04 * Math.sin(time * 1.4);
+      ctx.strokeStyle = '#ffe082';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.ellipse(c.x, c.y + 3, 21, 8.6, 0, 0, PI2); ctx.stroke();
+      ctx.globalAlpha = Math.min(1, ctx.globalAlpha * 2.4);
+      ctx.fillStyle = '#fff3a0';
+      for (let k = 0; k < 4; k++) { // motes riding the ring
+        const a = time * 0.5 + k * (PI2 / 4);
+        ctx.beginPath();
+        ctx.arc(c.x + Math.cos(a) * 21, c.y + 3 + Math.sin(a) * 8.6 - 1.5 - Math.sin(time * 1.7 + k) * 1.5, 1.25, 0, PI2);
+        ctx.fill();
+      }
+    } else if (TONI_STYLE === 'B') {
+      // firefly sparkles spiraling slowly up the stem
+      ctx.fillStyle = '#ffe9a8';
+      for (let k = 0; k < 4; k++) {
+        const u = ((time * 6 + k * 19 + t.x * 7) % 76) / 76; // 0 base → 1 head
+        const a = time * 1.6 + k * 2.1 + u * 9;
+        const sx2 = c.x + (H.x - 3) * Math.pow(u, 1.3) - 9 * Math.sin(u * Math.PI) + Math.cos(a) * 7;
+        const sy2 = c.y + 2 + H.y * u + Math.sin(a) * 2;
+        ctx.globalAlpha = 0.55 * Math.sin(u * Math.PI) * (0.6 + 0.4 * Math.sin(time * 2.3 + k));
+        ctx.beginPath(); ctx.arc(sx2, sy2, 1.3, 0, PI2); ctx.fill();
+      }
+    } else {
+      // golden motes drifting beneath the great head
+      ctx.fillStyle = '#ffe082';
+      for (let k = 0; k < 5; k++) {
+        const rise = (time * (6 + k * 1.4) + k * 23 + t.x * 11 + t.y * 5) % 68;
+        const mx = c.x + Math.sin(time * (0.5 + k * 0.11) + k * 1.9) * (11 + k * 4);
+        ctx.globalAlpha = 0.6 * Math.min(1, rise / 8) * (1 - rise / 68);
+        ctx.beginPath(); ctx.arc(mx, c.y + 1 - rise, 1.2 + (k === 0 ? 0.5 : 0), 0, PI2); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    // registered emitter: the flower gently lights its field after dark
+    if (SUN.glow > 0.02) addLight(hx, hy, 122, sprites.lightGold, 0.62 * SUN.glow, true, true);
+  }
+
+  // the Glowing Seed's seedling: a small luminous sprout, revealed in a day
+  function drawToniSprout(state, i) {
+    const sp = state.sprouts[i];
+    const c = proj(sp.x + 0.5, sp.y + 0.5);
+    const k = Math.max(0.15, Math.min(1, 1 - (sp.at - state.now) / D.DAY_LEN)); // grows over the day
+    shadow(c.x, c.y + 4, 7 * k, 3 * k);
+    const sway2 = Math.sin(time * 1.4 + sp.x) * 0.05;
+    ctx.save();
+    ctx.translate(c.x, c.y + 2);
+    ctx.rotate(sway2);
+    ctx.strokeStyle = '#579536';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(1.5, -5 * k, 0.5, -10 * k); ctx.stroke();
+    ctx.fillStyle = '#6fbf4a';
+    ctx.beginPath(); ctx.ellipse(-3.4 * k, -8.5 * k, 4 * k, 1.9 * k, -0.5, 0, PI2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(4 * k, -10 * k, 4.4 * k, 2 * k, 0.4, 0, PI2); ctx.fill();
+    ctx.restore();
+    // the tell: it glows, faintly, day and night
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.22 + 0.10 * Math.sin(time * 2.2 + sp.x);
+    ctx.drawImage(sprites.toniGlow, c.x - 15, c.y - 9 * k - 15, 30, 30);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    if (SUN.glow > 0.02) addLight(c.x, c.y - 6 * k, 40, sprites.lightGold, 0.5 * SUN.glow, true, false);
+  }
+
+  // spawn ceremony: a brief golden shimmer where the seed landed (world-space —
+  // simply invisible when the tile is off screen)
+  function fxToniSpawn(tx, ty) {
+    const p = proj(tx, ty);
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * PI2 + Math.random() * 0.5;
+      spawnP(p.x + Math.cos(a) * 6, p.y - 8 - Math.random() * 30, {
+        shape: i % 3 ? 'dot' : 'star', col: i % 2 ? '#ffe082' : '#fff3a0',
+        g: -16, life: 0.8 + Math.random() * 0.5, vr: 2.5,
+        vx: Math.cos(a) * (14 + Math.random() * 26), vy: Math.sin(a) * 10 - 16,
+        size: i % 3 ? 1.8 : 4.5,
+      });
+    }
+  }
+
   /* placement ceremony: drop from 24px → dust ring → elastic settle → outline flash */
   const bDropMap = new Map();
   let knownBTypes = null;
@@ -5255,7 +5541,7 @@ const Renderer = (() => {
   }
 
   // ---------------- pooled entity records (no per-frame closures) ----------------
-  const K_CROP = 0, K_DECOR = 1, K_BLDG = 2, K_SIGN = 3, K_ANIMAL = 4, K_FENCE = 5;
+  const K_CROP = 0, K_DECOR = 1, K_BLDG = 2, K_SIGN = 3, K_ANIMAL = 4, K_FENCE = 5, K_TONI = 6, K_SPROUT = 7;
   const entPool = [];
   let entN = 0;
   const drawArr = [];
@@ -5387,6 +5673,18 @@ const Renderer = (() => {
       }
     }
 
+    // THE Sunflower(s) + any glowing seedlings — depth-sorted with the world
+    if (state.tonis) for (let i = 0; i < state.tonis.length; i++) {
+      const t = state.tonis[i];
+      if (t.x < vx0 - 1 || t.x > vx1 + 1 || t.y < vy0 - 1 || t.y > vy1 + 1) continue;
+      pushEnt(t.x + t.y + 0.6, K_TONI, i, 0);
+    }
+    if (state.sprouts) for (let i = 0; i < state.sprouts.length; i++) {
+      const sp = state.sprouts[i];
+      if (sp.x < vx0 - 1 || sp.x > vx1 + 1 || sp.y < vy0 - 1 || sp.y > vy1 + 1) continue;
+      pushEnt(sp.x + sp.y + 0.56, K_SPROUT, i, 0);
+    }
+
     updateAnimals(state, dt);
     for (let i = 0; i < state.animals.length; i++) {
       const a = state.animals[i];
@@ -5416,6 +5714,8 @@ const Renderer = (() => {
         case K_SIGN: drawSign(state, e.a); break;
         case K_ANIMAL: drawAnimal(state, e.a); break;
         case K_FENCE: drawFenceFront(state, e.a); break;
+        case K_TONI: if (state.tonis[e.a]) drawToni(state, e.a); break;
+        case K_SPROUT: if (state.sprouts[e.a]) drawToniSprout(state, e.a); break;
       }
     }
 
@@ -5443,6 +5743,8 @@ const Renderer = (() => {
     addFloat, addBurst, setGhost, getGhost: () => ghost, flashCoverage,
     // Phase 3 juice hooks (fx bus → ui.js → here)
     fxTill, fxPlant, fxWater, fxHarvest, fxClear, fxLightning,
+    fxToniSpawn,
+    setToniStyle: s => { if (TONI_HEAD[s]) TONI_STYLE = s; }, // live preview of the 3 candidate looks
     addStartle, addGlintBurst,
     get vw() { return vw; }, get vh() { return vh; },
   };

@@ -50,6 +50,12 @@ const DATA = (() => {
   // ---- Fuel (powers the tiller, tractor and drones) ----
   const FUEL = { startPrice: 3.4, min: 2.6, max: 5.6, dronePerDay: 1 };
 
+  // ---- THE Sunflower (the Toni Variety) ----
+  // Mythic. Genuinely random — no seeds, no pity timers. Some farms will
+  // never see one. That's the point. Harvesting one yields a single Glowing
+  // Seed; a planted Glowing Seed reveals a new Toni at seedChance.
+  const TONI = { dawnChance: 1 / 2000, actionChance: 1 / 30000, seedChance: 1 / 25 };
+
   // ---- Items (everything sellable / storable) ----
   const ITEMS = {
     // crops — single-harvest values buffed +40-80% so regrow crops don't dominate
@@ -93,6 +99,8 @@ const DATA = (() => {
     melon_juice:{ name: 'Melon Juice', emoji: '🍹', base: 690 },   // keeps ~30% margin over buffed melons
     cloth:      { name: 'Fine Cloth',  emoji: '🧵', base: 650 },
     quilt:      { name: 'Wool Quilt',  emoji: '🛏️', base: 1500 },
+    // mythic — never sold, never ordered, never priced (excluded from market flows)
+    toni_seed:  { name: 'Glowing Seed', emoji: '🌟', base: 0, mythic: true },
   };
 
   // ---- Crops ----
@@ -236,7 +244,7 @@ const DATA = (() => {
 
   return {
     WORLD_W, WORLD_H, DAY_LEN, SEASON_DAYS, NIGHT_START,
-    WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, $,
+    WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, TONI, $,
     SEASONS, WEATHERS, WEATHER_TABLE, DIFFICULTIES,
     ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, BUILDINGS, RECIPES,
     CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS,
