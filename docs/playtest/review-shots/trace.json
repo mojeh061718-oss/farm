@@ -1,0 +1,126 @@
+{
+  "trace": [
+    {
+      "label": "setup screen visible",
+      "data": {
+        "title": "Harvest Empire",
+        "hasNameField": true,
+        "difficulties": [
+          "🌤️ Cozy A big nest egg and gentle weath",
+          "🌾 Classic A solid grubstake. Weather an",
+          "⛈️ Tycoon Thin wallet, harsh skies — but"
+        ]
+      }
+    },
+    {
+      "label": "difficulty picked",
+      "data": "classic"
+    },
+    {
+      "label": "day 1 state",
+      "data": {
+        "coins": 3000,
+        "t": 0.03,
+        "goal": "Till 4 plots",
+        "orders": 2
+      }
+    },
+    {
+      "label": "planted first bed",
+      "data": {
+        "coins": 3048,
+        "planted": 12
+      }
+    },
+    {
+      "label": "first harvest yield",
+      "data": 6
+    },
+    {
+      "label": "milestones",
+      "data": [
+        {
+          "day": 6,
+          "season": "Spring",
+          "weather": "sun",
+          "coins": 3706,
+          "level": 4,
+          "farmValue": 6506,
+          "animals": 10,
+          "buildings": 3,
+          "lost": 4,
+          "goal": "Place a Scarecrow"
+        },
+        {
+          "day": 14,
+          "season": "Summer",
+          "weather": "sun",
+          "coins": 11001,
+          "level": 6,
+          "farmValue": 14101,
+          "animals": 12,
+          "buildings": 3,
+          "lost": 12,
+          "goal": "Place a Scarecrow"
+        },
+        {
+          "day": 27,
+          "season": "Fall",
+          "weather": "sun",
+          "coins": 17983,
+          "level": 8,
+          "farmValue": 21083,
+          "animals": 12,
+          "buildings": 3,
+          "lost": 23,
+          "goal": "Place a Scarecrow"
+        },
+        {
+          "day": 41,
+          "season": "Spring",
+          "weather": "storm",
+          "coins": 28346,
+          "level": 9,
+          "farmValue": 31446,
+          "animals": 12,
+          "buildings": 3,
+          "lost": 29,
+          "goal": "Place a Scarecrow"
+        }
+      ]
+    },
+    {
+      "label": "opened a panel",
+      "data": false
+    },
+    {
+      "label": "FINAL",
+      "data": {
+        "day": 41,
+        "coins": 28346,
+        "level": 9,
+        "farmValue": 31446,
+        "stats": {
+          "tilled": 23,
+          "planted": 357,
+          "watered": 198,
+          "harvested": 325,
+          "sold": 720,
+          "collected": 438,
+          "orders": 27,
+          "crafted": 0,
+          "fertilized": 0,
+          "earned": 32546,
+          "lost": 29,
+          "recent": 17.4,
+          "prodMark": 763
+        },
+        "animals": 12,
+        "buildings": 3,
+        "parcels": 1,
+        "goalsDone": 10
+      }
+    }
+  ],
+  "errors": []
+}
