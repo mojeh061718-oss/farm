@@ -43,6 +43,7 @@ const Renderer = (() => {
 
   function centerOn(tx, ty) {
     Tween.kill(cam); // an explicit recenter always wins over an in-flight pan
+    toniReveal = null; // …and cancels a running bloom cinematic (it owns the camera)
     const p = proj(tx, ty);
     cam.x = p.x;
     cam.y = p.y;
@@ -283,6 +284,7 @@ const Renderer = (() => {
     quadIn: t => t * t,
     quadOut: t => t * (2 - t),
     cubicOut: t => 1 - (1 - t) ** 3,
+    cubicInOut: t => t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2,
     backOut: t => { const c = 1.70158, u = t - 1; return 1 + (c + 1) * u * u * u + c * u * u; },
     elasticOut: t => t === 0 || t === 1 ? t : 2 ** (-10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1,
   };
@@ -4113,7 +4115,11 @@ const Renderer = (() => {
     const H = TONI_HEAD[TONI_STYLE];
     // rising from the seed: ~3s ease-out bloom when newly transformed
     let rise = 1;
-    if (t.rise != null) {
+    const rr = revealRiseFor(t); // the bloom cinematic drives her rise if she's the star
+    if (rr != null) {
+      if (rr < 0) return; // still underground — the reveal fx paints the soil stir
+      rise = 0.02 + 0.98 * rr;
+    } else if (t.rise != null) {
       const k = Math.min(1, (state.now - t.rise) / 3);
       rise = 0.12 + 0.88 * (1 - Math.pow(1 - k, 3));
     }
@@ -4229,75 +4235,137 @@ const Renderer = (() => {
     }
   }
 
-  /* ============ the reveal: a cinematic moment when a Toni rises ============
-     Camera glides to her, the world dims to a warm spotlight, golden rings
-     bloom outward, light rays wheel, and petals drift up. ~3.4s, one-shot. */
-  const REVEAL_DUR = 3.4;
-  let toniReveal = null; // { tx, ty, t0 }
-  function revealToni(tx, ty) {
-    toniReveal = { tx, ty, t0: time };
-    // a fuller golden burst than the quiet shimmer — petals + sparks + rising motes
-    const p = proj(tx, ty);
-    for (let i = 0; i < 34; i++) {
-      const a = (i / 34) * PI2 + Math.random() * 0.4;
+  /* ================= the reveal: a full cinematic when a Toni rises =================
+     A slow push-in to dirt level → a curious "huh?" as the soil stirs → she rises,
+     slow and stately, into a blooming golden spotlight → basks → the camera eases
+     back. Phase clock in seconds since the reveal began. */
+  const RV_APPROACH = 2.4, RV_HUH = 1.5, RV_RISE = 3.6, RV_BASK = 2.0, RV_OUTRO = 1.3;
+  const T_HUH = RV_APPROACH;              // camera settled at dirt level; the "huh?" beat
+  const T_RISE = T_HUH + RV_HUH;          // she begins to rise
+  const T_BASK = T_RISE + RV_RISE;        // full bloom
+  const T_OUTRO = T_BASK + RV_BASK;       // ease the camera back
+  const REVEAL_DUR = T_OUTRO + RV_OUTRO;  // ~10.8s total
+  const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  const smooth01 = v => { v = clamp01(v); return v * v * (3 - 2 * v); };
+  let toniReveal = null; // { tx, ty, cx, cy, t0 }
+
+  function burstPetals(cx, cy, n) {
+    const p = proj(cx, cy);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * PI2 + Math.random() * 0.4;
       const petal = i % 2 === 0;
-      spawnP(p.x + Math.cos(a) * 5, p.y - 10 - Math.random() * 26, {
+      spawnP(p.x + Math.cos(a) * 5, p.y - 26 - Math.random() * 34, {
         shape: petal ? 'star' : 'dot', col: petal ? '#ffd75e' : '#fff6c8',
-        g: petal ? -6 : -20, life: 1.1 + Math.random() * 1.1, vr: 3,
-        vx: Math.cos(a) * (20 + Math.random() * 46), vy: Math.sin(a) * 12 - (18 + Math.random() * 22),
+        g: petal ? -5 : -18, life: 1.3 + Math.random() * 1.3, vr: 3,
+        vx: Math.cos(a) * (18 + Math.random() * 44), vy: Math.sin(a) * 12 - (16 + Math.random() * 24),
         size: petal ? 4.5 + Math.random() * 2.5 : 1.6,
       });
     }
-    // ease the camera onto her (an explicit recenter later still wins)
-    Tween.kill(cam);
-    Tween.to(cam, { x: p.x, y: p.y }, 1.0, Ease.cubicOut);
   }
-  // draws in screen space (CSS px), on top of the world, while a reveal is live
+  function revealToni(cx, cy) {
+    const tx = Math.floor(cx), ty = Math.floor(cy);
+    toniReveal = { tx, ty, cx, cy, t0: time };
+    Tween.kill(cam);
+    const p = proj(cx, cy);
+    const zoom = 1.85;                 // close — down to dirt level
+    const aimY = p.y - 30 / zoom;      // frame the soil low, leaving headroom for the rise
+    Tween.to(cam, { x: p.x, y: aimY, z: zoom }, RV_APPROACH, Ease.cubicInOut);
+    // petals crest as she rises and blooms
+    after(T_RISE + 0.3, () => { if (toniReveal) burstPetals(cx, cy, 16); });
+    after(T_RISE + RV_RISE * 0.6, () => { if (toniReveal) burstPetals(cx, cy, 22); });
+    after(T_BASK, () => { if (toniReveal) burstPetals(cx, cy, 28); });
+    // outro: pull back to a calm standing view of her in the glow
+    after(T_OUTRO, () => { if (!toniReveal) return; Tween.kill(cam); Tween.to(cam, { x: p.x, y: p.y, z: 0.9 }, RV_OUTRO + 0.5, Ease.cubicInOut); });
+  }
+  // her rise, driven by the cinematic clock: null = not the star, <0 = still underground
+  function revealRiseFor(t) {
+    if (!toniReveal || t.x !== toniReveal.tx || t.y !== toniReveal.ty) return null;
+    const rt = time - toniReveal.t0;
+    if (rt < T_RISE) return -1;
+    return smooth01((rt - T_RISE) / RV_RISE);
+  }
+  function huhBubble(x, y, a) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    const pop = 0.82 + 0.18 * a;
+    ctx.translate(x, y); ctx.scale(pop, pop); ctx.translate(-x, -y);
+    ctx.globalAlpha = a;
+    const w = 56, h = 36, r = 13, bx = x - w / 2, by = y - h / 2;
+    // tail first, body over it
+    ctx.fillStyle = '#fffdf3'; ctx.strokeStyle = 'rgba(84,56,18,.9)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - 7, by + h - 3); ctx.lineTo(x + 3, by + h + 13); ctx.lineTo(x + 9, by + h - 3); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by); ctx.arcTo(bx + w, by, bx + w, by + h, r); ctx.arcTo(bx + w, by + h, bx, by + h, r);
+    ctx.arcTo(bx, by + h, bx, by, r); ctx.arcTo(bx, by, bx + w, by, r); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#4a3417'; ctx.font = '700 21px Georgia, "Times New Roman", serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('huh?', x, y + 1);
+    ctx.restore();
+  }
+  // screen-space overlay, drawn last each frame while a reveal is live
   function drawToniReveal() {
     if (!toniReveal) return;
-    const k = (time - toniReveal.t0) / REVEAL_DUR;
-    if (k >= 1) { toniReveal = null; return; }
-    const s = tileToScreen(toniReveal.tx, toniReveal.ty);
-    const cx = s.x, cy = s.y - 24; // aim at the head, a little above the tile
-    // envelope: quick fade-in, long hold, gentle fade-out
-    const env = Math.min(1, k / 0.14) * Math.min(1, (1 - k) / 0.28);
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // crisp screen space
-    // 1) spotlight vignette: dim the world, leave a warm pool around her
+    const rt = time - toniReveal.t0;
+    if (rt >= REVEAL_DUR) { toniReveal = null; return; }
+    const s = tileToScreen(toniReveal.cx, toniReveal.cy);
+    const gx = s.x, soilY = s.y;                       // dirt level on screen
+    const riseK = smooth01((rt - T_RISE) / RV_RISE);   // 0..1 as she grows
+    const headY = soilY - (12 + 150 * riseK);          // the head climbs as she rises
+    const fade = 1 - smooth01((rt - T_OUTRO) / RV_OUTRO);
+    const dim = smooth01(rt / (T_HUH + 0.6)) * fade;   // world darkens for the spotlight
+    const glow = smooth01((rt - T_HUH * 0.6) / (RV_HUH + RV_RISE * 0.7)) * fade;
     const R = Math.max(vw, vh);
-    const vg = ctx.createRadialGradient(cx, cy, 40, cx, cy, R * 0.62);
+
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 1) spotlight vignette between the soil and the rising head
+    const focusY = soilY - 60 * riseK;
+    const vg = ctx.createRadialGradient(gx, focusY, 30, gx, focusY, R * 0.66);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(0.55, `rgba(20,12,2,${0.30 * env})`);
-    vg.addColorStop(1, `rgba(8,5,0,${0.62 * env})`);
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, vw, vh);
-    // 2) additive golden glow + wheeling rays + blooming rings
+    vg.addColorStop(0.5, `rgba(18,11,2,${0.34 * dim})`);
+    vg.addColorStop(1, `rgba(6,4,0,${0.66 * dim})`);
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, vw, vh);
+
     ctx.globalCompositeOperation = 'lighter';
-    const warm = ctx.createRadialGradient(cx, cy, 0, cx, cy, 150);
-    warm.addColorStop(0, `rgba(255,236,150,${0.5 * env})`);
-    warm.addColorStop(1, 'rgba(255,220,120,0)');
-    ctx.fillStyle = warm;
-    ctx.beginPath(); ctx.arc(cx, cy, 150, 0, PI2); ctx.fill();
-    // light rays sweeping slowly
-    ctx.fillStyle = `rgba(255,231,150,${0.14 * env})`;
-    for (let r = 0; r < 12; r++) {
-      const a = time * 0.35 + (r / 12) * PI2;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(a - 0.045) * R, cy + Math.sin(a - 0.045) * R);
-      ctx.lineTo(cx + Math.cos(a + 0.045) * R, cy + Math.sin(a + 0.045) * R);
-      ctx.closePath(); ctx.fill();
+
+    // 2) the soil stirs and light seeps up BEFORE she rises (the "huh?" beat)
+    const stir = smooth01((rt - T_HUH) / (RV_HUH + 0.3)) * (1 - smooth01((rt - T_RISE - 0.7) / 0.9));
+    if (stir > 0.01) {
+      const sg = ctx.createRadialGradient(gx, soilY, 0, gx, soilY, 48);
+      sg.addColorStop(0, `rgba(255,224,130,${0.55 * stir})`);
+      sg.addColorStop(1, 'rgba(255,210,110,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(gx, soilY, 48, 0, PI2); ctx.fill();
+      ctx.strokeStyle = `rgba(255,238,155,${0.55 * stir})`; ctx.lineWidth = 1.6;
+      for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + (k - 2.5) * 0.4; const L = 10 + 20 * stir;
+        ctx.beginPath(); ctx.moveTo(gx, soilY); ctx.lineTo(gx + Math.cos(a) * L, soilY + Math.sin(a) * L * 0.5); ctx.stroke(); }
     }
-    // two rings blooming outward on a stagger
-    for (let ri = 0; ri < 2; ri++) {
-      const rk = (k * 1.6 - ri * 0.32);
-      if (rk <= 0 || rk >= 1) continue;
-      const rad = 26 + rk * 170;
-      ctx.globalAlpha = (1 - rk) * 0.7 * env;
-      ctx.lineWidth = 3.2 * (1 - rk) + 0.6;
-      ctx.strokeStyle = '#ffe9a0';
-      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, PI2); ctx.stroke();
+
+    // 3) the golden bloom around her head — warm core, wheeling rays, blooming rings
+    if (glow > 0.01) {
+      const warm = ctx.createRadialGradient(gx, headY, 0, gx, headY, 165);
+      warm.addColorStop(0, `rgba(255,238,155,${0.55 * glow})`);
+      warm.addColorStop(1, 'rgba(255,220,120,0)');
+      ctx.fillStyle = warm; ctx.beginPath(); ctx.arc(gx, headY, 165, 0, PI2); ctx.fill();
+      ctx.fillStyle = `rgba(255,231,150,${0.15 * glow})`;
+      for (let r = 0; r < 14; r++) { const a = time * 0.32 + (r / 14) * PI2;
+        ctx.beginPath(); ctx.moveTo(gx, headY);
+        ctx.lineTo(gx + Math.cos(a - 0.04) * R, headY + Math.sin(a - 0.04) * R);
+        ctx.lineTo(gx + Math.cos(a + 0.04) * R, headY + Math.sin(a + 0.04) * R);
+        ctx.closePath(); ctx.fill(); }
+      const rp = rt - T_RISE;
+      for (let ri = 0; ri < 3; ri++) { const rk = ((rp * 0.5 - ri * 0.33) % 1);
+        if (rk <= 0) continue; ctx.globalAlpha = (1 - rk) * 0.6 * glow; ctx.lineWidth = 3 * (1 - rk) + 0.6;
+        ctx.strokeStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(gx, headY, 24 + rk * 185, 0, PI2); ctx.stroke(); }
+      ctx.globalAlpha = 1;
     }
+
+    // 4) the "huh?" speech bubble, popping over the soil during the beat
+    const huh = smooth01((rt - T_HUH - 0.2) / 0.4) * (1 - smooth01((rt - T_RISE + 0.1) / 0.4));
+    if (huh > 0.01) huhBubble(gx, soilY - 58, huh);
+
     ctx.restore();
   }
 
