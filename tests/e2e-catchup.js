@@ -31,6 +31,7 @@ function check(name, ok, detail) {
   await page.waitForTimeout(900);
   await page.fill('#farm-name', 'Catchup Acres');
   await page.tap('#setup-start');
+  await page.evaluate(() => { DATA.TONI.plantChance = 0; }).catch(() => {}); // deterministic: no stray bloom mid-test
   await page.waitForTimeout(400);
 
   // ---- buy a second farm and verify ownership/switch ----

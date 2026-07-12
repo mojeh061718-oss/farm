@@ -35,6 +35,7 @@ function check(name, ok, detail) {
   // ---- farm names render as text, never as markup (menu stats card) ----
   await page.fill('#farm-name', '<b>Sneaky</b> & "Farm"');
   await page.tap('#setup-start');
+  await page.evaluate(() => { DATA.TONI.plantChance = 0; }).catch(() => {}); // deterministic: no stray bloom mid-test
   await page.waitForTimeout(400);
   await page.tap('#btn-menu');
   await page.waitForTimeout(400);

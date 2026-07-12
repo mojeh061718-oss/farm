@@ -35,6 +35,7 @@ function check(name, ok, detail) {
 
   await page.fill('#farm-name', 'Test Acres');
   await page.tap('#setup-start');
+  await page.evaluate(() => { DATA.TONI.plantChance = 0; }).catch(() => {}); // deterministic: no stray bloom mid-test
   await page.waitForTimeout(400);
 
   // ================= balance numbers (Appendix A) =================

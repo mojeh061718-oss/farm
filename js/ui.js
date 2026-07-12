@@ -143,6 +143,8 @@ const UI = (() => {
     error:   () => tone(140, 0.18, 'sawtooth', 0.06),
     goal:    () => [0, 2, 3].forEach((d, i) => chime(pent(5, d), 0.85, i * 0.09)),    // C5 E5 G5
     levelup: () => [0, 2, 3, 5].forEach((d, i) => { pluck(pent(5, d), 1, i * 0.11); chime(pent(5, d), 0.5, i * 0.11 + 0.02); }),
+    toni:    () => [0, 2, 4, 5, 7].forEach((d, i) => { chime(pent(5, d), 0.8, i * 0.14); pluck(pent(4, d), 0.45, i * 0.14); }), // a rising golden run
+
     thunder: () => noise(1.2, 0.28, 0, 'lowpass', 220, 90),
     squawk:  () => { tone(880, 0.06, 'square', 0.05, 0, 640); tone(740, 0.07, 'square', 0.04, 0.07, 500); },
   };
@@ -1982,6 +1984,21 @@ const UI = (() => {
     o.innerHTML = '';
   }
 
+  // the bloom cinematic: the renderer glides the camera in and paints the
+  // golden spotlight/rings; here we add the sound and a one-shot title card.
+  // Deliberately NOT a toast — she announces herself with a scene, not a stack line.
+  function toniRevealScene(x, y) {
+    Renderer.revealToni(x, y);
+    SOUNDS.toni();
+    let el = $('toni-reveal');
+    if (!el) { el = document.createElement('div'); el.id = 'toni-reveal'; document.body.appendChild(el); }
+    el.innerHTML = '<div class="tr-kicker">a once-in-a-lifetime bloom</div>'
+      + '<div class="tr-title">The Toni Sunflower rises</div>'
+      + '<div class="tr-sub">tap her to read the tale</div>';
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); // restart the fade
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 3300);
+  }
+
   function openToni(toni) {
     SOUNDS.tap();
     toniOpen = { x: toni.x, y: toni.y };
@@ -2224,7 +2241,7 @@ const UI = (() => {
         case 'harvest':   Renderer.fxHarvest(f.x, f.y, f.data); break;
         case 'clear':     Renderer.fxClear(f.x, f.y); break;
         case 'lightning': Renderer.fxLightning(f.x, f.y); break;
-        case 'toni':      Renderer.fxToniSpawn(f.x, f.y); break;
+        case 'toni':      toniRevealScene(f.x, f.y); break;
         default:          Renderer.addBurst(f.x, f.y, f.color);
       }
     });

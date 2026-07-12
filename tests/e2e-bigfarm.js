@@ -32,6 +32,7 @@ function check(name, ok, detail) {
   // ============ 1) NEW GAME: home valley is big ============
   await page.fill('#farm-name', 'Big Acres');
   await page.tap('#setup-start');
+  await page.evaluate(() => { DATA.TONI.plantChance = 0; }).catch(() => {}); // deterministic: no stray bloom mid-test
   await page.waitForTimeout(500);
   const fresh = await page.evaluate(() => {
     const s = Game.state, D = DATA;

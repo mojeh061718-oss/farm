@@ -4229,6 +4229,78 @@ const Renderer = (() => {
     }
   }
 
+  /* ============ the reveal: a cinematic moment when a Toni rises ============
+     Camera glides to her, the world dims to a warm spotlight, golden rings
+     bloom outward, light rays wheel, and petals drift up. ~3.4s, one-shot. */
+  const REVEAL_DUR = 3.4;
+  let toniReveal = null; // { tx, ty, t0 }
+  function revealToni(tx, ty) {
+    toniReveal = { tx, ty, t0: time };
+    // a fuller golden burst than the quiet shimmer — petals + sparks + rising motes
+    const p = proj(tx, ty);
+    for (let i = 0; i < 34; i++) {
+      const a = (i / 34) * PI2 + Math.random() * 0.4;
+      const petal = i % 2 === 0;
+      spawnP(p.x + Math.cos(a) * 5, p.y - 10 - Math.random() * 26, {
+        shape: petal ? 'star' : 'dot', col: petal ? '#ffd75e' : '#fff6c8',
+        g: petal ? -6 : -20, life: 1.1 + Math.random() * 1.1, vr: 3,
+        vx: Math.cos(a) * (20 + Math.random() * 46), vy: Math.sin(a) * 12 - (18 + Math.random() * 22),
+        size: petal ? 4.5 + Math.random() * 2.5 : 1.6,
+      });
+    }
+    // ease the camera onto her (an explicit recenter later still wins)
+    Tween.kill(cam);
+    Tween.to(cam, { x: p.x, y: p.y }, 1.0, Ease.cubicOut);
+  }
+  // draws in screen space (CSS px), on top of the world, while a reveal is live
+  function drawToniReveal() {
+    if (!toniReveal) return;
+    const k = (time - toniReveal.t0) / REVEAL_DUR;
+    if (k >= 1) { toniReveal = null; return; }
+    const s = tileToScreen(toniReveal.tx, toniReveal.ty);
+    const cx = s.x, cy = s.y - 24; // aim at the head, a little above the tile
+    // envelope: quick fade-in, long hold, gentle fade-out
+    const env = Math.min(1, k / 0.14) * Math.min(1, (1 - k) / 0.28);
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // crisp screen space
+    // 1) spotlight vignette: dim the world, leave a warm pool around her
+    const R = Math.max(vw, vh);
+    const vg = ctx.createRadialGradient(cx, cy, 40, cx, cy, R * 0.62);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(0.55, `rgba(20,12,2,${0.30 * env})`);
+    vg.addColorStop(1, `rgba(8,5,0,${0.62 * env})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, vw, vh);
+    // 2) additive golden glow + wheeling rays + blooming rings
+    ctx.globalCompositeOperation = 'lighter';
+    const warm = ctx.createRadialGradient(cx, cy, 0, cx, cy, 150);
+    warm.addColorStop(0, `rgba(255,236,150,${0.5 * env})`);
+    warm.addColorStop(1, 'rgba(255,220,120,0)');
+    ctx.fillStyle = warm;
+    ctx.beginPath(); ctx.arc(cx, cy, 150, 0, PI2); ctx.fill();
+    // light rays sweeping slowly
+    ctx.fillStyle = `rgba(255,231,150,${0.14 * env})`;
+    for (let r = 0; r < 12; r++) {
+      const a = time * 0.35 + (r / 12) * PI2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a - 0.045) * R, cy + Math.sin(a - 0.045) * R);
+      ctx.lineTo(cx + Math.cos(a + 0.045) * R, cy + Math.sin(a + 0.045) * R);
+      ctx.closePath(); ctx.fill();
+    }
+    // two rings blooming outward on a stagger
+    for (let ri = 0; ri < 2; ri++) {
+      const rk = (k * 1.6 - ri * 0.32);
+      if (rk <= 0 || rk >= 1) continue;
+      const rad = 26 + rk * 170;
+      ctx.globalAlpha = (1 - rk) * 0.7 * env;
+      ctx.lineWidth = 3.2 * (1 - rk) + 0.6;
+      ctx.strokeStyle = '#ffe9a0';
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, PI2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /* placement ceremony: drop from 24px → dust ring → elastic settle → outline flash */
   const bDropMap = new Map();
   let knownBTypes = null;
@@ -5829,6 +5901,7 @@ const Renderer = (() => {
     drawSeasonFade(dt);                  // palette crossfade + emblem sweep
     // vignette+grain is invisible under the deep-night multiply — skip it there
     if (SUN.dark < 0.6) drawGrade();
+    drawToniReveal();                    // the mythic bloom cinematic, above all
   }
 
   return {
@@ -5836,7 +5909,7 @@ const Renderer = (() => {
     addFloat, addBurst, setGhost, getGhost: () => ghost, flashCoverage,
     // Phase 3 juice hooks (fx bus → ui.js → here)
     fxTill, fxPlant, fxWater, fxHarvest, fxClear, fxLightning,
-    fxToniSpawn,
+    fxToniSpawn, revealToni,
     setToniStyle: s => { if (TONI_HEAD[s]) TONI_STYLE = s; }, // live preview of the 3 candidate looks
     addStartle, addGlintBurst,
     get vw() { return vw; }, get vh() { return vh; },
