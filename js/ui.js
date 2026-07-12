@@ -1993,7 +1993,7 @@ const UI = (() => {
   function toniRevealScene(x, y) {
     Renderer.revealToni(x, y);
     toniTimers.forEach(clearTimeout); toniTimers.length = 0;
-    toniTimers.push(setTimeout(() => SOUNDS.huh(), 2350));   // the "huh?" beat (camera settled)
+    toniTimers.push(setTimeout(() => SOUNDS.huh(), 2350));   // the soil stirs (camera settled)
     toniTimers.push(setTimeout(() => SOUNDS.toni(), 3950));  // she begins to rise
     toniTimers.push(setTimeout(() => {                       // she basks — the title card
       let el = $('toni-reveal');
@@ -2003,7 +2003,7 @@ const UI = (() => {
         + '<div class="tr-sub">tap her to read the tale</div>';
       el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
       clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 3400);
-    }, 7300));
+    }, 8600));
   }
 
   function openToni(toni) {
