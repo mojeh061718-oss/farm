@@ -33,6 +33,7 @@ function check(name, ok, detail) {
   await page.reload();
   await page.waitForTimeout(900);
   await page.tap('#setup-start');
+  await page.evaluate(() => { DATA.TONI.plantChance = 0; }).catch(() => {}); // deterministic: no stray bloom mid-test
   await page.waitForTimeout(500);
 
   const tileXY = (x, y) => page.evaluate(([x, y]) => Renderer.tileToScreen(x + 0.5, y + 0.5), [x, y]);

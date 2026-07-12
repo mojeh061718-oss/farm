@@ -40,8 +40,8 @@ function check(name, ok, detail) {
 
   // ---- rarity constants (exact spec values) ----
   const rare = await page.evaluate(() => DATA.TONI);
-  check('rarity: plant roll 1/1000, glowing seed 1/25',
-    Math.abs(rare.plantChance - 1 / 1000) < 1e-12
+  check('rarity: plant roll 1/100, glowing seed 1/25',
+    Math.abs(rare.plantChance - 1 / 100) < 1e-12
     && Math.abs(rare.seedChance - 1 / 25) < 1e-12, rare);
 
   // ---- the roll lives on the seed: planting can BE the seed ----

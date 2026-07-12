@@ -30,6 +30,7 @@ function check(name, ok, detail) {
   await page.waitForTimeout(900);
   await page.fill('#farm-name', 'Return Ranch');
   await page.tap('#setup-start');
+  await page.evaluate(() => { DATA.TONI.plantChance = 0; }).catch(() => {}); // deterministic: no stray bloom mid-test
   await page.waitForTimeout(400);
 
   // ---- pacing constants ----
