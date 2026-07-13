@@ -96,18 +96,18 @@ function check(name, ok, detail) {
     Math.random = () => 0;
     out.gateHelper = G.spawnToni() === null && s.tonis.length === 1;
     // a stubbed plant roll cannot tag while she stands. Plant on owned, UNBLESSED
-    // land (parcel 1, away from her parcel) — (20,8) sits in the right-middle plot.
+    // land (parcel 1, away from her parcel) — (30,6) sits in the right-upper plot.
     G.buyParcel(1);
-    G.till(20, 8);
-    G.plant(20, 8, 'turnip');
-    out.gateTag = !!s.tiles[8][20].crop && !s.tiles[8][20].crop.toni;
+    G.till(30, 6);
+    G.plant(30, 6, 'turnip');
+    out.gateTag = !!s.tiles[6][30].crop && !s.tiles[6][30].crop.toni;
     // and a tagged crop maturing while she stands quietly ripens as ordinary
-    s.tiles[8][20].crop.toni = true;
-    s.tiles[8][20].crop.water = 1; s.tiles[8][20].crop.prog = 0.99;
+    s.tiles[6][30].crop.toni = true;
+    s.tiles[6][30].crop.water = 1; s.tiles[6][30].crop.prog = 0.99;
     G.tick(1); G.tick(1);
-    const c14 = s.tiles[8][20].crop;
+    const c14 = s.tiles[6][30].crop;
     out.gateMature = s.tonis.length === 1 && !!c14 && c14.id === 'turnip' && c14.prog >= 1 && !c14.toni;
-    s.tiles[8][20].crop = null;          // leave no fixture residue
+    s.tiles[6][30].crop = null;          // leave no fixture residue
     Math.random = mr;
     DATA.TONI.plantChance = 0;           // stability for the loops below
     G.fastForward(DATA.DAY_LEN, 3600);   // ripens the blessed turnip for the block below
@@ -155,11 +155,11 @@ function check(name, ok, detail) {
     out.seasonOKBlessed = G.seasonOK('tomato', 9, 8);
     // contrast: same crop on freshly-bought parcel 1 (unblessed)
     G.buyParcel(1);
-    G.till(20, 6);
-    G.plant(20, 6, 'tomato'); // off-season warning is expected
-    s.tiles[6][20].crop.water = 1;
+    G.till(31, 6);
+    G.plant(31, 6, 'tomato'); // off-season warning is expected
+    s.tiles[6][31].crop.water = 1;
     for (let i = 0; i < 8; i++) G.tick(1);
-    const cin = s.tiles[8][9].crop, cout = s.tiles[6][20].crop;
+    const cin = s.tiles[8][9].crop, cout = s.tiles[6][31].crop;
     out.inGrows = cin && !cin.dead && cin.prog > 0.2 && (cin.wilt || 0) === 0;
     out.outWilts = cout && cout.wilt > 0 && cout.prog === 0.0;
     return out;
@@ -172,7 +172,7 @@ function check(name, ok, detail) {
     const G = Game, s = Game.state, out = {};
     s.tiles[6][10].k = 'soil';
     s.tiles[6][10].crop = { id: 'garlic', prog: 0.3, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
-    const outside = s.tiles[6][20].crop; // unblessed tomato from above
+    const outside = s.tiles[6][31].crop; // unblessed tomato from above
     let tries = 0;
     while (!outside.dead && tries < 400) {
       s.day = 2; s.t = 0.999; s.forecast = 'storm';
@@ -190,8 +190,8 @@ function check(name, ok, detail) {
   const frost = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     s.season = 3; s.weather = 'sun'; s.forecast = 'sun';
-    s.tiles[6][20].crop = { id: 'tomato', prog: 0.3, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
-    const outside = s.tiles[6][20].crop;
+    s.tiles[6][31].crop = { id: 'tomato', prog: 0.3, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
+    const outside = s.tiles[6][31].crop;
     let tries = 0;
     while (!outside.dead && tries < 400) {
       s._flags.frostDone = false;
@@ -210,7 +210,7 @@ function check(name, ok, detail) {
   const crow = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     s.season = 0; s.weather = 'sun'; s.forecast = 'sun';
-    s.tiles[6][20].crop = null; // no unblessed targets anywhere
+    s.tiles[6][31].crop = null; // no unblessed targets anywhere
     s.tiles[7][10].k = 'soil';
     s.tiles[7][10].crop = { id: 'strawberry', prog: 1, water: 1, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
     const lost0 = s.stats.lost, inv0 = s.inventory.strawberry || 0, h0 = s.stats.harvested;

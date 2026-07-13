@@ -4,8 +4,8 @@
 const DATA = (() => {
 
   // ---- World / time ----
-  const WORLD_W = 34;         // tiles — the home valley is a big, roomy homestead
-  const WORLD_H = 26;
+  const WORLD_W = 40;         // tiles — the home valley is a big, roomy homestead
+  const WORLD_H = 30;
   const DAY_LEN = 120;        // real seconds per in-game day (slower, calmer cycle)
   const SEASON_DAYS = 10;     // days per season
   const NIGHT_START = 0.87;   // fraction of day when night falls
@@ -165,8 +165,8 @@ const DATA = (() => {
   const FARM_TEMPLATES = [
     { id: 'meadow',   name: 'Bluebell Meadow',  w: 14, h: 11, price: 12000,  blurb: 'A snug little plot — cozy and quick to fill.' },
     { id: 'grove',    name: 'Willow Grove',     w: 24, h: 18, price: 45000,  blurb: 'A roomy spread with space for a real operation.' },
-    { id: 'estate',   name: 'Goldfield Estate', w: 38, h: 28, price: 120000, blurb: 'A grand estate — acres of open land, bigger than the home valley.' },
-    { id: 'frontier', name: 'Big Sky Frontier', w: 44, h: 32, price: 300000, blurb: 'Massive frontier land as far as the eye can see.' },
+    { id: 'estate',   name: 'Goldfield Estate', w: 46, h: 32, price: 120000, blurb: 'A grand estate — acres of open land, bigger than the home valley.' },
+    { id: 'frontier', name: 'Big Sky Frontier', w: 50, h: 34, price: 300000, blurb: 'Massive frontier land as far as the eye can see.' },
   ];
 
   // ---- Recipes (processing buildings) ----
@@ -201,19 +201,22 @@ const DATA = (() => {
   ];
 
   // ---- Land parcels (cost only, no level requirements) ----
-  // The home valley: a big 34×26 world. The free starting plot (index 0) is now
-  // a generous 16×8 spread — the whole classic middle band — and eight large
-  // parcels fan outward around it by price. Costs keep the classic sequence.
+  // The home valley: a big 40×30 world laid out as a clean, gap-free grid so the
+  // farm reads deliberate instead of a patchwork of odd bands. The free starting
+  // plot (index 0) is a generous 20×12 homestead in the top-left; the other seven
+  // parcels tile the rest of the interior on aligned edges (x: 2·12·22·38,
+  // y: 2·11·14·20·21·28). Fully owned, the valley is a perfect 36×26 rectangle.
+  // The layout is a strict superset of every older home (20×15 and 34×26), so the
+  // migration re-owns whatever covers your old land and never strands a crop.
   const PARCELS = [
-    { x: 2,  y: 5,  w: 16, h: 8, cost: 0 },     // free starting plot — big central band
-    { x: 18, y: 5,  w: 16, h: 8, cost: 1000 },  // right-middle
-    { x: 2,  y: 2,  w: 16, h: 3, cost: 2500 },  // top-left band
-    { x: 18, y: 2,  w: 16, h: 3, cost: 6000 },  // top-right band
-    { x: 2,  y: 13, w: 16, h: 7, cost: 12000 }, // lower-left
-    { x: 18, y: 13, w: 16, h: 7, cost: 20000 }, // lower-right
-    { x: 2,  y: 20, w: 11, h: 6, cost: 32000 }, // far bottom-left
-    { x: 13, y: 20, w: 11, h: 6, cost: 45000 }, // far bottom-centre
-    { x: 24, y: 20, w: 10, h: 6, cost: 60000 }, // far bottom-right
+    { x: 2,  y: 2,  w: 20, h: 12, cost: 0 },     // free starting homestead — big top-left block
+    { x: 22, y: 2,  w: 16, h: 9,  cost: 1500 },  // right, upper
+    { x: 2,  y: 14, w: 10, h: 7,  cost: 3000 },  // below home, left
+    { x: 12, y: 14, w: 10, h: 7,  cost: 5000 },  // below home, right
+    { x: 22, y: 11, w: 16, h: 9,  cost: 9000 },  // right, middle
+    { x: 2,  y: 21, w: 10, h: 7,  cost: 16000 }, // far bottom-left
+    { x: 12, y: 21, w: 10, h: 7,  cost: 28000 }, // far bottom-centre
+    { x: 22, y: 20, w: 16, h: 8,  cost: 45000 }, // right, lower
   ];
 
   // ---- Goals (a guiding arc — rewards, never gates) ----
