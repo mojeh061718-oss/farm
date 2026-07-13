@@ -857,14 +857,16 @@ const Renderer = (() => {
     if (t.k === 'soil') {
       s = 2;
       const c = t.crop;
+      // Only bake states that change RARELY. Moisture, ripeness and wilt drift
+      // every tick for every crop; baking them made a mass-planted field repaint
+      // hundreds of ground tiles per frame (a 3×3 redraw + mip each) and stall the
+      // game. Those cues are carried live by the crop sprite instead (thirst drop,
+      // ripe glow, droop). Wet sheen still shows the moment you water (a discrete,
+      // capped event); it just isn't tracked as it slowly dries.
       if (c) {
-        if (c.water > 0.4) s += 4;                     // wet sheen
         if (c.dead) s += 8;                             // grey dead bed
-        else {
-          if (c.fert) s += 16;                          // warm fertilized tone
-          if ((c.wilt || 0) > 0.4) s += 32;             // cracked wilting bed
-          if (c.prog >= 1) s += 64;                     // lit rim on ripe tiles
-        }
+        else if (c.fert) s += 16;                       // warm fertilized tone
+        else if (c.water > 0.9) s += 4;                 // fresh-watered sheen (set to 1 on watering)
       }
     }
     if (Game.isUnlocked(x, y)) s -= 128;                // fold into Int8 range
@@ -1859,12 +1861,24 @@ const Renderer = (() => {
       stepGroundBake(state, pal);
       return;
     }
+    // Repaint tiles whose baked look changed (moisture, ripe rim, wilt…), but cap
+    // how many we redraw per frame: a mass-planted field crosses those thresholds
+    // in lockstep, and repainting hundreds of soil tiles into the supersampled
+    // ground buffer in one frame is what stalled/crashed the game. The rest catch
+    // up over the next frames — invisible for a slow-changing sheen.
     const W = WW, H = WH;
+    let budget = 24, done = 0;
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++) {
-        if (ground.sig[y * W + x] !== tileSig(state, x, y)) repaintTile(state, pal, x, y);
+        if (ground.sig[y * W + x] !== tileSig(state, x, y)) {
+          repaintTile(state, pal, x, y);
+          done++;
+          if (--budget <= 0) { groundRepaints = done; return; } // resume the sweep next frame
+        }
       }
+    groundRepaints = done;
   }
+  let groundRepaints = 0; // last frame's ground-tile repaint count (perf guard / test)
 
   // ---------------- sky backdrop (screen space, cached half-res canvas) ----------------
   let skyKey = '', skyCanvas = null;
@@ -2348,8 +2362,15 @@ const Renderer = (() => {
 
   // quantized growth: pop the plant when its render stage steps up (§1.4)
   let ripeChimeAt = -9;
+  let stagePopN = 0, stagePopAt = -1;
   function stagePop(x, y, st, def) {
     const f = cropFx(x, y);
+    // a mass-planted field crosses growth stages in lockstep — hundreds of pops in
+    // one frame means hundreds of tweens + O(n) Tween.kill each (O(n²)), which is
+    // what buckled the game. Cap the animated pops per frame; the rest just snap.
+    if (stagePopAt !== time) { stagePopAt = time; stagePopN = 0; }
+    if (stagePopN >= 12) { f.sc = 1; if (st === 3) f.glowK = 1; f.busy = time + 0.05; return; }
+    stagePopN++;
     f.busy = time + 0.6;
     Tween.kill(f);
     if (st === 3) {                                  // maturity moment — the bigger beat
@@ -2372,6 +2393,20 @@ const Renderer = (() => {
         });
       }
     }
+  }
+
+  // Crops used to redraw their whole vector template every frame — dozens of
+  // canvas ops each, which buckled on a big planted field. Bake the static plant
+  // shape (per crop × stage × wilt × LOD) into a sprite once, then blit it; the
+  // per-frame sway / scale / glow stay live as transforms around the blit.
+  const CROP_W = 64, CROP_H = 88, CROP_OX = 32, CROP_OY = 62;
+  function cropSprite(id, st, wilted) {
+    const def = D.CROPS[id];
+    return Atlas.get('crop:' + id, st + (wilted ? 'w' : ''), 0, LOD, CROP_W, CROP_H, CROP_OX, CROP_OY, (g) => {
+      const save = ctx; ctx = g;          // drawTemplate paints the module ctx — point it at the bake canvas
+      drawTemplate(def, st, wilted);
+      ctx = save;
+    });
   }
 
   function drawCrop(x, y, crop) {
@@ -2477,7 +2512,8 @@ const Renderer = (() => {
 
     const kk = (0.78 + 0.22 * wt) * fsc;
     ctx.scale(kk, kk);
-    drawTemplate(def, st, wilted);
+    const spr = cropSprite(crop.id, st, wilted); // baked once, blitted per frame
+    ctx.drawImage(spr.c, -spr.ox, -spr.oy, spr.w, spr.h);
     ctx.restore();
 
     // rot: flies circle a spoiling crop
@@ -5968,6 +6004,6 @@ const Renderer = (() => {
     addStartle, addGlintBurst,
     get vw() { return vw; }, get vh() { return vh; },
     // debug/test: current fx-list sizes, to prove mass ops stay bounded
-    __fxCounts: () => ({ floats: floats.length, fliers: fliers.length, ghosts: ghosts.length, rings: rings.length, parts: parts.length }),
+    __fxCounts: () => ({ floats: floats.length, fliers: fliers.length, ghosts: ghosts.length, rings: rings.length, parts: parts.length, groundRepaints }),
   };
 })();

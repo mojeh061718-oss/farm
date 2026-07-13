@@ -263,6 +263,22 @@ function check(name, ok, detail) {
   check('mass plant then mass harvest banks every crop', flood.planted >= 20 && flood.banked >= 20 && flood.ripeLeft === 0, flood);
   check('mass-op fx lists stay bounded — no render flood', capped(flood.afterPlant) && capped(flood.afterHarvest), flood);
 
+  // a big growing field must not storm the baked ground with per-frame repaints
+  const grow = await page.evaluate(() => {
+    const G = Game, s = Game.state;
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const t = s.tiles[y][x]; t.crop = null; if (t.k === 'soil') t.k = 'grass'; }
+    for (let y = 5; y <= 12; y++) for (let x = 2; x <= 17; x++) { const t = s.tiles[y] && s.tiles[y][x]; if (t && !t.obj && G.isUnlocked(x, y)) t.k = 'soil'; }
+    const planted = G.plantAll('wheat').planted;
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const c = s.tiles[y][x].crop; if (c) { c.prog = 0.5; c.water = 1; } }
+    Renderer.render(s, 0.1); Renderer.render(s, 0.1);      // bake the beds + initial sig
+    let maxRepaint = 0;
+    for (let i = 0; i < 15; i++) { Game.tick(0.12); Renderer.render(s, 0.12); maxRepaint = Math.max(maxRepaint, Renderer.__fxCounts().groundRepaints); }
+    // tidy up for later tests
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const t = s.tiles[y][x]; if (!t.obj) { t.crop = null; if (t.k === 'soil') t.k = 'grass'; } }
+    return { planted, maxRepaint };
+  });
+  check('a growing field never storms the ground layer (near-zero repaints/frame)', grow.planted >= 40 && grow.maxRepaint <= 4, grow);
+
   // ================= the shovel =================
   const shovel = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
