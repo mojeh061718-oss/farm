@@ -1476,6 +1476,7 @@ const UI = (() => {
       row.querySelector('button').onclick = () => { SOUNDS.tap(); onFlip(); renderSheet(); };
       body.appendChild(row);
     };
+    toggleRow('🧺', 'Auto-harvest', 'Ripe crops harvest themselves into your barn the moment they’re ready — nothing rots waiting.', !!s.autoHarvest, () => { s.autoHarvest = !s.autoHarvest; Game.save(); });
     toggleRow('⛽', 'Auto-fuel', 'Top the tank up from coins each dawn so drones never strand themselves.', !!s.autoFuel, () => { s.autoFuel = !s.autoFuel; Game.save(); });
     toggleRow('💰', 'Auto-sell surplus', 'Sell spare produce each dawn (keeps a small buffer, never mythics).', !!s.autoSell, () => { s.autoSell = !s.autoSell; Game.save(); });
 

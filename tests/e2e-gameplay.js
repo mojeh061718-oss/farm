@@ -188,6 +188,32 @@ function check(name, ok, detail) {
   check('plantAll charges only for what it planted (nothing skipped in-season)', pa.spent === pa.res.cost && pa.res.skippedOff === 0, pa);
   check('plantAll refuses off-season — wastes no seed money', pa.offPlanted === 0 && pa.offSpent === 0, pa);
 
+  // ================= auto-harvest =================
+  const ah = await page.evaluate(() => {
+    const G = Game, s = Game.state, out = {};
+    s.season = 0; s.coins = 5000; s.autoHarvest = false; s._flags.crowDone = true; s.t = 0.05;
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) if (s.tiles[y][x].crop) s.tiles[y][x].crop = null;
+    const wt = s.tiles[7][8]; wt.k = 'soil'; wt.obj = null; G.plant(8, 7, 'wheat'); wt.crop.prog = 1; wt.crop.water = 1;
+    const inv0 = s.inventory.wheat || 0;
+    G.tick(1); // OFF: it should just sit there ripe
+    out.staysWhenOff = !!s.tiles[7][8].crop && s.tiles[7][8].crop.prog >= 1;
+    s.autoHarvest = true; G.tick(1); // ON: it should bank itself
+    out.harvestedWhenOn = !s.tiles[7][8].crop;
+    out.banked = (s.inventory.wheat || 0) - inv0;
+    // a regrow crop must reset and keep producing, not vanish
+    const st = s.tiles[7][9]; st.k = 'soil'; st.obj = null; st.crop = null; G.plant(9, 7, 'strawberry'); st.crop.prog = 1; st.crop.water = 1;
+    const straw0 = s.inventory.strawberry || 0;
+    G.tick(1);
+    const rc = s.tiles[7][9].crop;
+    out.regrowKept = !!rc && rc.id === 'strawberry' && rc.prog < 1;
+    out.strawBanked = (s.inventory.strawberry || 0) - straw0;
+    s.autoHarvest = false;
+    return out;
+  });
+  check('auto-harvest OFF: ripe crops wait to be picked', ah.staysWhenOff === true, ah);
+  check('auto-harvest ON: ripe crops bank themselves', ah.harvestedWhenOn === true && ah.banked >= 1, ah);
+  check('auto-harvest resets regrow crops so they keep producing', ah.regrowKept === true && ah.strawBanked >= 1, ah);
+
   // ================= the shovel =================
   const shovel = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
