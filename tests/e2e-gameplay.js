@@ -239,6 +239,30 @@ function check(name, ok, detail) {
   check('placeBuilding with force clears the crop and builds', pb.builtWithForce && pb.cropCleared && pb.hasBuilding, pb);
   check('placeCheck: bare tilled soil also reads replace; a building reads blocked', pb.soilReplace === 'replace' && pb.blockedState === 'blocked', pb);
 
+  // ============ mass-op fx stays bounded (no render flood / crash) ============
+  const flood = await page.evaluate(() => {
+    const G = Game, s = Game.state, out = {};
+    s.coins = 9999999; s.season = 0; s.autoHarvest = false;
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const t = s.tiles[y][x]; t.crop = null; if (t.k === 'soil') t.k = 'grass'; }
+    for (let y = 5; y <= 12; y++) for (let x = 2; x <= 17; x++) { const t = s.tiles[y] && s.tiles[y][x]; if (t && !t.obj && G.isUnlocked(x, y)) t.k = 'soil'; }
+    out.planted = G.plantAll('wheat').planted;
+    out.afterPlant = Renderer.__fxCounts();
+    s.autoHarvest = true;
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const c = s.tiles[y][x].crop; if (c) { c.prog = 1; c.water = 1; } }
+    const wheat0 = s.inventory.wheat || 0;
+    Game.tick(0.1); // the whole field auto-harvests in a single frame
+    out.afterHarvest = Renderer.__fxCounts();
+    out.banked = (s.inventory.wheat || 0) - wheat0;
+    let ripe = 0; for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const c = s.tiles[y][x].crop; if (c && c.id === 'wheat' && c.prog >= 1) ripe++; }
+    out.ripeLeft = ripe; s.autoHarvest = false;
+    // tidy the field back to grass so later tests start clean
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const t = s.tiles[y][x]; if (!t.obj) { t.crop = null; if (t.k === 'soil') t.k = 'grass'; } }
+    return out;
+  });
+  const capped = c => c.floats <= 28 && c.fliers <= 12 && c.ghosts <= 14 && c.parts <= 150;
+  check('mass plant then mass harvest banks every crop', flood.planted >= 20 && flood.banked >= 20 && flood.ripeLeft === 0, flood);
+  check('mass-op fx lists stay bounded — no render flood', capped(flood.afterPlant) && capped(flood.afterHarvest), flood);
+
   // ================= the shovel =================
   const shovel = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
