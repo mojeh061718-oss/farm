@@ -266,6 +266,24 @@ function check(name, ok, detail) {
   }));
   check('tapping grass tills it directly — no bubble', grassTap.tilled && !grassTap.bubble, grassTap);
 
+  // ---- keep-placing: drop several buildings without reopening the shop ----
+  const repeat = await page.evaluate(() => {
+    const s = Game.state; s.coins += 99999;
+    document.getElementById('buildbar').classList.remove('hidden');
+    const before = s.buildings.filter(b => b && b.type === 'sprinkler').length;
+    let inModeEach = true;
+    for (const [x, y] of [[2, 6], [4, 6], [6, 8]]) {
+      Renderer.setGhost({ type: 'sprinkler', x, y });
+      document.getElementById('build-ok').click();
+      if (document.getElementById('buildbar').classList.contains('hidden') || !Renderer.getGhost()) inModeEach = false;
+    }
+    const after = s.buildings.filter(b => b && b.type === 'sprinkler').length;
+    document.getElementById('build-cancel').click();
+    const exited = document.getElementById('buildbar').classList.contains('hidden') && !Renderer.getGhost();
+    return { placed: after - before, inModeEach, exited };
+  });
+  check('keep-placing: 3 buildings drop via repeated ✓, stays in build mode, then ✕ exits', repeat.placed === 3 && repeat.inModeEach && repeat.exited, repeat);
+
   // ---- reload: UI state intact, no errors ----
   await page.reload();
   await page.waitForTimeout(1000);

@@ -17,6 +17,7 @@ const UI = (() => {
 
   let seed = 'turnip';          // last seed picked (selected card in the seed sheet)
   let buildType = null;         // building being placed
+  let placedCount = 0;          // buildings dropped in the current keep-placing session
   let sheetOpen = null;         // current sheet id
   let sheetTab = null;
 
@@ -1665,23 +1666,65 @@ const UI = (() => {
   }
 
   // ---------------- build placement ----------------
+  function buildLabelFor(type, n) {
+    const def = D.BUILDINGS[type];
+    const tail = n ? `${def.name} ×${n} placed — tap ✕ when done` : `Place the ${def.name}`;
+    return `${I.building(type)} <span>${tail}</span>`;
+  }
+
   function startBuild(type) {
     buildType = type;
+    placedCount = 0;
     closeSheet();
     closeBubble();
     const def = D.BUILDINGS[type];
     // start ghost near the camera focus
     const c = Renderer.screenToTile(Renderer.vw / 2, Renderer.vh / 2);
     Renderer.setGhost({ type, x: Math.round(c.x - def.w / 2), y: Math.round(c.y - def.h / 2) });
-    $('build-label').innerHTML = `${I.building(type)} <span>Place the ${def.name}</span>`;
+    $('build-label').innerHTML = buildLabelFor(type, 0);
     $('buildbar').classList.remove('hidden');
-    toast('Tap the map to move it, then press ✓');
+    toast('Tap the map to move it, press ✓ to drop. Keep dropping more — tap ✕ when done.');
   }
 
   function endBuild() {
     buildType = null;
+    placedCount = 0;
     Renderer.setGhost(null);
     $('buildbar').classList.add('hidden');
+  }
+
+  // re-arm a fresh ghost after a drop, so the player keeps placing without
+  // reopening the shop. Nudge one footprint to the right; if that's off-land,
+  // try below, else keep the spot (the ghost stays visible; a tap repositions).
+  function armNext(type, x, y) {
+    const def = D.BUILDINGS[type];
+    let nx = x + def.w, ny = y;
+    if (Game.placeCheck(type, nx, ny).state === 'blocked') { nx = x; ny = y + def.h; }
+    if (Game.placeCheck(type, nx, ny).state === 'blocked') { nx = x; ny = y; }
+    Renderer.setGhost({ type, x: nx, y: ny });
+    $('build-label').innerHTML = buildLabelFor(type, placedCount);
+  }
+
+  // place exactly one building at the ghost; on success STAY in build mode and
+  // arm the next ghost. `force` clears crops/soil (passed by the confirm accept).
+  function tryPlace(force) {
+    const ghost = Renderer.getGhost();
+    if (!ghost) return;
+    const { type, x, y } = ghost;
+    const def = D.BUILDINGS[type];
+    const chk = Game.placeCheck(type, x, y);
+    if (chk.state === 'ok' || (chk.state === 'replace' && force)) {
+      if (Game.placeBuilding(type, x, y, force)) { placedCount++; updateHud(); armNext(type, x, y); }
+      return; // false = not enough cash (sim toasted) — stay put, wait for next tap or ✕
+    }
+    if (chk.state === 'replace') {
+      const parts = [];
+      if (chk.crops) parts.push(`${chk.crops} crop${chk.crops > 1 ? 's' : ''}`);
+      if (chk.soil) parts.push(`${chk.soil} tilled plot${chk.soil > 1 ? 's' : ''}`);
+      confirmBox(def.emoji, `Build the ${def.name} here? It will clear ${parts.join(' and ')} underneath.`, 'Build here', () => tryPlace(true));
+      return;
+    }
+    toast('Can’t build there — the flower, a sprout, another building or unowned land is in the way.', 'bad');
   }
 
   /* ---------------- tile action bubble ----------------
@@ -2258,26 +2301,12 @@ const UI = (() => {
     document.addEventListener('pointerup', sheetRelease, true);
     document.addEventListener('pointercancel', sheetRelease, true);
 
-    $('build-ok').onclick = () => {
-      const ghost = Renderer.getGhost();
-      if (!ghost) return;
-      const chk = Game.placeCheck(ghost.type, ghost.x, ghost.y);
-      const def = D.BUILDINGS[ghost.type];
-      if (chk.state === 'ok') {
-        if (Game.placeBuilding(ghost.type, ghost.x, ghost.y)) { endBuild(); updateHud(); }
-      } else if (chk.state === 'replace') {
-        // owned, unblocked land — but crops / tilled plots sit under it: ask first
-        const parts = [];
-        if (chk.crops) parts.push(`${chk.crops} crop${chk.crops > 1 ? 's' : ''}`);
-        if (chk.soil) parts.push(`${chk.soil} tilled plot${chk.soil > 1 ? 's' : ''}`);
-        confirmBox(def.emoji, `Build the ${def.name} here? It will clear ${parts.join(' and ')} underneath.`, 'Build here', () => {
-          if (Game.placeBuilding(ghost.type, ghost.x, ghost.y, true)) { endBuild(); updateHud(); }
-        });
-      } else {
-        toast('Can’t build there — the flower, a sprout, another building or unowned land is in the way.', 'bad');
-      }
+    $('build-ok').onclick = () => tryPlace(false);
+    $('build-cancel').onclick = () => {
+      SOUNDS.tap();
+      if (placedCount) toast(`Done — ${placedCount} placed.`, 'good');
+      endBuild();
     };
-    $('build-cancel').onclick = () => { SOUNDS.tap(); endBuild(); };
 
     // game events
     Game.on('toast', toast);
