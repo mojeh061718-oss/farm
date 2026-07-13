@@ -503,14 +503,33 @@ const UI = (() => {
 
   // ---------------- seeds sheet ----------------
   let plantTarget = null; // tile to plant immediately on pick
+  let plantAllMode = false; // when on, a seed tap fills EVERY empty tilled plot
   function renderSeeds(body) {
     setSheetHeader(I.icon('sprout'), 'Choose a seed', 'Right season + steady water = happy crops');
     setTabs(null);
+    plantAllMode = false; // fresh each open — mass-planting is always a deliberate toggle
     const note = document.createElement('div');
     note.className = 'empty-note';
     note.style.padding = '0 6px 10px';
     note.textContent = 'Dry crops wilt and die; ripe ones rot if left standing.';
     body.appendChild(note);
+
+    // quick multi-plant: fill every empty tilled plot at once with one crop
+    const nTilled = Game.tilledEmptyCount();
+    if (nTilled >= 2) {
+      const fill = document.createElement('button');
+      fill.className = 'seed-fill-toggle';
+      fill.innerHTML = `🌾 Plant all tilled plots <b>(${nTilled})</b>`;
+      fill.onclick = () => {
+        plantAllMode = !plantAllMode;
+        fill.classList.toggle('on', plantAllMode);
+        SOUNDS.tap();
+        note.textContent = plantAllMode
+          ? `Now tap a seed to fill all ${nTilled} empty plots (in season, while your cash lasts).`
+          : 'Dry crops wilt and die; ripe ones rot if left standing.';
+      };
+      body.appendChild(fill);
+    }
 
     const grid = document.createElement('div');
     grid.className = 'card-grid';
@@ -564,14 +583,23 @@ const UI = (() => {
         <div class="sub">${c.grow}s${c.regrow ? ' · then ' + c.regrow + 's' : ''} · sells ~${$$(item.base)}</div>
         ${chip(c.seed, off ? 'muted' : '')}`;
       card.onclick = () => {
-        if (off) {
-          // warn and select, but never auto-spend the seed on the tapped tile —
-          // the toast literally says it wastes money
-          toast(`⚠️ ${item.name} grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')} — planting now wastes the seed money!`, 'bad');
-          plantTarget = null;
-        }
         seed = id;
         SOUNDS.tap();
+        if (off) {
+          // warn and select, but never auto-spend the seed money on a doomed plant
+          toast(`⚠️ ${item.name} grows in ${c.seasons.map(i => D.SEASONS[i].name).join(' & ')} — planting now wastes the seed money!`, 'bad');
+          plantTarget = null;
+          closeSheet(); updateHud(); return;
+        }
+        if (plantAllMode) { // fill every empty tilled plot at once
+          const r = Game.plantAll(id);
+          if (r.planted > 0) SOUNDS.plant();
+          closeSheet();
+          toast(r.planted > 0
+            ? `${item.emoji} Planted ${r.planted} ${item.name}${r.broke ? ' — out of cash for the rest' : ''}!`
+            : 'No empty plots to fill right now.', r.planted > 0 ? 'good' : 'bad');
+          updateHud(); return;
+        }
         let sown = false;
         if (plantTarget) {
           sown = !!Game.plant(plantTarget.x, plantTarget.y, id);
@@ -579,7 +607,7 @@ const UI = (() => {
           plantTarget = null;
         }
         closeSheet();
-        if (!off && sown) toast(`${item.emoji} ${item.name} planted!`);
+        if (sown) toast(`${item.emoji} ${item.name} planted!`);
         updateHud();
       };
       grid.appendChild(card);

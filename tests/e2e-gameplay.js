@@ -166,6 +166,28 @@ function check(name, ok, detail) {
   check('powered tilling burns fuel over a 2×2', smoke.buyTill1 && smoke.fuelBuy && smoke.fuelUsed && smoke.tilled2x2, smoke);
   check('building sell-back & parcel purchase', smoke.sellCoop === true && smoke.buyParcel === true, smoke);
 
+  // ================= quick multi-plant (Plant all tilled) =================
+  const pa = await page.evaluate(() => {
+    const G = Game, s = Game.state, out = {};
+    s.coins = 5000; s.season = 0; // spring
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) if (s.tiles[y][x].crop) s.tiles[y][x].crop = null;
+    for (let y = 6; y <= 9; y++) for (let x = 6; x <= 11; x++) G.till(x, y);
+    out.emptyBefore = G.tilledEmptyCount();
+    const coins0 = s.coins;
+    out.res = G.plantAll('wheat');
+    let wheat = 0; for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const c = s.tiles[y][x].crop; if (c && c.id === 'wheat') wheat++; }
+    out.wheat = wheat; out.emptyAfter = G.tilledEmptyCount(); out.spent = coins0 - s.coins;
+    // off-season: plantAll must plant nothing and spend nothing
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) if (s.tiles[y][x].crop) s.tiles[y][x].crop = null;
+    const coins1 = s.coins;
+    const off = G.plantAll('pumpkin'); // fall crop, in spring
+    out.offPlanted = off.planted; out.offSpent = coins1 - s.coins;
+    return out;
+  });
+  check('plantAll fills every empty tilled plot with one crop', pa.res.planted >= 4 && pa.wheat === pa.res.planted && pa.emptyAfter === 0, pa);
+  check('plantAll charges only for what it planted (nothing skipped in-season)', pa.spent === pa.res.cost && pa.res.skippedOff === 0, pa);
+  check('plantAll refuses off-season — wastes no seed money', pa.offPlanted === 0 && pa.offSpent === 0, pa);
+
   // ================= the shovel =================
   const shovel = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
