@@ -363,6 +363,7 @@ const Game = (() => {
       settings: { sound: false },
       autoFuel: false, // keep powered gear topped up from coins each dawn
       autoSell: false, // sell surplus produce each dawn (keeps order/craft inputs)
+      autoHarvest: false, // bring ripe crops in automatically the moment they're ready
       legacy: legacyStars(), // permanent +10%/star sell bonus carried across farms
       lastSaved: Date.now(),
       _flags: { deaths: { dry: 0, rot: 0, season: 0 } },
@@ -2005,6 +2006,8 @@ const Game = (() => {
           }
         }
         if (bl) { toniAutoHarvest(tx, ty); continue; } // ripe blessed crops bank themselves
+        // your standing order: auto-harvest brings ripe crops in the moment they're ready
+        if (state.autoHarvest && !state._offline) { harvest(tx, ty); continue; }
         // ripe crops rot if you leave them standing (never while away)
         if (!state._offline) {
           c.rot = (c.rot || 0) + dt / (D.ROT_DAYS * D.DAY_LEN);
