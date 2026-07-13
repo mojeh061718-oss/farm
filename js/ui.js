@@ -2261,8 +2261,21 @@ const UI = (() => {
     $('build-ok').onclick = () => {
       const ghost = Renderer.getGhost();
       if (!ghost) return;
-      if (Game.placeBuilding(ghost.type, ghost.x, ghost.y)) { endBuild(); updateHud(); }
-      else if (!Game.canPlaceBuilding(ghost.type, ghost.x, ghost.y)) toast('Needs clear, owned grass — move it!', 'bad');
+      const chk = Game.placeCheck(ghost.type, ghost.x, ghost.y);
+      const def = D.BUILDINGS[ghost.type];
+      if (chk.state === 'ok') {
+        if (Game.placeBuilding(ghost.type, ghost.x, ghost.y)) { endBuild(); updateHud(); }
+      } else if (chk.state === 'replace') {
+        // owned, unblocked land — but crops / tilled plots sit under it: ask first
+        const parts = [];
+        if (chk.crops) parts.push(`${chk.crops} crop${chk.crops > 1 ? 's' : ''}`);
+        if (chk.soil) parts.push(`${chk.soil} tilled plot${chk.soil > 1 ? 's' : ''}`);
+        confirmBox(def.emoji, `Build the ${def.name} here? It will clear ${parts.join(' and ')} underneath.`, 'Build here', () => {
+          if (Game.placeBuilding(ghost.type, ghost.x, ghost.y, true)) { endBuild(); updateHud(); }
+        });
+      } else {
+        toast('Can’t build there — the flower, a sprout, another building or unowned land is in the way.', 'bad');
+      }
     };
     $('build-cancel').onclick = () => { SOUNDS.tap(); endBuild(); };
 

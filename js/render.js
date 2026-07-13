@@ -5731,15 +5731,16 @@ const Renderer = (() => {
     const def = D.BUILDINGS[ghost.type];
     // greenhouses shelter a 6×6 zone — show it while placing
     if (ghost.type === 'greenhouse') drawZone(ghost.x - 2, ghost.y - 2, ghost.x + 4, ghost.y + 4, 0.85);
-    const ok = Game.canPlaceBuilding(ghost.type, ghost.x, ghost.y);
+    // 3 states: clear grass (green), would-clear crops/soil (amber), blocked (red)
+    const st = Game.placeCheck(ghost.type, ghost.x, ghost.y).state;
     const corners = [
       proj(ghost.x, ghost.y), proj(ghost.x + def.w, ghost.y),
       proj(ghost.x + def.w, ghost.y + def.h), proj(ghost.x, ghost.y + def.h),
     ];
-    ctx.fillStyle = ok ? 'rgba(90, 170, 90, .35)' : 'rgba(200, 70, 50, .35)';
+    ctx.fillStyle = st === 'ok' ? 'rgba(90, 170, 90, .35)' : st === 'replace' ? 'rgba(228, 178, 54, .4)' : 'rgba(200, 70, 50, .35)';
     poly(corners);
     ctx.fill();
-    ctx.strokeStyle = ok ? '#3f8a42' : '#b03a2a';
+    ctx.strokeStyle = st === 'ok' ? '#3f8a42' : st === 'replace' ? '#c68a12' : '#b03a2a';
     ctx.lineWidth = 2.5;
     ctx.setLineDash([8, 6]);
     poly(corners);
