@@ -4722,9 +4722,15 @@ const Renderer = (() => {
     for (let cy = 0; cy < Math.ceil(WH / CS); cy++) {
       for (let cx = 0; cx < Math.ceil(WW / CS); cx++) {
         const hc = h2(cx * 17 + 3, cy * 23 + 7);
-        if (hc < 0.34) continue; // deliberate empty meadows
         const sx = cx * CS + h2(cx + 1, cy + 5) * CS;
         const sy = cy * CS + h2(cy + 9, cx + 2) * CS;
+        // Frame the farm: keep a lush forest border around the edges, but leave
+        // the interior (the farmable land) calm and open — a deliberate homestead,
+        // not a field peppered with random trees. Border cells stay dense; deep
+        // interior cells only sprout the occasional copse.
+        const edge = Math.min(sx, sy, WW - sx, WH - sy);
+        const skipBelow = edge < 3.5 ? 0.30 : 0.82;
+        if (hc < skipBelow) continue; // deliberate empty meadows / clean interior
         const n = 3 + Math.floor(hc * 97) % 5; // 3–7 items with falloff
         for (let i = 0; i < n; i++) {
           const a = h2(cx * 31 + i, cy * 13 + 1) * Math.PI * 2;
