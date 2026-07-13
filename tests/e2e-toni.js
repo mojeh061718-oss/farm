@@ -320,11 +320,11 @@ function check(name, ok, detail) {
     paperGone: !document.getElementById('toni-paper'),
     text: (document.getElementById('toni-card') || {}).textContent || '',
   }));
-  check('folding the paper opens the blessing card (attributes + plain promise + quiet hints)',
-    card1.card && card1.paperGone && card1.text.includes('The Toni Variety')
+  check('folding the paper opens the blessing card (attributes + plain promise + harvest button)',
+    card1.card && card1.paperGone && card1.text.includes('Toni’s Variety')
     && card1.text.includes('Endless sun') && card1.text.includes('Everything on this land will thrive, forever.')
     && card1.text.includes('now blessed') && card1.text.includes('read the old story again')
-    && card1.text.includes('can be harvested'), card1);
+    && card1.text.includes('Harvest her'), card1);
   await page.tap('#toni-ok');
   await page.waitForTimeout(250);
 

@@ -1197,6 +1197,13 @@ button.mini:active, #sheet-close:active {
 .tc-thrive { font-size: 0.9375rem; font-weight: 900; color: #7a4f00; margin-bottom: 8px; }
 .tc-plain { font-size: 0.8125rem; font-weight: 700; line-height: 1.5; color: #5d4a30; margin-bottom: 14px; }
 #toni-ok { width: 100%; }
+.tc-harvest {
+  width: 100%; margin-top: 9px;
+  background: linear-gradient(180deg, #f6c750, #e2a521);
+  color: #5a3d00; border: 1.5px solid #c68a12;
+  box-shadow: 0 4px 0 #b9820f, 0 6px 12px rgba(150,100,10,.35);
+}
+.tc-harvest:active { transform: translateY(2px); box-shadow: 0 2px 0 #b9820f, 0 3px 8px rgba(150,100,10,.35); }
 .tc-link {
   display: block; width: 100%;
   background: none; border: none; cursor: pointer;
@@ -1259,6 +1266,12 @@ button.mini:active, #sheet-close:active {
   font-family: Georgia, 'Times New Roman', serif; line-height: 1.05;
   text-shadow: 0 1px 10px rgba(0,0,0,.5);
 }
+#toni-reveal .tr-variety {
+  font-size: clamp(13px, 3.6vw, 16px); font-weight: 800; font-style: italic;
+  color: #ffd06a; margin-top: 3px; letter-spacing: .02em;
+}
+#toni-reveal .tr-variety::before { content: '— '; opacity: .8; }
+#toni-reveal .tr-variety::after { content: ' —'; opacity: .8; }
 #toni-reveal .tr-sub {
-  font-size: 13px; color: #ffe3a6; opacity: .9; font-weight: 700; margin-top: 2px;
+  font-size: 13px; color: #ffe3a6; opacity: .9; font-weight: 700; margin-top: 6px;
 }

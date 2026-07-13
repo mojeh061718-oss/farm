@@ -1999,7 +1999,8 @@ const UI = (() => {
       let el = $('toni-reveal');
       if (!el) { el = document.createElement('div'); el.id = 'toni-reveal'; document.body.appendChild(el); }
       el.innerHTML = '<div class="tr-kicker">a once-in-a-lifetime bloom</div>'
-        + '<div class="tr-title">The Toni Sunflower rises</div>'
+        + '<div class="tr-title">The Sunflower</div>'
+        + '<div class="tr-variety">Toni’s Variety</div>'
         + '<div class="tr-sub">tap her to read the tale</div>';
       el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
       clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 3400);
@@ -2087,16 +2088,16 @@ const UI = (() => {
   function showToniCard() {
     const o = $('toni-overlay');
     o.innerHTML = `
-      <div id="toni-card" role="dialog" aria-label="THE Sunflower" style="background:rgba(24,16,6,.62)">
+      <div id="toni-card" role="dialog" aria-label="The Sunflower — Toni’s Variety" style="background:rgba(24,16,6,.62)">
         <div class="tc-inner">
           <div class="tc-flower">🌻</div>
-          <h2>THE Sunflower<span class="tc-var">— The Toni Variety —</span></h2>
+          <h2>The Sunflower<span class="tc-var">— Toni’s Variety —</span></h2>
           <div class="tc-attrs">☀️ Endless sun · 🌧️ Rain when it’s needed · 💛 Love · ✨ Growth</div>
           <p class="tc-thrive">Everything on this land will thrive, forever.</p>
           <p class="tc-plain">This parcel is now blessed — crops here water themselves, never fail, and harvest themselves into your barn.</p>
-          <button id="toni-ok" class="chunky green">OK</button>
+          <button id="toni-ok" class="chunky green">Keep her standing</button>
+          <button id="toni-harvest" class="chunky tc-harvest">🌻 Harvest her for a Glowing Seed</button>
           <button id="toni-story" class="tc-link">read the old story again</button>
-          <button id="toni-harvest" class="tc-link tc-quiet">The flower can be harvested… if you can bear to.</button>
         </div>
       </div>`;
     o.classList.remove('hidden');
