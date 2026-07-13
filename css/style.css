@@ -747,6 +747,23 @@ button.mini:disabled {
 }
 .seed-untill .ic, .seed-untill .ic-emoji { width: 18px; height: 18px; }
 
+/* quick multi-plant toggle at the top of the seed chooser */
+.seed-fill-toggle {
+  display: block; width: 100%;
+  margin: 0 0 12px; padding: 11px 12px;
+  border: 2px dashed #c9a24a; border-radius: var(--r-m);
+  background: #fdf6dd; color: #6a4e10;
+  font-family: inherit; font-weight: 850; font-size: 0.9375rem;
+  cursor: pointer; transition: background .12s, border-color .12s, color .12s;
+}
+.seed-fill-toggle b { color: #a06f10; }
+.seed-fill-toggle.on {
+  background: linear-gradient(180deg, #7bbf4f, #5da33a);
+  border: 2px solid #4d8c2f; border-style: solid; color: #fff;
+  box-shadow: 0 4px 0 #427a28, 0 6px 12px rgba(60,110,30,.35);
+}
+.seed-fill-toggle.on b { color: #eaffd6; }
+
 .empty-note {
   text-align: center;
   color: var(--ink-soft);

@@ -983,6 +983,34 @@ const Game = (() => {
     return true;
   }
 
+  // every empty, plantable, tilled plot you own (ignores season — that's per seed)
+  function tilledEmptyCount() {
+    if (!state || !state.tiles) return 0;
+    let n = 0;
+    for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
+      const t = state.tiles[y][x];
+      if (t && t.k === 'soil' && !t.crop && !t.obj && isUnlocked(x, y) && !isBlessed(x, y) && !sproutAt(x, y)) n++;
+    }
+    return n;
+  }
+  // fill every empty tilled plot with one crop, in-season only (never wastes seed
+  // money on a doomed off-season plant), stopping the moment the cash runs out
+  function plantAll(cropId) {
+    const def = D.CROPS[cropId];
+    if (!def || !state) return { planted: 0, cost: 0, broke: false };
+    const before = state.coins;
+    let planted = 0, broke = false, skippedOff = 0;
+    for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
+      const t = state.tiles[y][x];
+      if (!t || t.k !== 'soil' || t.crop || t.obj) continue;
+      if (!isUnlocked(x, y) || isBlessed(x, y) || sproutAt(x, y)) continue;
+      if (!seasonOK(cropId, x, y)) { skippedOff++; continue; } // don't sow into a season it can't survive
+      if (state.coins < def.seed) { broke = true; y = WH; break; }
+      if (plant(x, y, cropId)) planted++;
+    }
+    return { planted, cost: before - state.coins, broke, skippedOff };
+  }
+
   function water(x, y) {
     const t = tileAt(x, y);
     if (!t || !t.crop || t.crop.dead || t.crop.water > 0.55) return false;
@@ -2089,7 +2117,7 @@ const Game = (() => {
     atRiskCrops, runningJobs, orderRush, marketDayItems,
     todayLocal, regenDaily, claimDaily, dailyClaimable,
     // actions
-    smartAction, applyTool, till, plant, water, fertilize, harvest, clearDead, dig, refillCan,
+    smartAction, applyTool, till, plant, plantAll, tilledEmptyCount, water, fertilize, harvest, clearDead, dig, refillCan,
     harvestAtRisk, digAtRisk,
     canPlaceBuilding, placeBuilding, sellBuilding, buyParcel,
     buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
