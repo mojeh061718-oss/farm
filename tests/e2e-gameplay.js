@@ -214,6 +214,31 @@ function check(name, ok, detail) {
   check('auto-harvest ON: ripe crops bank themselves', ah.harvestedWhenOn === true && ah.banked >= 1, ah);
   check('auto-harvest resets regrow crops so they keep producing', ah.regrowKept === true && ah.strawBanked >= 1, ah);
 
+  // ================= build-over-crops (place & replace) =================
+  const pb = await page.evaluate(() => {
+    const G = Game, s = Game.state, out = {};
+    s.coins = 99999; s.season = 0;
+    for (let y = 6; y <= 9; y++) for (let x = 6; x <= 9; x++) { const t = s.tiles[y][x]; t.crop = null; t.obj = null; t.k = 'grass'; }
+    out.okState = G.placeCheck('sprinkler', 6, 6).state;                 // clear grass
+    s.tiles[8][8].k = 'soil'; G.plant(8, 8, 'wheat');                    // a crop under the target
+    const chk = G.placeCheck('sprinkler', 8, 8);
+    out.replaceState = chk.state; out.replaceCrops = chk.crops;
+    out.refusedNoForce = G.placeBuilding('sprinkler', 8, 8) === false;   // no confirm → refuse
+    out.cropKept = !!s.tiles[8][8].crop;
+    out.builtWithForce = G.placeBuilding('sprinkler', 8, 8, true) === true; // confirmed → clear + build
+    out.cropCleared = !s.tiles[8][8].crop;
+    out.hasBuilding = !!(s.tiles[8][8].obj && s.tiles[8][8].obj.t === 'b');
+    out.blockedState = G.placeCheck('sprinkler', 8, 8).state;            // now a building sits there
+    s.tiles[7][6].k = 'soil';                                           // bare tilled plot (no crop)
+    out.soilReplace = G.placeCheck('sprinkler', 6, 7).state;
+    return out;
+  });
+  check('placeCheck: clear grass reads ok', pb.okState === 'ok', pb);
+  check('placeCheck: a crop under the footprint reads replace (counts it)', pb.replaceState === 'replace' && pb.replaceCrops === 1, pb);
+  check('placeBuilding refuses a replace spot without confirmation (crop kept)', pb.refusedNoForce === true && pb.cropKept === true, pb);
+  check('placeBuilding with force clears the crop and builds', pb.builtWithForce && pb.cropCleared && pb.hasBuilding, pb);
+  check('placeCheck: bare tilled soil also reads replace; a building reads blocked', pb.soilReplace === 'replace' && pb.blockedState === 'blocked', pb);
+
   // ================= the shovel =================
   const shovel = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};

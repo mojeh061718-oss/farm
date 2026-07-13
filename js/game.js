@@ -1216,21 +1216,43 @@ const Game = (() => {
   }
 
   // ---------------- buildings & land ----------------
-  function canPlaceBuilding(type, x, y) {
+  // classify a footprint for building placement:
+  //   'ok'      — clear, owned grass; place freely
+  //   'replace' — owned & unblocked, but crops/tilled soil sit under it (would clear)
+  //   'blocked' — a building, THE flower, a glowing sprout, or unowned land — never place
+  function placeCheck(type, x, y) {
     const def = D.BUILDINGS[type];
+    if (!def) return { state: 'blocked' };
+    let crops = 0, soil = 0;
     for (let dy = 0; dy < def.h; dy++)
       for (let dx = 0; dx < def.w; dx++) {
-        const t = tileAt(x + dx, y + dy);
-        if (!t || !isUnlocked(x + dx, y + dy) || t.k !== 'grass' || t.obj || t.crop) return false;
-        if (toniAt(x + dx, y + dy) || sproutAt(x + dx, y + dy) || isBlessed(x + dx, y + dy)) return false;
+        const tx = x + dx, ty = y + dy, t = tileAt(tx, ty);
+        if (!t || !isUnlocked(tx, ty)) return { state: 'blocked', why: 'unowned' };
+        if (t.obj) return { state: 'blocked', why: 'occupied' };
+        if (toniAt(tx, ty) || sproutAt(tx, ty) || isBlessed(tx, ty)) return { state: 'blocked', why: 'blessed' };
+        if (t.crop) crops++;
+        else if (t.k === 'soil') soil++;
       }
-    return true;
+    if (!crops && !soil) return { state: 'ok' };
+    return { state: 'replace', crops, soil };
   }
+  function canPlaceBuilding(type, x, y) { return placeCheck(type, x, y).state === 'ok'; }
 
-  function placeBuilding(type, x, y) {
+  // force = true clears any crops / tilled soil under the footprint first (the UI
+  // asks for confirmation before passing force); without it, a 'replace' spot is refused
+  function placeBuilding(type, x, y, force) {
     const def = D.BUILDINGS[type];
-    if (!canPlaceBuilding(type, x, y)) return false;
+    const chk = placeCheck(type, x, y);
+    if (chk.state === 'blocked') return false;
+    if (chk.state === 'replace' && !force) return false;
     if (state.coins < def.cost) { toast('Not enough cash!', 'bad'); return false; }
+    if (chk.state === 'replace') { // clear the ground the building will sit on
+      for (let dy = 0; dy < def.h; dy++)
+        for (let dx = 0; dx < def.w; dx++) {
+          const t = tileAt(x + dx, y + dy);
+          if (t) { t.crop = null; t.k = 'grass'; }
+        }
+    }
     state.coins -= def.cost;
     const idx = placeBuildingRaw(type, x, y);
     emit('sound', 'build');
@@ -2122,7 +2144,7 @@ const Game = (() => {
     // actions
     smartAction, applyTool, till, plant, plantAll, tilledEmptyCount, water, fertilize, harvest, clearDead, dig, refillCan,
     harvestAtRisk, digAtRisk,
-    canPlaceBuilding, placeBuilding, sellBuilding, buyParcel,
+    canPlaceBuilding, placeCheck, placeBuilding, sellBuilding, buyParcel,
     buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
     startRecipe, collectRecipes, buySlot,
     sellItem, fulfillOrder, skipOrder,
