@@ -389,6 +389,7 @@ const Renderer = (() => {
 
   // ---------------- fx (tile coords in, projected immediately) ----------------
   function addFloat(tx, ty, text, color) {
+    if (floats.length >= 28) floats.shift(); // mass op: kill-oldest so text can't pile up
     const p = proj(tx, ty);
     floats.push({ x: p.x, y: p.y, text, color: color || '#fff', age: 0 });
   }
@@ -451,6 +452,9 @@ const Renderer = (() => {
     plantChain = time - plantChainAt < 0.5 ? plantChain + 1 : 0;   // rate-limit the toss while drag-planting
     plantChainAt = time;
     const f = cropFx(x, y);
+    // mass plant (Plant-all / drag): after a few, just show the sprout — no toss,
+    // tween or particles — so seeding a whole field never floods the frame
+    if (plantChain >= 4) { f.sc = 1; f.busy = time + 0.1; return; }
     f.busy = time + 0.7;
     f.sc = 0.01;
     const toss = plantChain < 3 && cam.z >= 0.45;
@@ -503,6 +507,9 @@ const Renderer = (() => {
     const def = data && D.CROPS[data.id];
     if (!def) { addBurst(tx, ty, '#fff'); return; }
     const n = (data.n || 1);
+    // mass harvest: once the frame is already thick with harvest chains, drop to a
+    // cheap sparkle so a whole field ripening at once can't flood (and crash) the frame
+    if (ghosts.length >= 14) { addBurst(x + 0.5, y + 0.4, def.color); return; }
     const f = cropFx(x, y);
     f.hide = 1; f.busy = time + 1.4;
     stageMap.delete(x + '|' + y);
@@ -532,7 +539,7 @@ const Renderer = (() => {
     const f = cropFx(x, y);
     f.dip = 3.5;
     Tween.to(f, { dip: 0 }, 0.5, Ease.elasticOut, null, 0.05);           // tile dip + elastic settle
-    rings.push({ x: c.x, y: c.y + 2, r: 6, a: 0.55, vr: 165, va: 2.3, gold: n > 1 });
+    if (rings.length < 22) rings.push({ x: c.x, y: c.y + 2, r: 6, a: 0.55, vr: 165, va: 2.3, gold: n > 1 });
     const cnt = n > 1 ? 22 : 14;
     const leafD = def.leaf, leafL = rampHex(def.leaf, 0.8);
     for (let i = 0; i < cnt; i++) {
@@ -556,6 +563,7 @@ const Renderer = (() => {
   }
 
   function launchFlier(x, y, def, gold) {
+    if (fliers.length >= 12) return; // mass op: cap the flying arcs (the barn's already credited in game logic)
     const fl = { t: 0, wx: x + 0.5, wy: y + 0.5, def, gold, trail: [], dead: false };
     fliers.push(fl);
     Tween.to(fl, { t: 1 }, 0.48, Ease.quadIn, () => {
@@ -5959,5 +5967,7 @@ const Renderer = (() => {
     setToniStyle: s => { if (TONI_HEAD[s]) TONI_STYLE = s; }, // live preview of the 3 candidate looks
     addStartle, addGlintBurst,
     get vw() { return vw; }, get vh() { return vh; },
+    // debug/test: current fx-list sizes, to prove mass ops stay bounded
+    __fxCounts: () => ({ floats: floats.length, fliers: fliers.length, ghosts: ghosts.length, rings: rings.length, parts: parts.length }),
   };
 })();
