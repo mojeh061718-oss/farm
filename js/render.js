@@ -857,24 +857,16 @@ const Renderer = (() => {
 
   // per-tile bake signature: any visual state that lives in the baked ground
   // layer must be encoded here so the tile repaints when it changes.
+  // The baked ground tracks ONLY structural, rarely-changing state: soil-vs-grass
+  // and ownership. NOTHING about the crop on the tile is baked here — moisture,
+  // ripeness, wilt, fertilizer and death all drift per-tick and, baked, made a
+  // mass harvest flip hundreds of tile signatures at once → hundreds of full
+  // ground repaints (each redraws the farm's paths + a mip) → multi-second frame
+  // stalls. All those cues are carried LIVE on the crop sprite instead (thirst
+  // drop, ripe glow, droop, dead husk, fertilizer sparkle). Result: harvesting or
+  // planting a whole field never dirties the ground at all.
   function tileSig(state, x, y) {
-    const t = state.tiles[y][x];
-    let s = 1;
-    if (t.k === 'soil') {
-      s = 2;
-      const c = t.crop;
-      // Only bake states that change RARELY. Moisture, ripeness and wilt drift
-      // every tick for every crop; baking them made a mass-planted field repaint
-      // hundreds of ground tiles per frame (a 3×3 redraw + mip each) and stall the
-      // game. Those cues are carried live by the crop sprite instead (thirst drop,
-      // ripe glow, droop). Wet sheen still shows the moment you water (a discrete,
-      // capped event); it just isn't tracked as it slowly dries.
-      if (c) {
-        if (c.dead) s += 8;                             // grey dead bed
-        else if (c.fert) s += 16;                       // warm fertilized tone
-        else if (c.water > 0.9) s += 4;                 // fresh-watered sheen (set to 1 on watering)
-      }
-    }
+    let s = state.tiles[y][x].k === 'soil' ? 2 : 1;
     if (Game.isUnlocked(x, y)) s -= 128;                // fold into Int8 range
     return s;
   }
