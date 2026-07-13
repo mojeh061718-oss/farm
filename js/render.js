@@ -208,23 +208,29 @@ const Renderer = (() => {
      the store steps down 3.0 → 2.5 → 2.0 → 1.75 (CSS size unchanged — only the
      internal resolution drops, which is invisible next to a dropped frame).
      It steps back up after a sustained cool period. Steps apply between frames. */
-  const RES_CAPS = [3.0, 2.5, 2.0, 1.75];
+  // Backing-store DPR ladder. A big farm full of crops is heavy on fill-rate, so
+  // the floor now goes well below crisp (1.25×): on a weak phone a soft-but-smooth
+  // world beats a sharp slideshow, and capable devices never leave 3.0.
+  const RES_CAPS = [3.0, 2.5, 2.0, 1.75, 1.5, 1.25];
   let resStep = 0;
   let emaFrame = 16.7, hotFrames = 0, coolTime = 0, coolNeed = 5, upAt = -1e9;
   function dynRes(dt) {
-    emaFrame += (dt * 1000 - emaFrame) * 0.08;         // EMA ≈ running p50
+    emaFrame += (dt * 1000 - emaFrame) * 0.1;          // EMA ≈ running p50
     // cool = at/under vsync for coolNeed s (a 60 Hz rAF never reports <15 ms
     // even when idle). Mild jitter (17.5–19 ms) holds the cool clock instead
     // of resetting it — only genuinely hot frames restart the wait.
     if (emaFrame > 19) { hotFrames++; coolTime = 0; }
     else { hotFrames = 0; if (emaFrame < 17.5) coolTime += dt; }
     const dev = Math.min(window.devicePixelRatio || 1, RES_CAPS[0]);
-    if (hotFrames >= 60 && resStep < RES_CAPS.length - 1) {
+    // react fast when it's genuinely bad; drop several rungs at once if severe
+    const trigger = emaFrame > 33 ? 6 : 24;
+    if (hotFrames >= trigger && resStep < RES_CAPS.length - 1) {
       // a step-up that went hot again within 12 s was a failed probe:
       // exponential backoff so boundary hardware doesn't oscillate visibly
       if (time - upAt < 12) coolNeed = Math.min(80, coolNeed * 2);
-      // skip caps that don't actually lower the store on this device
-      do { resStep++; } while (resStep < RES_CAPS.length - 1 && Math.min(dev, RES_CAPS[resStep]) >= dpr);
+      const jump = emaFrame > 50 ? 3 : emaFrame > 30 ? 2 : 1;
+      for (let j = 0; j < jump; j++) // skip caps that don't actually lower the store on this device
+        do { resStep++; } while (resStep < RES_CAPS.length - 1 && Math.min(dev, RES_CAPS[resStep]) >= dpr);
       hotFrames = 0; coolTime = 0;
       if (Math.min(dev, RES_CAPS[resStep]) < dpr) resize();
     } else if (coolTime >= coolNeed && resStep > 0) {
@@ -2416,9 +2422,10 @@ const Renderer = (() => {
     if (fx2 && fx2.hide) return;                     // a harvest ghost owns this tile right now
     const cx = c.x, cy = c.y + 2 + (fx2 ? fx2.dip : 0);
     const s = crop.prog;
+    const lowLod = cam.z < 0.45; // far zoom (whole-field view): skip per-crop decorative extras
 
     // fertilizer flecks (animated — kept out of the baked ground layer)
-    if (crop.fert && !crop.dead) {
+    if (!lowLod && crop.fert && !crop.dead) {
       ctx.fillStyle = 'rgba(230,196,92,.85)';
       for (let i = 0; i < 3; i++) {
         const a = time * 1.5 + i * 2.1 + x * 3 + y;
@@ -2497,7 +2504,6 @@ const Renderer = (() => {
     shadow(cx, cy + 5, (8 + s * 5) * Math.min(1, fsc), 3.2);
 
     ctx.save();
-    const lowLod = cam.z < 0.45;                     // LOD: skip sway transforms far out
     ctx.translate(cx, cy + (lowLod ? 0 : bounce));
     if (!lowLod) ctx.rotate(sway * Math.min(1, s * 2) + droop);
 
@@ -2517,7 +2523,7 @@ const Renderer = (() => {
     ctx.restore();
 
     // rot: flies circle a spoiling crop
-    if (mature && (crop.rot || 0) > 0.35) {
+    if (!lowLod && mature && (crop.rot || 0) > 0.35) {
       ctx.fillStyle = 'rgba(40,35,25,.8)';
       for (let i = 0; i < 3; i++) {
         const a = time * 4 + i * 2.1;
@@ -2528,7 +2534,7 @@ const Renderer = (() => {
     }
 
     // thirsty indicator (bigger, with a soft dark halo so it reads anywhere)
-    if (!mature && crop.water <= 0.35 && Math.sin(time * 5) > -0.2) {
+    if (!lowLod && !mature && crop.water <= 0.35 && Math.sin(time * 5) > -0.2) {
       const dx = cx + 15, dy = cy - 22;
       ctx.fillStyle = 'rgba(20,16,40,.30)';
       ctx.beginPath(); ctx.arc(dx, dy, 9, 0, Math.PI * 2); ctx.fill();
@@ -6005,5 +6011,6 @@ const Renderer = (() => {
     get vw() { return vw; }, get vh() { return vh; },
     // debug/test: current fx-list sizes, to prove mass ops stay bounded
     __fxCounts: () => ({ floats: floats.length, fliers: fliers.length, ghosts: ghosts.length, rings: rings.length, parts: parts.length, groundRepaints }),
+    __res: () => ({ dpr, resStep, emaFrame: Math.round(emaFrame) }),
   };
 })();
