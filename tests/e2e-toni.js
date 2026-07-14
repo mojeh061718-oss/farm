@@ -160,12 +160,14 @@ function check(name, ok, detail) {
     s.tiles[6][31].crop.water = 1;
     for (let i = 0; i < 8; i++) G.tick(1);
     const cin = s.tiles[8][9].crop, cout = s.tiles[6][31].crop;
-    out.inGrows = cin && !cin.dead && cin.prog > 0.2 && (cin.wilt || 0) === 0;
-    out.outWilts = cout && cout.wilt > 0 && cout.prog === 0.0;
+    const inGain = cin.prog - 0.2;
+    out.inGrows = cin && !cin.dead && inGain > 0 && (cin.wilt || 0) === 0;
+    // unblessed off-season crop still creeps along (never wilts) — just far slower than the blessed one
+    out.outSlower = cout && !cout.dead && cout.prog > 0 && cout.prog < inGain;
     return out;
   });
-  check('off-season crop in blessed parcel survives + grows (seasonOK hooks the blessing)',
-    off.seasonOKBlessed && off.inGrows && off.outWilts, off);
+  check('off-season crop grows full-speed in a blessed parcel, only slowly outside it',
+    off.seasonOKBlessed && off.inGrows && off.outSlower, off);
 
   // ---- storms skip blessed parcels ----
   const storm = await page.evaluate(() => {

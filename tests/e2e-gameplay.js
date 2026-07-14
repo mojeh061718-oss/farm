@@ -98,24 +98,21 @@ function check(name, ok, detail) {
     out.regrow = s.tiles[7][8].crop ? { prog: s.tiles[7][8].crop.prog, regrown: s.tiles[7][8].crop.regrown } : 'gone';
     out.sold = G.sellItem('turnip', 1) > 0;
 
-    // failure mechanics + deadCause
+    // no crop ever dies: dry pauses, ripe waits, out-of-season crawls
     G.till(11, 6); s.coins += 300;
     G.plant(11, 6, 'turnip');
-    { const c = s.tiles[6][11].crop; c.water = 0; c.wilt = 0.99; s.weather = 'sun'; G.tick(2); }
-    out.driedDead = s.tiles[6][11].crop && s.tiles[6][11].crop.dead;
-    out.driedCause = s.tiles[6][11].crop && s.tiles[6][11].crop.deadCause;
+    { const c = s.tiles[6][11].crop; c.prog = 0.4; c.water = 0; s.weather = 'sun'; const p0 = c.prog; G.tick(4); out.dryPaused = !c.dead && c.prog === p0; }
     G.till(11, 7);
     G.plant(11, 7, 'turnip');
-    { const c = s.tiles[7][11].crop; c.prog = 1; c.rot = 0.999; c.water = 1; G.tick(2); }
-    out.rotCause = s.tiles[7][11].crop && s.tiles[7][11].crop.deadCause;
+    { const c = s.tiles[7][11].crop; c.prog = 1; c.water = 1; G.tick(4); const cc = s.tiles[7][11].crop; out.ripeWaits = !!cc && !cc.dead && cc.prog >= 1; }
     G.till(11, 8);
     out.offPlant = G.plant(11, 8, 'pumpkin'); // fall crop in spring
-    { const c = s.tiles[8][11].crop; c.water = 1; c.wilt = 0.99; G.tick(2); }
-    out.offCause = s.tiles[8][11].crop && s.tiles[8][11].crop.deadCause;
+    { const c = s.tiles[8][11].crop; c.water = 1; const p0 = c.prog; G.tick(6); out.offGrewSlow = !c.dead && c.prog > p0; }
 
-    // tapping a dead crop toasts WHY, then clears
+    // a crop CAN still be lost to weather (storm/frost) — tapping it clears it with a note
     let toastMsg = '';
     G.on('toast', m => { toastMsg = m; });
+    s.tiles[6][11].crop.dead = true; s.tiles[6][11].crop.deadCause = 'frost';
     const r = G.smartAction(11, 6);
     out.deadTapAct = r.act;
     out.deadTapToast = toastMsg;
@@ -158,10 +155,10 @@ function check(name, ok, detail) {
   check('watered crop ripens and harvests', smoke.prog === 1 && smoke.harvest >= 1, smoke);
   check('regrow crop stays planted after harvest', smoke.regrow && smoke.regrow.regrown === true && smoke.regrow.prog === 0, smoke.regrow);
   check('selling items pays', smoke.sold === true);
-  check('dry crop dies of thirst (deadCause)', smoke.driedDead === true && smoke.driedCause === 'thirst', smoke.driedCause);
-  check('ripe crop rots (deadCause)', smoke.rotCause === 'rot', smoke.rotCause);
-  check('off-season crop withers (deadCause=season)', smoke.offPlant === true && smoke.offCause === 'season', smoke.offCause);
-  check('tapping dead crop explains the death, then clears', smoke.deadTapAct === 'clear' && /died of thirst/.test(smoke.deadTapToast) && smoke.deadCleared, smoke.deadTapToast);
+  check('dry crop pauses (never dies of thirst)', smoke.dryPaused === true, smoke.dryPaused);
+  check('ripe crop waits to be picked (never rots)', smoke.ripeWaits === true, smoke.ripeWaits);
+  check('off-season crop grows slowly (never withers to death)', smoke.offPlant === true && smoke.offGrewSlow === true, { offPlant: smoke.offPlant, slow: smoke.offGrewSlow });
+  check('tapping a weather-killed crop clears it with a note', smoke.deadTapAct === 'clear' && /died of/.test(smoke.deadTapToast) && smoke.deadCleared, smoke.deadTapToast);
   check('animal sickness / vet / sell-back', smoke.sick === true && smoke.vet === true && smoke.sellAnimal === true, smoke);
   check('powered tilling burns fuel over a 2×2', smoke.buyTill1 && smoke.fuelBuy && smoke.fuelUsed && smoke.tilled2x2, smoke);
   check('building sell-back & parcel purchase', smoke.sellCoop === true && smoke.buyParcel === true, smoke);
@@ -560,8 +557,8 @@ function check(name, ok, detail) {
     G.till(8, 10); G.plant(8, 10, 'tomato'); G.water(8, 10); // outside
     for (let i = 0; i < 20; i++) G.tick(1);
     const cin = s.tiles[6][3].crop, cout = s.tiles[10][8].crop;
-    out.insideGrows = cin && cin.prog > 0 && (cin.wilt || 0) === 0;
-    out.outsideWilts = cout && cout.prog === 0 && cout.wilt > 0;
+    out.insideGrows = cin && cin.prog > 0;
+    out.outsideSlow = cout && cout.prog > 0 && cout.prog < cin.prog; // grows, but slower than in-season coverage
     out.seasonOKPos = G.seasonOK('tomato', 3, 6) && !G.seasonOK('tomato', 8, 10);
     // order pool treats owning a greenhouse as access to any crop
     out.poolHasTomato = G.availableItems().includes('tomato');
@@ -582,7 +579,7 @@ function check(name, ok, detail) {
     return out;
   });
   check('greenhouse covers exactly its 6×6 zone', gh.place && gh.coveredIn && gh.coveredOut, gh);
-  check('off-season crop grows inside coverage, wilts outside', gh.insideGrows && gh.outsideWilts && gh.seasonOKPos, gh);
+  check('off-season crop grows full-speed inside coverage, slowly outside', gh.insideGrows && gh.outsideSlow && gh.seasonOKPos, gh);
   check('order pool counts greenhouse access', gh.poolHasTomato, gh);
   check('frost kills outside only (deadCause=frost)', gh.frostFired && gh.frostCause === 'frost' && gh.insideSpared, gh);
 
