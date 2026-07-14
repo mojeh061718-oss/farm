@@ -15,7 +15,7 @@ const Game = (() => {
      One shared wallet/level/inventory/calendar; the LAND (tiles, buildings,
      animals, parcels, dims) is per-farm. The live `state.*` fields hold the
      ACTIVE farm; state.farms[] holds snapshots of the others. */
-  const FARM_FIELDS = ['tiles', 'buildings', 'animals', 'unlockedParcels', 'sprouts', 'tonis', 'workers', 'usedWorkerNames', 'w', 'h', 'parcels', 'farmName'];
+  const FARM_FIELDS = ['tiles', 'buildings', 'animals', 'livestock', 'unlockedParcels', 'sprouts', 'tonis', 'workers', 'usedWorkerNames', 'w', 'h', 'parcels', 'farmName'];
   function ensureFarms() {
     if (!state.farms) { // migrate a single-farm save into farms[0]
       const home = { id: 'home', tid: 'home', label: state.farmName || 'Home Valley' };
@@ -352,6 +352,7 @@ const Game = (() => {
       orderTimer: 20,
       tonis: [],
       sprouts: [],
+      livestock: [],
       workers: [],
       usedWorkerNames: [],
       unlockedParcels: [0],
@@ -576,6 +577,9 @@ const Game = (() => {
     state.usedWorkerNames = state.usedWorkerNames || [...new Set(state.workers.map(w => w.name))];
     for (const w of state.workers) { if (w.prog == null) w.prog = 0; } // transient work accumulator
     workerUid = Math.max(workerUid, ...state.workers.map(w => (w.uid || 0) + 1), 1);
+    // ---- Meat livestock ----
+    state.livestock = state.livestock || [];
+    livestockUid = Math.max(livestockUid, ...state.livestock.map(l => (l.uid || 0) + 1), 1);
     if (!state.daily) regenDaily();
     // orders gain deadlines (floored so slow items are never impossible)
     for (const o of state.orders || []) {
@@ -1301,6 +1305,10 @@ const Game = (() => {
       toast('Sell or move the animals first!', 'bad');
       return false;
     }
+    if (b.type === 'pasture' && livestockIn(index).length > 0) {
+      toast('Sell or slaughter the livestock first!', 'bad');
+      return false;
+    }
     if (b.type === 'well' && buildingsOf('well').length <= 1) {
       toast('A farm needs at least one well!', 'bad');
       return false;
@@ -1450,6 +1458,84 @@ const Game = (() => {
     emit('sound', 'goal');
     toast(`🩺 ${a.name} is healthy again!`, 'good');
     return true;
+  }
+
+  // ---------------- Meat livestock (Pasture → Slaughterhouse) ----------------
+  let livestockUid = 1;
+  function livestockIn(bIdx) { return (state.livestock || []).filter(l => l.home === bIdx); }
+  function livestockDef(l) { return D.MEAT_ANIMALS[l.type]; }
+  function livestockReady(l) { const d = livestockDef(l); return !!d && l.weight >= d.marketWt; }
+  function livestockMeatUnits(l) { return Math.max(1, Math.round(l.weight)); }
+  function livestockValue(l) { const d = livestockDef(l); return d ? Math.round(livestockMeatUnits(l) * sellPrice(d.meat)) : 0; }
+  function findLivestock(uid) { return (state.livestock || []).find(l => l.uid === uid); }
+
+  function buyLivestock(type, bIdx) {
+    const def = D.MEAT_ANIMALS[type];
+    const b = state.buildings[bIdx];
+    if (!def || !b || b.type !== def.home) return false;
+    if (livestockIn(bIdx).length >= b.capacity) { toast('The pasture is full!', 'bad'); return false; }
+    if (state.coins < def.buyCost) { toast('Not enough cash!', 'bad'); return false; }
+    state.coins -= def.buyCost;
+    state.livestock = state.livestock || [];
+    state.livestock.push({ uid: livestockUid++, type, home: bIdx, weight: def.startWt, fedUntil: state.now + D.DAY_LEN * 1.2, name: pickAnimalName() });
+    emit('sound', 'plant');
+    toast(`${def.emoji} A young ${def.name.toLowerCase()} joins the pasture — feed it to fatten it up!`, 'good');
+    checkGoal();
+    return true;
+  }
+  function feedLivestockCost(l) {
+    if ((state.feedCredits || 0) > 0) return { credits: 1 };
+    return { coins: livestockDef(l).feedCost };
+  }
+  function feedLivestock(uid) {
+    const l = findLivestock(uid); if (!l) return false;
+    if (state.now < l.fedUntil - D.DAY_LEN * 0.2) return false; // already well fed
+    const cost = feedLivestockCost(l);
+    if (cost.credits) state.feedCredits -= cost.credits;
+    else { if (state.coins < cost.coins) { toast('Not enough cash for feed!', 'bad'); return false; } state.coins -= cost.coins; }
+    l.fedUntil = state.now + D.DAY_LEN * 1.2;
+    dailyProgress('feed');
+    return true;
+  }
+  function feedAllLivestock(bIdx) {
+    let n = 0;
+    for (const l of livestockIn(bIdx)) if (feedLivestock(l.uid)) n++;
+    if (n) emit('sound', 'plant');
+    return n;
+  }
+  // slaughter one head → meat units in the barn (≈ its weight). Needs a Slaughterhouse.
+  function slaughter(uid, silent) {
+    const l = findLivestock(uid); if (!l) return 0;
+    if (!hasBuilding('slaughterhouse')) { if (!silent) toast('🔪 Build a Slaughterhouse first to process your stock.', 'bad'); return 0; }
+    if (!livestockReady(l)) { if (!silent) toast('That one isn\'t at market weight yet.', 'bad'); return 0; }
+    const def = livestockDef(l);
+    const units = livestockMeatUnits(l);
+    state.inventory[def.meat] = (state.inventory[def.meat] || 0) + units;
+    if (state.produced) state.produced[def.meat] = 1;
+    addXp(Math.max(1, Math.round(D.ITEMS[def.meat].base * units / 12)));
+    state.livestock = (state.livestock || []).filter(x => x.uid !== uid);
+    state.usedNames = (state.usedNames || []).filter(n => n !== l.name);
+    if (!silent) {
+      emit('sound', 'coin');
+      toast(`🔪 ${l.name} → ${units} ${D.ITEMS[def.meat].name} (~${D.$(units * sellPrice(def.meat))} at market).`, 'good');
+      checkGoal();
+    }
+    return units;
+  }
+  // slaughter every ready head in a pasture at once, with a single aggregate toast
+  function slaughterReady(bIdx) {
+    if (!hasBuilding('slaughterhouse')) { toast('🔪 Build a Slaughterhouse first to process your stock.', 'bad'); return 0; }
+    const ready = livestockIn(bIdx).filter(livestockReady);
+    if (!ready.length) { toast('None are at market weight yet.', 'bad'); return 0; }
+    const bag = {}; let total = 0;
+    for (const l of ready) { const m = livestockDef(l).meat; const u = slaughter(l.uid, true); if (u) { bag[m] = (bag[m] || 0) + u; total += u; } }
+    if (total) {
+      emit('sound', 'coin');
+      const parts = Object.entries(bag).map(([m, u]) => `${u} ${D.ITEMS[m].name}`);
+      toast(`🔪 Processed ${ready.length} head → ${parts.join(', ')}.`, 'good');
+      checkGoal();
+    }
+    return total;
   }
 
   // the Feed Mill grinds grain into feed credits: 1 wheat/corn → 3 feeds
@@ -2246,6 +2332,16 @@ const Game = (() => {
       }
     }
 
+    // meat livestock fatten while fed — slower once past market weight
+    for (const l of (state.livestock || [])) {
+      const d = D.MEAT_ANIMALS[l.type];
+      if (!d || l.weight >= d.maxWt || state.now >= l.fedUntil) continue;
+      const rate = l.weight >= d.marketWt
+        ? (d.maxWt - d.marketWt) / (d.growTime * D.FATTEN_SLOWDOWN) // diminishing returns
+        : (d.marketWt - d.startWt) / d.growTime;
+      l.weight = Math.min(d.maxWt, l.weight + rate * dt);
+    }
+
     // hired farmhands work their patches (harvest / water / plant / till / tend)
     tickWorkers(dt);
 
@@ -2338,6 +2434,8 @@ const Game = (() => {
     canPlaceBuilding, placeCheck, placeBuilding, sellBuilding, buyParcel,
     buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
     hireWorker, assignWorker, upgradeWorker, dismissWorker, workerWage, workerWageBill, workerUpCost, workerRate,
+    buyLivestock, feedLivestock, feedAllLivestock, slaughter, slaughterReady,
+    livestockIn, livestockDef, livestockReady, livestockMeatUnits, livestockValue,
     startRecipe, collectRecipes, buySlot,
     sellItem, fulfillOrder, skipOrder,
     buyCanTier, buyTillTier, buyFuel,

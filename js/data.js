@@ -87,6 +87,10 @@ const DATA = (() => {
     wool:       { name: 'Wool',        emoji: '🧶', base: 150 },
     truffle:    { name: 'Truffle',     emoji: '🍄', base: 265 },
     truffle_oil:{ name: 'Truffle Oil', emoji: '🫒', base: 620 },
+    // meat (from fattened pasture livestock, sold by the unit at market)
+    chicken_meat:{ name: 'Chicken',    emoji: '🍗', base: 46 },
+    pork:       { name: 'Pork',        emoji: '🥓', base: 96 },
+    beef:       { name: 'Beef',        emoji: '🥩', base: 175 },
     // artisan goods
     bread:      { name: 'Bread',       emoji: '🍞', base: 110 },
     cookies:    { name: 'Cookies',     emoji: '🍪', base: 240 },
@@ -165,6 +169,21 @@ const DATA = (() => {
   };
   const WORKER_NAMES = ['Sam', 'Rosa', 'Ida', 'Gus', 'Pip', 'Nell', 'Cole', 'Bea', 'Milo', 'Fern', 'Otis', 'Hank', 'Lucy', 'Cass', 'Wade', 'June', 'Rye', 'Tess', 'Abe', 'Dot'];
 
+  // ---- Meat livestock (raised in the Pasture, sold as meat via the Slaughterhouse) ----
+  // A separate loop from the dairy/egg animals: you buy them young and cheap, feed
+  // them so they fatten (weight climbs), and once they hit market weight you either
+  // send them to slaughter for meat now, or keep feeding for a bigger payout — up to
+  // a max weight where gains taper off. Slaughtering yields meat by the unit
+  // (≈ the animal's weight), which sells at market and fills orders like any good.
+  const MEAT_ANIMALS = {
+    broiler: { name: 'Broiler',  emoji: '🐔', sprite: 'chicken', home: 'pasture', buyCost: 45,  growTime: 55,  startWt: 0.6, marketWt: 2,  maxWt: 3.4, meat: 'chicken_meat', feedCost: 4  },
+    hog:     { name: 'Hog',      emoji: '🐖', sprite: 'pig',     home: 'pasture', buyCost: 260, growTime: 130, startWt: 1,   marketWt: 4,  maxWt: 7,   meat: 'pork',         feedCost: 10 },
+    steer:   { name: 'Steer',    emoji: '🐄', sprite: 'cow',     home: 'pasture', buyCost: 720, growTime: 210, startWt: 1.2, marketWt: 6,  maxWt: 11,  meat: 'beef',         feedCost: 16 },
+  };
+  // fattening past market weight is slower (diminishing returns): the stretch to
+  // max weight takes this many × the base grow time.
+  const FATTEN_SLOWDOWN = 2.4;
+
   // ---- Buildings ----
   // No unlock levels anywhere — if you can afford it, you can build it.
   const BUILDINGS = {
@@ -180,6 +199,8 @@ const DATA = (() => {
     loom:       { name: 'Loom House',   emoji: '🧵', w: 2, h: 2, cost: 6500,  desc: 'Weaves wool into fine cloth and quilts.', roof: '#7d6a9e', wall: '#b0a4c4', sign: 'LOOM' },
     drone:      { name: 'Harvest Drone',emoji: '🤖', w: 1, h: 1, cost: 7500,  desc: 'Auto-harvests AND replants a 5×5 area every morning. Burns 1 gal of fuel per run.' },
     greenhouse: { name: 'Greenhouse',   emoji: '🪴', w: 2, h: 2, cost: 6000,  desc: 'Shelters a 6×6 zone around it: any crop grows there in any season, and frost never kills. Build several!', roof: '#9cc4d4' },
+    pasture:    { name: 'Pasture',      emoji: '🐄', w: 2, h: 2, cost: 1800,  capacity: 6, pasture: true, desc: 'Raise cattle, hogs & broilers for meat — buy them young and feed them to fatten up.', roof: '#6f9440', wall: '#cdbd8e', sign: 'PASTURE' },
+    slaughterhouse: { name: 'Slaughterhouse', emoji: '🔪', w: 2, h: 2, cost: 5000, desc: 'Processes fattened livestock into Beef, Pork & Chicken. Build one before you can send stock to slaughter.', roof: '#8a3d3d', wall: '#b9b0a6', sign: 'MEAT' },
     // decorative home — placed on the starting farm, never sold in the Shop
     farmhouse:  { name: 'Farmhouse',    emoji: '🏡', w: 2, h: 2, cost: 0, decor: true, desc: 'Your homestead — just for the view.', roof: '#b45c3a', wall: '#ecdcb8', sign: 'HOME' },
   };
@@ -298,6 +319,7 @@ const DATA = (() => {
     SEASONS, WEATHERS, WEATHER_TABLE, DIFFICULTIES,
     ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, BUILDINGS, RECIPES,
     WORKER_JOBS, WORKER, WORKER_NAMES,
+    MEAT_ANIMALS, FATTEN_SLOWDOWN,
     CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS, FARM_TEMPLATES,
     xpForLevel, repBonus, fertCost,
   };
