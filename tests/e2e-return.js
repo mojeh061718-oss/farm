@@ -132,11 +132,12 @@ function check(name, ok, detail) {
   check('drones bank offline harvests into the digest', digest.dronePlaced && digest.away.droneHarvest === 1, digest.away);
   check('expired orders counted (fresh arrivals ignored)', digest.away.expiredOrders === 1, digest.away);
 
-  // ---- season flip while away: rescue window ----
+  // ---- season flip while away: the crop simply survives (nothing ever wilts) ----
   const flip = await page.evaluate(() => {
     const G = Game, s = Game.state, out = {};
     for (const row of s.tiles) for (const t of row) t.crop = null;
-    s.fuel = 0; // ground the drone — it must not steal the fixture crop
+    s.autoHarvest = false;
+    s.buildings = (s.buildings || []).filter(b => !b || b.type !== 'drone'); // no auto-harvester steals the fixture
     s.coins += 500;
     s.season = 0; s.day = DATA.SEASON_DAYS; s.t = 0.5;
     s.weather = 'rain'; s.forecast = 'rain';
@@ -147,18 +148,14 @@ function check(name, ok, detail) {
     G.fastForward(DATA.DAY_LEN, 3600); // crosses into summer
     out.flipped = s.season === 1;
     out.alive = !!s.tiles[8][10].crop && !s.tiles[8][10].crop.dead;
-    out.wilt0 = (c.wilt || 0) === 0;
-    out.rescueSet = Math.abs((s._flags.rescueUntil || 0) - (s.now + 0.75 * DATA.DAY_LEN)) < 1e-6;
-    G.tick(8); // live, inside the window
-    out.noWiltInWindow = (c.wilt || 0) === 0;
-    s._flags.rescueUntil = s.now - 1; // window over
-    G.tick(8);
-    out.wiltResumes = c.wilt > 0;
+    // now out of season and live for a good while — it still never wilts or dies
+    for (let i = 0; i < 40; i++) G.tick(1);
+    const cc = s.tiles[8][10].crop;
+    out.stillAlive = !!cc && !cc.dead && (cc.wilt || 0) === 0;
     return out;
   });
-  check('season flip while away: crop survives, rescue window armed', flip.flipped && flip.alive && flip.wilt0 && flip.rescueSet, flip);
-  check('no season-wilt during the rescue window', flip.noWiltInWindow, flip);
-  check('wilt resumes once the window closes', flip.wiltResumes, flip);
+  check('season flip while away: the ripe crop simply survives', flip.flipped && flip.alive, flip);
+  check('out-of-season crops never wilt or die', flip.stillAlive, flip);
 
   // ---- quiet window: flushDeaths held, then delivered ----
   const quiet = await page.evaluate(() => {

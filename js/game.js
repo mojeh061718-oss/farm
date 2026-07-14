@@ -994,10 +994,10 @@ const Game = (() => {
     if (!t || !def || t.k !== 'soil' || t.crop || t.obj || sproutAt(x, y)) return false;
     if (isBlessed(x, y)) return toniLockNotice(); // the frozen field plants itself
     if (state.coins < def.seed) { toast('Not enough cash for seeds! (Tip: work odd jobs from the ⚙️ Menu)', 'bad'); return false; }
-    // planting out of season is allowed — but the crop will wither and die.
+    // planting out of season is allowed — it just grows slowly, and never dies.
     if (!seasonOK(cropId, x, y) && state.now >= (state._flags.offWarnUntil || 0) && !state._offline) {
       state._flags.offWarnUntil = state.now + 12; // don't spam while drag-planting
-      toast(`⚠️ ${D.ITEMS[cropId].name} is out of season — it will wither and the seed money is gone!`, 'bad');
+      toast(`🌱 ${D.ITEMS[cropId].name} is out of season — it'll grow slowly here, but it won't die.`);
     }
     state.coins -= def.seed;
     t.crop = { id: cropId, prog: 0, water: 0, wilt: 0, rot: 0, dead: false, fert: false, regrown: false };
@@ -2264,7 +2264,10 @@ const Game = (() => {
       for (let i = state.sprouts.length - 1; i >= 0; i--)
         if (state.now >= state.sprouts[i].at) revealSprout(i);
 
-    // crops: growth, thirst, wilting, rot
+    // crops: growth only — a planted crop NEVER dies of thirst, season or rot.
+    // Dry crops simply pause; out-of-season crops grow slowly instead of withering;
+    // ripe crops wait patiently to be picked. (Storms, crows and frost are still
+    // live-play events, but they never fire while you're away, so a break is safe.)
     for (let ty = 0; ty < WH; ty++) for (let tx = 0; tx < WW; tx++) {
       const c = state.tiles[ty][tx].crop;
       if (!c || c.dead) continue;
@@ -2274,21 +2277,6 @@ const Game = (() => {
       const off = !seasonOK(c.id, tx, ty);
       if (raining || (wet && wet.has(tx + ',' + ty))) c.water = 1; // rain or a sprinkler keeps it wet
       else if (!state._offline && !bl) c.water = Math.max(0, c.water - dt / drain);
-
-      // wilting: dry crops and out-of-season crops decline; watered ones recover
-      let wilting = false;
-      if (!state._offline && !rescued) {
-        if (off) { c.wilt = (c.wilt || 0) + dt / (0.8 * D.DAY_LEN); wilting = true; }
-        else if (c.water <= 0) { c.wilt = (c.wilt || 0) + dt / ((diff().wiltDays || D.WILT_DAYS) * D.DAY_LEN); wilting = true; }
-      }
-      if (!wilting && c.wilt > 0) c.wilt = Math.max(0, c.wilt - dt / D.DAY_LEN);
-      if (c.wilt >= 1) {
-        c.dead = true;
-        c.deadCause = off ? 'season' : 'thirst';
-        state.stats.lost++;
-        deaths[off ? 'season' : 'dry']++;
-        continue;
-      }
 
       if (c.prog >= 1) {
         if (c.toni) { // the seed was never a turnip at all — she rises now
@@ -2304,15 +2292,12 @@ const Game = (() => {
         if (bl) { toniAutoHarvest(tx, ty); continue; } // ripe blessed crops bank themselves
         // your standing order: auto-harvest brings ripe crops in the moment they're ready
         if (state.autoHarvest && !state._offline) { harvest(tx, ty); continue; }
-        // ripe crops rot if you leave them standing (never while away)
-        if (!state._offline) {
-          c.rot = (c.rot || 0) + dt / (D.ROT_DAYS * D.DAY_LEN);
-          if (c.rot >= 1) { c.dead = true; c.deadCause = 'rot'; state.stats.lost++; deaths.rot++; }
-        }
-      } else if ((c.water > 0 || state._offline) && !off) {
+        // otherwise a ripe crop just waits — nothing spoils
+      } else if (c.water > 0 || state._offline || bl) {
         const def = D.CROPS[c.id];
         const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
-        const speed = (c.fert || bl) ? 1.25 : 1; // blessed soil grows with love
+        let speed = (c.fert || bl) ? 1.25 : 1; // blessed / fertilized soil grows with love
+        if (off && !bl) speed *= 0.35; // out of season: slow going, but never fatal
         c.prog = Math.min(1, c.prog + (dt * speed) / growTime);
       }
     }
