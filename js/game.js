@@ -15,7 +15,7 @@ const Game = (() => {
      One shared wallet/level/inventory/calendar; the LAND (tiles, buildings,
      animals, parcels, dims) is per-farm. The live `state.*` fields hold the
      ACTIVE farm; state.farms[] holds snapshots of the others. */
-  const FARM_FIELDS = ['tiles', 'buildings', 'animals', 'unlockedParcels', 'sprouts', 'tonis', 'w', 'h', 'parcels', 'farmName'];
+  const FARM_FIELDS = ['tiles', 'buildings', 'animals', 'unlockedParcels', 'sprouts', 'tonis', 'workers', 'usedWorkerNames', 'w', 'h', 'parcels', 'farmName'];
   function ensureFarms() {
     if (!state.farms) { // migrate a single-farm save into farms[0]
       const home = { id: 'home', tid: 'home', label: state.farmName || 'Home Valley' };
@@ -352,6 +352,8 @@ const Game = (() => {
       orderTimer: 20,
       tonis: [],
       sprouts: [],
+      workers: [],
+      usedWorkerNames: [],
       unlockedParcels: [0],
       goalIndex: 0,
       goalCursor: 0,
@@ -569,6 +571,11 @@ const Game = (() => {
     state.goalCursor = state.goalCursor || 0;
     state.tonis = state.tonis || [];
     state.sprouts = state.sprouts || [];
+    // ---- Farmhands ----
+    state.workers = state.workers || [];
+    state.usedWorkerNames = state.usedWorkerNames || [...new Set(state.workers.map(w => w.name))];
+    for (const w of state.workers) { if (w.prog == null) w.prog = 0; } // transient work accumulator
+    workerUid = Math.max(workerUid, ...state.workers.map(w => (w.uid || 0) + 1), 1);
     if (!state.daily) regenDaily();
     // orders gain deadlines (floored so slow items are never impossible)
     for (const o of state.orders || []) {
@@ -977,7 +984,7 @@ const Game = (() => {
     return true;
   }
 
-  function plant(x, y, cropId) {
+  function plant(x, y, cropId, noToni) {
     const t = tileAt(x, y);
     const def = D.CROPS[cropId];
     if (!t || !def || t.k !== 'soil' || t.crop || t.obj || sproutAt(x, y)) return false;
@@ -997,7 +1004,9 @@ const Game = (() => {
     // happens ONLY here, at planting — and it tells NO ONE. The crop grows
     // exactly as the seed it was planted as (same timer, same sprite); the
     // truth waits for maturity. Math.random read at the roll.
-    if (!state._offline && !toniStands() && Math.random() < D.TONI.plantChance) t.crop.toni = true;
+    // a hired Planter never rolls the mythic — it would farm Tonis and gut their
+    // rarity. The roll stays for YOUR own hands in the soil (and the drone).
+    if (!noToni && !state._offline && !toniStands() && Math.random() < D.TONI.plantChance) t.crop.toni = true;
     checkGoal();
     return true;
   }
@@ -1513,6 +1522,164 @@ const Game = (() => {
 
   function readyIn(bIdx) { return animalsIn(bIdx).filter(a => a.prodProg >= 1).length; }
 
+  // ---------------- Farmhands (hired workers) ----------------
+  let workerUid = 1;
+  function workerName() {
+    state.usedWorkerNames = state.usedWorkerNames || [];
+    const used = state.usedWorkerNames;
+    const pool = D.WORKER_NAMES.filter(n => !used.includes(n));
+    let name;
+    if (pool.length) name = pool[Math.floor(rnd() * pool.length)];
+    else { const base = pick(D.WORKER_NAMES); let k = 2; while (used.includes(`${base} ${k}`)) k++; name = `${base} ${k}`; }
+    used.push(name);
+    return name;
+  }
+  const findWorker = uid => (state.workers || []).find(w => w.uid === uid);
+  function workerWage(w) { return D.WORKER.baseWage * w.level; }
+  function workerWageBill() { return (state.workers || []).reduce((s, w) => s + workerWage(w), 0); }
+  function workerRate(w) { return D.WORKER.baseRate + (w.level - 1) * D.WORKER.ratePerLevel; }
+  function workerUpCost(w) { return D.WORKER.upBase * w.level; } // cost to reach the next level
+
+  function hireWorker(job) {
+    if (!D.WORKER_JOBS[job]) job = 'harvest';
+    state.workers = state.workers || [];
+    if (state.workers.length >= D.WORKER.maxCrew) { toast(`Your crew is full (${D.WORKER.maxCrew} hands).`, 'bad'); return false; }
+    if (state.coins < D.WORKER.hireCost) { toast('Not enough cash to hire a farmhand.', 'bad'); return false; }
+    state.coins -= D.WORKER.hireCost;
+    const w = { uid: workerUid++, name: workerName(), job, zone: 'all', seed: 'turnip', level: 1, prog: 0, at: null, unpaid: false };
+    state.workers.push(w);
+    emit('sound', 'plant');
+    toast(`🤝 Hired ${w.name} as a ${D.WORKER_JOBS[job].name}!`, 'good');
+    save();
+    return w;
+  }
+  function assignWorker(uid, patch) {
+    const w = findWorker(uid); if (!w || !patch) return false;
+    if (patch.job && D.WORKER_JOBS[patch.job]) w.job = patch.job;
+    if (patch.zone !== undefined) w.zone = patch.zone;
+    if (patch.seed && D.CROPS[patch.seed]) w.seed = patch.seed;
+    w.at = null; w.prog = 0; // restart cleanly on the new assignment
+    save();
+    return true;
+  }
+  function upgradeWorker(uid) {
+    const w = findWorker(uid); if (!w) return false;
+    if (w.level >= D.WORKER.maxLevel) return false;
+    const cost = workerUpCost(w);
+    if (state.coins < cost) { toast('Not enough cash to train them.', 'bad'); return false; }
+    state.coins -= cost; w.level++;
+    emit('sound', 'levelup');
+    toast(`⭐ ${w.name} trained up to level ${w.level} — faster work, but a higher wage.`, 'good');
+    save();
+    return true;
+  }
+  function dismissWorker(uid) {
+    const w = findWorker(uid); if (!w) return false;
+    state.workers = (state.workers || []).filter(x => x.uid !== uid);
+    state.usedWorkerNames = (state.usedWorkerNames || []).filter(n => n !== w.name); // free the name
+    save();
+    return true;
+  }
+
+  // is (x,y) inside this hand's assigned patch AND owned?
+  function inWorkerZone(w, x, y) {
+    if (!isUnlocked(x, y)) return false;
+    return w.zone === 'all' ? true : parcelAt(x, y) === w.zone;
+  }
+  // scan the hand's zone (bounded to the parcel when possible) for the first tile
+  // matching `match`; run `act` there and return the tile worked, else null
+  function workerScan(w, match, act) {
+    let x0 = 0, y0 = 0, x1 = WW, y1 = WH;
+    if (w.zone !== 'all') {
+      const p = parcels()[w.zone];
+      if (!p) return null;
+      x0 = Math.max(0, p.x); y0 = Math.max(0, p.y);
+      x1 = Math.min(WW, p.x + p.w); y1 = Math.min(WH, p.y + p.h);
+    }
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      if (!inWorkerZone(w, x, y)) continue;
+      const t = state.tiles[y][x];
+      if (match(t, x, y)) { act(t, x, y); return { x, y }; }
+    }
+    return null;
+  }
+  function workerCollectAnimal(a, b) {
+    const def = D.ANIMALS[a.type];
+    const bonus = a.happiness >= 85 && rnd() < 0.25 ? 2 : 1;
+    state.inventory[def.product] = (state.inventory[def.product] || 0) + bonus;
+    if (state.produced) state.produced[def.product] = 1;
+    a.prodProg = 0;
+    state.stats.collected++;
+    addXp(Math.ceil(D.ITEMS[def.product].base / 8));
+    dailyProgress('collect', def.product, bonus);
+    if (b) fx('float', b.x + 1, b.y, `+${bonus} 📦`, '#fff');
+    checkGoal();
+  }
+  // perform ONE unit of the hand's job; returns the tile worked (for the walk) or null
+  function workerAct(w) {
+    switch (w.job) {
+      case 'water':
+        return workerScan(w,
+          (t) => t.crop && !t.crop.dead && t.crop.prog < 1 && t.crop.water <= 0.5 && !t.crop.toni,
+          (t, x, y) => { t.crop.water = 1; state.stats.watered++; fx('water', x + .5, y + .35, null, '#4a90b8'); });
+      case 'till':
+        return workerScan(w,
+          (t, x, y) => t.k === 'grass' && !t.obj && !isBlessed(x, y),
+          (t, x, y) => till(x, y));
+      case 'plant': {
+        const seed = w.seed || 'turnip';
+        const def = D.CROPS[seed];
+        if (!def || state.coins < def.seed) return null;
+        return workerScan(w,
+          (t, x, y) => t.k === 'soil' && !t.crop && !t.obj && !isBlessed(x, y) && !sproutAt(x, y) && seasonOK(seed, x, y),
+          (t, x, y) => plant(x, y, seed, true)); // true: no mythic roll for hired planting
+      }
+      case 'tend': {
+        for (const a of state.animals) { // collect ready produce first
+          const b = state.buildings[a.home];
+          if (b && a.prodProg >= 1 && inWorkerZone(w, b.x, b.y)) { workerCollectAnimal(a, b); return { x: b.x, y: b.y }; }
+        }
+        for (let i = 0; i < state.animals.length; i++) { // else top up an empty trough
+          const a = state.animals[i], b = state.buildings[a.home];
+          if (b && state.now >= a.fedUntil && inWorkerZone(w, b.x, b.y) && feedAnimal(i)) return { x: b.x, y: b.y };
+        }
+        return null;
+      }
+      default: // harvest
+        return workerScan(w,
+          (t, x, y) => t.crop && !t.crop.dead && t.crop.prog >= 1 && !t.crop.toni && !isBlessed(x, y),
+          (t, x, y) => harvest(x, y, true));
+    }
+  }
+  function tickWorkers(dt) {
+    if (state._offline || !state.workers || !state.workers.length) return;
+    for (const w of state.workers) {
+      if (w.unpaid) continue; // downed tools until payroll clears
+      w.prog = (w.prog || 0) + dt * workerRate(w);
+      let acted = null, guard = 0;
+      while (w.prog >= 1 && guard++ < 6) { // cap actions/tick so a fast hand can't stall a frame
+        w.prog -= 1;
+        const r = workerAct(w);
+        if (r) acted = r; else { w.prog = 0; break; } // nothing to do → idle (don't bank progress)
+      }
+      if (acted) w.at = acted; // the renderer walks them toward the last tile worked
+    }
+  }
+  // dawn payroll: pay the crew from the wallet; a hand you can't pay downs tools
+  function payWorkers() {
+    if (state._offline || !state.workers || !state.workers.length) return;
+    const bill = workerWageBill();
+    if (bill <= 0) return;
+    if (state.coins >= bill) {
+      state.coins -= bill;
+      for (const w of state.workers) w.unpaid = false;
+      toast(`👷 Paid the crew ${D.$(bill)} in wages.`);
+    } else {
+      for (const w of state.workers) w.unpaid = true;
+      toast(`⚠️ Couldn't make payroll (${D.$(bill)})! The crew downed tools — raise some cash and they'll be back at dawn.`, 'bad');
+    }
+  }
+
   // ---------------- processing (bakery / creamery / press / loom) ----------------
   function canCraft(recipeId) {
     const r = D.RECIPES[recipeId];
@@ -1874,6 +2041,9 @@ const Game = (() => {
       if (earned > 0) toast(`💰 Auto-sold surplus for ${D.$(Math.round(earned))}.`, 'good');
     }
 
+    // pay the farmhands their daily wage (after auto-sell tops up the wallet)
+    payWorkers();
+
     // teach selling: a hoarder can sit on a fortune in produce while feeling
     // broke. Nudge once when the barn is worth far more than the wallet.
     if (!state.autoSell && !state._flags.soldTip && !state._offline && state.now >= (state._flags.quietUntil || 0)) {
@@ -2076,6 +2246,9 @@ const Game = (() => {
       }
     }
 
+    // hired farmhands work their patches (harvest / water / plant / till / tend)
+    tickWorkers(dt);
+
     // craft lanes: only `slots` jobs per building tick down (legacy jobs always run)
     for (const b of state.buildings) {
       if (!b || !b.queue || !b.queue.length) continue;
@@ -2164,6 +2337,7 @@ const Game = (() => {
     harvestAtRisk, digAtRisk,
     canPlaceBuilding, placeCheck, placeBuilding, sellBuilding, buyParcel,
     buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
+    hireWorker, assignWorker, upgradeWorker, dismissWorker, workerWage, workerWageBill, workerUpCost, workerRate,
     startRecipe, collectRecipes, buySlot,
     sellItem, fulfillOrder, skipOrder,
     buyCanTier, buyTillTier, buyFuel,
