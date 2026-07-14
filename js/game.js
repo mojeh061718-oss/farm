@@ -1407,6 +1407,7 @@ const Game = (() => {
       name: pickAnimalName(),
       fedUntil: state.now + D.DAY_LEN * 1.2,
       prodProg: 0,
+      size: 0, // grows to 1 while fed; bigger animal = more meat
     });
     emit('sound', 'plant');
     toast(`${def.emoji} Welcome, ${state.animals[state.animals.length - 1].name}!`, 'good');
@@ -1420,10 +1421,39 @@ const Game = (() => {
     if (!a) return false;
     const refund = Math.floor(D.ANIMALS[a.type].cost * 0.6);
     state.animals.splice(index, 1);
+    state.usedNames = (state.usedNames || []).filter(n => n !== a.name);
     state.coins += refund;
     emit('sound', 'coin');
     toast(`${a.name} sold for ${D.$(refund)}`, 'good');
     return true;
+  }
+
+  // meat an animal yields right now: full at max size, half when freshly bought
+  function animalMeatUnits(a) {
+    const def = D.ANIMALS[a.type];
+    if (!def || !def.meat) return 0;
+    return Math.max(1, Math.round(def.meatBase * (0.5 + 0.5 * (a.size || 0))));
+  }
+  function animalMeatValue(a) {
+    const def = D.ANIMALS[a.type];
+    return def && def.meat ? Math.round(animalMeatUnits(a) * sellPrice(def.meat)) : 0;
+  }
+  // raise for meat: cash the animal out into meat goods (scaled by its size)
+  function sellForMeat(index) {
+    const a = state.animals[index];
+    if (!a) return 0;
+    const def = D.ANIMALS[a.type];
+    if (!def || !def.meat) return 0;
+    const units = animalMeatUnits(a);
+    state.inventory[def.meat] = (state.inventory[def.meat] || 0) + units;
+    if (state.produced) state.produced[def.meat] = 1;
+    addXp(Math.max(1, Math.round(D.ITEMS[def.meat].base * units / 12)));
+    state.animals.splice(index, 1);
+    state.usedNames = (state.usedNames || []).filter(n => n !== a.name);
+    emit('sound', 'coin');
+    toast(`🥩 ${a.name} → ${units} ${D.ITEMS[def.meat].name} (~${D.$(units * sellPrice(def.meat))} at market).`, 'good');
+    checkGoal();
+    return units;
   }
 
   // ---------------- Meat livestock (Pasture → Slaughterhouse) ----------------
@@ -2263,10 +2293,13 @@ const Game = (() => {
       if (!state._offline && state.now >= (state._flags.quietUntil || 0)) flushDeaths();
     }
 
-    // animals produce while fed — a well-fed animal is a happy animal, that's the whole rule
+    // animals produce while fed — a well-fed animal is a happy animal, that's the
+    // whole rule. Fed animals also grow toward full size (for a bigger meat payout).
     for (const a of state.animals) {
-      if (state.now < a.fedUntil && a.prodProg < 1)
-        a.prodProg = Math.min(1, a.prodProg + dt / D.ANIMALS[a.type].prodTime);
+      if (state.now < a.fedUntil) {
+        if (a.prodProg < 1) a.prodProg = Math.min(1, a.prodProg + dt / D.ANIMALS[a.type].prodTime);
+        if ((a.size || 0) < 1) a.size = Math.min(1, (a.size || 0) + dt / D.ANIMAL_GROW);
+      }
     }
 
     // meat livestock fatten while fed — slower once past market weight
@@ -2369,7 +2402,7 @@ const Game = (() => {
     smartAction, applyTool, till, plant, plantAll, tilledEmptyCount, water, harvest, clearDead, dig, refillCan,
     harvestAtRisk, digAtRisk,
     canPlaceBuilding, placeCheck, placeBuilding, sellBuilding, buyParcel,
-    buyAnimal, sellAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
+    buyAnimal, sellAnimal, sellForMeat, animalMeatUnits, animalMeatValue, feedAnimal, feedAll, collectBuilding, grindGrain,
     hireWorker, assignWorker, upgradeWorker, dismissWorker, workerWage, workerWageBill, workerUpCost, workerRate,
     buyLivestock, feedLivestock, feedAllLivestock, slaughter, slaughterReady,
     livestockIn, livestockDef, livestockReady, livestockMeatUnits, livestockValue,

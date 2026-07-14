@@ -645,7 +645,7 @@ const UI = (() => {
     if (sheetTab === 'build') {
       const grid = document.createElement('div');
       grid.className = 'card-grid';
-      const entries = Object.entries(D.BUILDINGS).filter(([, b]) => !b.decor).sort((a, b) => a[1].cost - b[1].cost);
+      const entries = Object.entries(D.BUILDINGS).filter(([id, b]) => !b.decor && id !== 'pasture' && id !== 'slaughterhouse').sort((a, b) => a[1].cost - b[1].cost);
       for (const [id, b] of entries) {
         const broke = s.coins < b.cost;
         const card = document.createElement('div');
@@ -1205,6 +1205,9 @@ const UI = (() => {
       const cost = Game.feedCostFor(a);
       const costLabel = cost.credits ? `1 feed ${I.item('wheat')}` : $$(cost.coins);
       const sellPrice = Math.floor(adef.cost * 0.6);
+      const grown = Math.round((a.size || 0) * 100);
+      const meatUnits = Game.animalMeatUnits(a);
+      const meatValue = Game.animalMeatValue(a);
       const status = fed
         ? (a.prodProg >= 1 ? `${I.item(adef.product)} ready!` : `making ${I.item(adef.product)} · ${Math.round(a.prodProg * 100)}%`)
         : '😋 hungry — feed to keep it producing';
@@ -1216,16 +1219,24 @@ const UI = (() => {
           <div class="name">${a.name} <span class="name-soft">· ${adef.name}</span></div>
           <div class="sub">${status}</div>
           <div class="minibar ${a.prodProg >= 1 ? '' : 'blue'}"><div style="width:${Math.round(a.prodProg * 100)}%"></div></div>
+          <div class="sub" style="margin-top:4px">🥩 ${meatUnits} ${D.ITEMS[adef.meat].name} (~${$$(meatValue)})${grown < 100 ? ` · ${grown}% grown, raise for more` : ' · full size'}</div>
         </div>
-        <div class="actions">
+        <div class="actions" style="flex-wrap:wrap">
           <button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>
+          <button class="mini gold">🥩 ${$$(meatValue)}</button>
           <button class="mini quiet">Sell ${$$(sellPrice)}</button>
         </div>`;
       const btns = row.querySelectorAll('button');
       btns[0].onclick = () => { if (Game.feedAnimal(i)) { SOUNDS.plant(); updateHud(); renderSheet(); } };
       btns[1].onclick = e => {
         const r = e.currentTarget.getBoundingClientRect();
-        confirmBox('🏷️', `Sell ${a.name} the ${adef.name.toLowerCase()} for ${$$(sellPrice)}?`, 'Sell', () => {
+        confirmBox('🥩', `Sell ${a.name} for meat — ${meatUnits} ${D.ITEMS[adef.meat].name} (~${$$(meatValue)})? Raise it longer and it's worth more.`, 'Sell for meat', () => {
+          if (Game.sellForMeat(i)) { coinFlight(r); updateHud(); renderSheet(); }
+        });
+      };
+      btns[2].onclick = e => {
+        const r = e.currentTarget.getBoundingClientRect();
+        confirmBox('🏷️', `Sell ${a.name} the ${adef.name.toLowerCase()} back for ${$$(sellPrice)}?`, 'Sell', () => {
           if (Game.sellAnimal(i)) { coinFlight(r); updateHud(); renderSheet(); }
         });
       };

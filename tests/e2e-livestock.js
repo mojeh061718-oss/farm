@@ -168,6 +168,42 @@ function check(name, ok, detail) {
   });
   check('offline: growth stops once feed runs out (no free full-day fattening)', offline.small, offline);
 
+  // ---- unified barnyard: any animal can be raised & sold for meat ----
+  const barnMeat = await page.evaluate(() => {
+    const s = Game.state, G = Game, D = DATA;
+    s.coins = 1000000;
+    s.goalIndex = D.GOALS.length; s.goalsDone = D.GOALS.map(g => g.id);
+    s.buildings.push({ type: 'barn', x: 16, y: 6, capacity: 6 });
+    const bi = s.buildings.length - 1;
+    G.buyAnimal('cow', bi);
+    const cow = s.animals[s.animals.length - 1];
+    cow.size = 0;
+    const youngUnits = G.animalMeatUnits(cow);
+    cow.size = 1; // fully grown
+    const fullUnits = G.animalMeatUnits(cow);
+    const beef0 = s.inventory.beef || 0;
+    const got = G.sellForMeat(s.animals.indexOf(cow));
+    return {
+      youngUnits, fullUnits,
+      grewValue: fullUnits > youngUnits,
+      got, beefGain: (s.inventory.beef || 0) - beef0,
+      gone: !s.animals.includes(cow),
+      produced: !!(s.produced && s.produced.beef),
+      meatMap: D.ANIMALS.cow.meat === 'beef' && D.ANIMALS.pig.meat === 'pork' && D.ANIMALS.chicken.meat === 'chicken_meat',
+    };
+  });
+  check('every animal maps to a meat good', barnMeat.meatMap, barnMeat);
+  check('a bigger (fully-grown) animal is worth more meat than a young one', barnMeat.grewValue, barnMeat);
+  check('selling a barn animal for meat yields beef and removes it', barnMeat.got === barnMeat.fullUnits && barnMeat.beefGain === barnMeat.fullUnits && barnMeat.gone && barnMeat.produced, barnMeat);
+
+  // ---- the standalone meat buildings are gone from the Shop ----
+  const shopClean = await page.evaluate(() => {
+    document.getElementById('btn-shop').click();
+    const txt = document.getElementById('sheet-body').textContent;
+    return { noPasture: !/Pasture/.test(txt), noSlaughter: !/Slaughterhouse/.test(txt), hasCoop: /Coop/.test(txt) };
+  });
+  check('Pasture & Slaughterhouse are no longer sold in the Shop (Coop still is)', shopClean.noPasture && shopClean.noSlaughter && shopClean.hasCoop, shopClean);
+
   check('no runtime errors', errors.length === 0, errors.slice(0, 5));
 
   await browser.close();
