@@ -111,19 +111,18 @@ function check(name, ok, detail) {
     out.deadTapToast = toastMsg;
     out.deadCleared = !s.tiles[6][11].crop;
 
-    // animals & vet
+    // animals: feed → produce → collect → sell back (no sickness/vet anymore)
     G.addXp(500);
     s.coins += 8000;
     out.placeCoop = G.placeBuilding('coop', 8, 9);
     const coopIdx = s.buildings.findIndex(b => b && b.type === 'coop');
     out.buyChicken = G.buyAnimal('chicken', coopIdx);
     const a = s.animals[0];
-    a.happiness = 5; a.fedUntil = 0;
-    s.forecast = 'rain';
-    s.t = 0.9; // hunger bites at newDay — cross one dawn, DATA-relative
-    for (let i = 0; i < Math.ceil(DATA.DAY_LEN * 0.15); i++) G.tick(1);
-    out.sick = a.sick;
-    out.vet = G.vetAnimal(0);
+    a.fedUntil = s.now + 100000; a.prodProg = 0; s.weather = 'sun'; s.forecast = 'sun'; s.t = 0.02;
+    for (let i = 0; i < DATA.ANIMALS.chicken.prodTime + 5; i++) G.tick(1);
+    out.produced = a.prodProg >= 1;
+    const eggs0 = s.inventory.egg || 0;
+    out.collected = G.collectBuilding(coopIdx) >= 1 && (s.inventory.egg || 0) > eggs0;
     out.sellAnimal = G.sellAnimal(0);
 
     // fuel + tractor
@@ -151,7 +150,7 @@ function check(name, ok, detail) {
   check('ripe crop waits to be picked (never rots)', smoke.ripeWaits === true, smoke.ripeWaits);
   check('off-season crop grows slowly (never withers to death)', smoke.offPlant === true && smoke.offGrewSlow === true, { offPlant: smoke.offPlant, slow: smoke.offGrewSlow });
   check('tapping a weather-killed crop clears it with a note', smoke.deadTapAct === 'clear' && /died of/.test(smoke.deadTapToast) && smoke.deadCleared, smoke.deadTapToast);
-  check('animal sickness / vet / sell-back', smoke.sick === true && smoke.vet === true && smoke.sellAnimal === true, smoke);
+  check('animal feeds, produces, collects & sells back', smoke.buyChicken === true && smoke.produced === true && smoke.collected === true && smoke.sellAnimal === true, smoke);
   check('powered tilling burns fuel over a 2×2', smoke.buyTill1 && smoke.fuelBuy && smoke.fuelUsed && smoke.tilled2x2, smoke);
   check('building sell-back & parcel purchase', smoke.sellCoop === true && smoke.buyParcel === true, smoke);
 

@@ -1204,32 +1204,25 @@ const UI = (() => {
       const fed = s.now < a.fedUntil;
       const cost = Game.feedCostFor(a);
       const costLabel = cost.credits ? `1 feed ${I.item('wheat')}` : $$(cost.coins);
-      const vetCost = Math.ceil(adef.cost * D.VET_RATE);
-      const sellPrice = Math.floor(adef.cost * 0.6 * (a.sick ? 0.5 : 1));
-      const status = a.sick
-        ? '🤒 sick — needs the vet before producing again'
-        : fed
-          ? (a.prodProg >= 1 ? `${I.item(adef.product)} ready!` : `making ${I.item(adef.product)} · ${Math.round(a.prodProg * 100)}%`)
-          : '😋 hungry — feed to produce';
+      const sellPrice = Math.floor(adef.cost * 0.6);
+      const status = fed
+        ? (a.prodProg >= 1 ? `${I.item(adef.product)} ready!` : `making ${I.item(adef.product)} · ${Math.round(a.prodProg * 100)}%`)
+        : '😋 hungry — feed to keep it producing';
       const row = document.createElement('div');
       row.className = 'row-card';
       row.innerHTML = `
-        <div class="emoji">${I.animal(a.type, 'lg')}${a.sick ? '<span class="hot-badge">🤒</span>' : ''}</div>
+        <div class="emoji">${I.animal(a.type, 'lg')}</div>
         <div class="info">
           <div class="name">${a.name} <span class="name-soft">· ${adef.name}</span></div>
           <div class="sub">${status}</div>
           <div class="minibar ${a.prodProg >= 1 ? '' : 'blue'}"><div style="width:${Math.round(a.prodProg * 100)}%"></div></div>
-          <div class="sub" style="margin-top:4px">${a.sick ? '🤒' : a.happiness >= 80 ? '😍' : a.happiness >= 50 ? '🙂' : '😟'} condition ${a.happiness}%</div>
         </div>
         <div class="actions">
-          ${a.sick ? `<button class="mini">🩺 Vet ${$$(vetCost)}</button>` : `<button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>`}
+          <button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>
           <button class="mini quiet">Sell ${$$(sellPrice)}</button>
         </div>`;
       const btns = row.querySelectorAll('button');
-      btns[0].onclick = () => {
-        if (a.sick) { if (Game.vetAnimal(i)) { updateHud(); renderSheet(); } }
-        else if (Game.feedAnimal(i)) { SOUNDS.plant(); updateHud(); renderSheet(); }
-      };
+      btns[0].onclick = () => { if (Game.feedAnimal(i)) { SOUNDS.plant(); updateHud(); renderSheet(); } };
       btns[1].onclick = e => {
         const r = e.currentTarget.getBoundingClientRect();
         confirmBox('🏷️', `Sell ${a.name} the ${adef.name.toLowerCase()} for ${$$(sellPrice)}?`, 'Sell', () => {
