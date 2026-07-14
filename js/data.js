@@ -134,14 +134,20 @@ const DATA = (() => {
   };
 
   // ---- Animals ----
+  // One barnyard, two ways to profit: every animal makes its product on a loop
+  // (egg / milk / wool) AND can be sold for meat at any time. It slowly grows to
+  // full size while it's fed, and a bigger animal is worth more meat — so you
+  // choose: keep it producing, or raise it up and cash it out.
   const ANIMALS = {
-    chicken: { name: 'Chicken', emoji: '🐔', cost: 150,  home: 'coop', product: 'egg',       prodTime: 90,  feedCost: 5 },
-    duck:    { name: 'Duck',    emoji: '🦆', cost: 420,  home: 'coop', product: 'duck_egg',  prodTime: 130, feedCost: 8 },
-    cow:     { name: 'Cow',     emoji: '🐄', cost: 850,  home: 'barn', product: 'milk',      prodTime: 100, feedCost: 12 },
-    goat:    { name: 'Goat',    emoji: '🐐', cost: 1300, home: 'barn', product: 'goat_milk', prodTime: 190, feedCost: 14 },
-    sheep:   { name: 'Sheep',   emoji: '🐑', cost: 1900, home: 'barn', product: 'wool',      prodTime: 240, feedCost: 16 },
-    pig:     { name: 'Pig',     emoji: '🐖', cost: 2400, home: 'barn', product: 'truffle',   prodTime: 300, feedCost: 22 },
+    chicken: { name: 'Chicken', emoji: '🐔', cost: 150,  home: 'coop', product: 'egg',       prodTime: 90,  feedCost: 5,  meat: 'chicken_meat', meatBase: 2 },
+    duck:    { name: 'Duck',    emoji: '🦆', cost: 420,  home: 'coop', product: 'duck_egg',  prodTime: 130, feedCost: 8,  meat: 'chicken_meat', meatBase: 3 },
+    cow:     { name: 'Cow',     emoji: '🐄', cost: 850,  home: 'barn', product: 'milk',      prodTime: 100, feedCost: 12, meat: 'beef',         meatBase: 6 },
+    goat:    { name: 'Goat',    emoji: '🐐', cost: 1300, home: 'barn', product: 'goat_milk', prodTime: 190, feedCost: 14, meat: 'beef',         meatBase: 5 },
+    sheep:   { name: 'Sheep',   emoji: '🐑', cost: 1900, home: 'barn', product: 'wool',      prodTime: 240, feedCost: 16, meat: 'beef',         meatBase: 6 },
+    pig:     { name: 'Pig',     emoji: '🐖', cost: 2400, home: 'barn', product: 'truffle',   prodTime: 300, feedCost: 22, meat: 'pork',         meatBase: 7 },
   };
+  // seconds of feeding for a young animal to reach full size (best meat value)
+  const ANIMAL_GROW = 480;
 
   const ANIMAL_NAMES = ['Clover', 'Biscuit', 'Daisy', 'Peanut', 'Maple', 'Waffles', 'Poppy', 'Marshmallow', 'Pickles', 'Sunny', 'Bubbles', 'Nugget', 'Cocoa', 'Buttons', 'Ginger', 'Olive', 'Pepper', 'Mochi', 'Toffee', 'Pumpernickel'];
 
@@ -311,7 +317,7 @@ const DATA = (() => {
     WORLD_W, WORLD_H, DAY_LEN, SEASON_DAYS, NIGHT_START,
     WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, TONI, $,
     SEASONS, WEATHERS, WEATHER_TABLE, DIFFICULTIES,
-    ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, BUILDINGS, RECIPES,
+    ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, ANIMAL_GROW, BUILDINGS, RECIPES,
     WORKER_JOBS, WORKER, WORKER_NAMES,
     MEAT_ANIMALS, FATTEN_SLOWDOWN,
     CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS, FARM_TEMPLATES,
