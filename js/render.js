@@ -25,6 +25,7 @@ const Renderer = (() => {
   let ghost = null;             // {type, x, y}
   const floats = [];            // floating texts (iso px)
   const animalAnim = new Map(); // ephemeral animal FSM state, keyed by animal uid
+  const workerAnim = new Map(); // ephemeral farmhand walk state, keyed by worker uid
 
   // ---------------- projection ----------------
   function proj(gx, gy) { return { x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 }; }
@@ -5798,7 +5799,75 @@ const Renderer = (() => {
   }
 
   // ---------------- pooled entity records (no per-frame closures) ----------------
-  const K_CROP = 0, K_DECOR = 1, K_BLDG = 2, K_SIGN = 3, K_ANIMAL = 4, K_FENCE = 5, K_TONI = 6, K_SPROUT = 7;
+  // ---------------- farmhands (hired workers walking the fields) ----------------
+  // The sim sets w.at to the tile a hand last worked; the renderer walks a little
+  // figure toward it, so the crew visibly moves around the farm doing its jobs.
+  function workerTarget(w) {
+    if (w.at) return { x: w.at.x + 0.5, y: w.at.y + 0.5 };
+    const p = (w.zone !== 'all' && PARCELS[w.zone]) ? PARCELS[w.zone] : PARCELS[0];
+    return p ? { x: p.x + p.w / 2, y: p.y + p.h / 2 } : { x: WW / 2, y: WH / 2 };
+  }
+  function updateWorkers(state, dt) {
+    const seen = new Set();
+    for (const w of (state.workers || [])) {
+      seen.add(w.uid);
+      let a = workerAnim.get(w.uid);
+      const tgt = workerTarget(w);
+      if (!a) { a = { x: tgt.x, y: tgt.y, fx: 1, moving: false }; workerAnim.set(w.uid, a); }
+      const dx = tgt.x - a.x, dy = tgt.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0.03) {
+        const step = Math.min(dist, 2.4 * dt); // ~2.4 tiles/sec amble
+        a.x += dx / dist * step; a.y += dy / dist * step;
+        if (Math.abs(dx - dy) > 0.001) a.fx = (dx - dy) < 0 ? -1 : 1; // face screen-travel
+        a.moving = true;
+      } else a.moving = false;
+    }
+    for (const uid of [...workerAnim.keys()]) if (!seen.has(uid)) workerAnim.delete(uid);
+  }
+  function drawWorker(state, i) {
+    const w = state.workers[i];
+    const a = workerAnim.get(w.uid);
+    if (!a) return;
+    const c = proj(a.x, a.y);
+    const ph = w.uid * 1.7;
+    const swing = a.moving ? Math.sin(time * 9 + ph) : 0;
+    const bob = a.moving ? Math.abs(Math.sin(time * 9 + ph)) * 1.4 : Math.sin(time * 2 + ph) * 0.5;
+    shadow(c.x, c.y + 1, 7, 3);
+    ctx.save();
+    ctx.translate(c.x, c.y - bob);
+    ctx.scale(a.fx < 0 ? -1 : 1, 1);
+    // legs
+    ctx.strokeStyle = '#3a2a1c'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-2, -3); ctx.lineTo(-2 + swing * 2.2, 0);
+    ctx.moveTo(2, -3); ctx.lineTo(2 - swing * 2.2, 0);
+    ctx.stroke();
+    // torso (overalls tinted per hand)
+    ctx.fillStyle = hsl((w.uid * 47) % 360, 46, 46);
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(-4, -13, 8, 11, 3); ctx.fill(); }
+    else ctx.fillRect(-4, -13, 8, 11);
+    // arm hint
+    ctx.strokeStyle = hsl((w.uid * 47) % 360, 46, 40); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(3, -11); ctx.lineTo(5 + swing, -6); ctx.stroke();
+    // head + straw hat
+    ctx.fillStyle = '#e9b98c';
+    ctx.beginPath(); ctx.arc(0, -15.5, 3.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d9b25a';
+    ctx.beginPath(); ctx.ellipse(0, -17.5, 5.4, 1.9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -18.4, 2.5, Math.PI, 0); ctx.fill();
+    ctx.restore();
+    // job emoji billboard (upright, unflipped) — isolated so the font/align it
+    // sets never leaks into the crop/float text drawn later this frame
+    const jd = D.WORKER_JOBS[w.job] || D.WORKER_JOBS.harvest;
+    ctx.save();
+    ctx.font = '9px system-ui,"Apple Color Emoji","Segoe UI Emoji"';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(w.unpaid ? '💤' : jd.emoji, c.x, c.y - 25 - bob);
+    ctx.restore();
+  }
+
+  const K_CROP = 0, K_DECOR = 1, K_BLDG = 2, K_SIGN = 3, K_ANIMAL = 4, K_FENCE = 5, K_TONI = 6, K_SPROUT = 7, K_WORKER = 8;
   const entPool = [];
   let entN = 0;
   const drawArr = [];
@@ -5953,6 +6022,16 @@ const Renderer = (() => {
       pushEnt(anim.x + anim.y, K_ANIMAL, i, 0);
     }
 
+    updateWorkers(state, dt);
+    if (state.workers) for (let i = 0; i < state.workers.length; i++) {
+      const a = workerAnim.get(state.workers[i].uid);
+      if (!a) continue;
+      if (a.x < vx0 - 1 || a.x > vx1 + 1 || a.y < vy0 - 1 || a.y > vy1 + 1) continue;
+      // bias above the crop on the SAME tile (+0.55) so a hand isn't hidden by
+      // the stalks it's tending, yet still behind the next row toward the camera
+      pushEnt(a.x + a.y + 0.7, K_WORKER, i, 0);
+    }
+
     drawArr.length = entN;
     for (let i = 0; i < entN; i++) drawArr[i] = entPool[i];
     drawArr.sort(entCmp);
@@ -5972,6 +6051,7 @@ const Renderer = (() => {
         }
         case K_SIGN: drawSign(state, e.a); break;
         case K_ANIMAL: drawAnimal(state, e.a); break;
+        case K_WORKER: drawWorker(state, e.a); break;
         case K_FENCE: drawFenceFront(state, e.a); break;
         case K_TONI: if (state.tonis[e.a]) drawToni(state, e.a); break;
         case K_SPROUT: if (state.sprouts[e.a]) drawToniSprout(state, e.a); break;

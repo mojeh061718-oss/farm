@@ -141,6 +141,30 @@ const DATA = (() => {
 
   const ANIMAL_NAMES = ['Clover', 'Biscuit', 'Daisy', 'Peanut', 'Maple', 'Waffles', 'Poppy', 'Marshmallow', 'Pickles', 'Sunny', 'Bubbles', 'Nugget', 'Cocoa', 'Buttons', 'Ginger', 'Olive', 'Pepper', 'Mochi', 'Toffee', 'Pumpernickel'];
 
+  // ---- Farmhands (hired workers who tend the farm for a daily wage) ----
+  // The late-game answer to "the farm runs itself, now what?": you hire a crew,
+  // assign each hand a job + a patch of land, and run a payroll. They walk the
+  // fields and do the work; wages (paid at dawn) are a real money sink, and a
+  // hand you can't pay downs tools until you make payroll. Upgrading a hand
+  // makes them work faster — somewhere for a fat late-game bank to go.
+  const WORKER_JOBS = {
+    harvest: { name: 'Harvester', emoji: '🧺', verb: 'harvesting', desc: 'Brings in every ripe crop in their patch.' },
+    water:   { name: 'Waterer',   emoji: '💧', verb: 'watering',   desc: 'Keeps thirsty crops watered — no hand-watering.' },
+    plant:   { name: 'Planter',   emoji: '🌱', verb: 'planting',   desc: 'Sows a chosen seed on any empty tilled soil (in season).' },
+    till:    { name: 'Tiller',    emoji: '⛏️', verb: 'tilling',    desc: 'Breaks open grass into fresh soil, ready to plant.' },
+    tend:    { name: 'Rancher',   emoji: '🐄', verb: 'tending',    desc: 'Collects animal produce the moment it\'s ready.' },
+  };
+  const WORKER = {
+    hireCost: 2500,   // one-time signing fee
+    baseWage: 120,    // $/day at level 1 (paid at dawn); +this again per extra level
+    maxLevel: 5,
+    upBase: 3000,     // upgrade to level N costs upBase × (N-1)
+    baseRate: 0.85,   // actions per second at level 1
+    ratePerLevel: 0.5,
+    maxCrew: 8,
+  };
+  const WORKER_NAMES = ['Sam', 'Rosa', 'Ida', 'Gus', 'Pip', 'Nell', 'Cole', 'Bea', 'Milo', 'Fern', 'Otis', 'Hank', 'Lucy', 'Cass', 'Wade', 'June', 'Rye', 'Tess', 'Abe', 'Dot'];
+
   // ---- Buildings ----
   // No unlock levels anywhere — if you can afford it, you can build it.
   const BUILDINGS = {
@@ -273,6 +297,7 @@ const DATA = (() => {
     WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, TONI, $,
     SEASONS, WEATHERS, WEATHER_TABLE, DIFFICULTIES,
     ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, BUILDINGS, RECIPES,
+    WORKER_JOBS, WORKER, WORKER_NAMES,
     CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS, FARM_TEMPLATES,
     xpForLevel, repBonus, fertCost,
   };

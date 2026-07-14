@@ -492,6 +492,7 @@ const UI = (() => {
     else if (sheetOpen === 'care') renderCare(body);
     else if (sheetOpen === 'compendium') renderCompendium(body);
     else if (sheetOpen === 'realtor') renderRealtor(body);
+    else if (sheetOpen === 'farmhands') renderFarmhands(body);
     else if (sheetOpen.startsWith('b:')) renderBuilding(body, parseInt(sheetOpen.slice(2), 10));
     // freeze the tallest height seen this session: a bottom-anchored sheet that
     // shrinks slides its buttons downward mid-tap (the sell-everything trap)
@@ -1461,6 +1462,18 @@ const UI = (() => {
     realtor.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('realtor'); };
     body.appendChild(realtor);
 
+    // ---- Farmhands: hire a crew to work the land ----
+    const hands = document.createElement('div');
+    hands.className = 'row-card';
+    const crew = (s.workers || []).length;
+    const bill = Game.workerWageBill();
+    hands.innerHTML = `
+      <div class="emoji">👷</div>
+      <div class="info"><div class="name">Farmhands${crew ? ' · ' + crew : ''}</div><div class="sub">${crew ? 'Your crew works the fields for ' + $$(bill) + '/day. Manage jobs, patches & training.' : 'Hire workers to till, plant, water, harvest & tend animals for you — a farm that runs itself.'}</div></div>
+      <div class="actions"><button class="mini gold">${crew ? 'Manage' : 'Hire'}</button></div>`;
+    hands.querySelector('button').onclick = () => { SOUNDS.tap(); openSheet('farmhands'); };
+    body.appendChild(hands);
+
     // ---- automation & comfort ----
     const comfortLabel = document.createElement('div');
     comfortLabel.className = 'section-label';
@@ -1663,6 +1676,107 @@ const UI = (() => {
       });
     };
     body.appendChild(reset);
+  }
+
+  // ---------------- farmhands sheet ----------------
+  function renderFarmhands(body) {
+    const s = Game.state;
+    setSheetHeader('👷', 'Farmhands', 'Hire a crew to work your land');
+    setTabs(null);
+    const workers = s.workers || [];
+    const bill = Game.workerWageBill();
+
+    const head = document.createElement('div');
+    head.className = 'order-card';
+    head.innerHTML = `
+      <div style="font-weight:900;font-size:0.9375rem;margin-bottom:4px">👷 Your crew: ${workers.length}/${D.WORKER.maxCrew}</div>
+      <div style="font-weight:800;font-size:0.8125rem;line-height:1.7">
+        💵 Daily wage bill: <b>${$$(bill)}</b> (paid at dawn)<br>
+        Each hand works one job on one patch. Train a hand to work faster — for a higher wage.
+      </div>`;
+    body.appendChild(head);
+
+    const canHire = workers.length < D.WORKER.maxCrew;
+    const hireRow = document.createElement('div');
+    hireRow.className = 'row-card';
+    hireRow.innerHTML = `
+      <div class="emoji">🤝</div>
+      <div class="info"><div class="name">Hire a farmhand</div><div class="sub">Signing fee ${$$(D.WORKER.hireCost)}, then ${$$(D.WORKER.baseWage)}/day. Starts as a Harvester on the whole farm — reassign below.</div></div>
+      <div class="actions"><button class="mini gold" ${canHire ? '' : 'disabled'}>${canHire ? 'Hire ' + $$(D.WORKER.hireCost) : 'Crew full'}</button></div>`;
+    hireRow.querySelector('button').onclick = () => { if (Game.hireWorker('harvest')) { updateHud(); renderSheet(); } };
+    body.appendChild(hireRow);
+
+    if (!workers.length) {
+      const tip = document.createElement('div');
+      tip.className = 'row-card';
+      tip.innerHTML = `<div class="emoji">💡</div><div class="info"><div class="sub">Farmhands run a big farm hands-free: a <b>Harvester</b> brings in ripe crops, a <b>Waterer</b> keeps them alive, a <b>Planter</b> re-sows empty beds, a <b>Tiller</b> opens new ground, and a <b>Rancher</b> collects from your animals. Point each at the whole farm or a single plot.</div></div>`;
+      body.appendChild(tip);
+      return;
+    }
+
+    const jobKeys = Object.keys(D.WORKER_JOBS);
+    const ownedZones = ['all', ...s.unlockedParcels.slice().sort((a, b) => a - b)];
+    const zoneLabel = z => z === 'all' ? 'the whole farm' : 'plot ' + (z + 1);
+    const cropKeys = Object.keys(D.CROPS);
+
+    for (const w of workers) {
+      const jd = D.WORKER_JOBS[w.job] || D.WORKER_JOBS.harvest;
+      const card = document.createElement('div');
+      card.className = 'row-card' + (w.unpaid ? ' backup-due' : '');
+      const wage = Game.workerWage(w);
+      const maxed = w.level >= D.WORKER.maxLevel;
+      const seedLine = w.job === 'plant' ? ` · sowing <b>${esc(D.ITEMS[w.seed] ? D.ITEMS[w.seed].name : w.seed)}</b>` : '';
+      const verb = jd.verb.charAt(0).toUpperCase() + jd.verb.slice(1);
+      card.innerHTML = `
+        <div class="emoji">${jd.emoji}</div>
+        <div class="info">
+          <div class="name">${esc(w.name)} · Lv ${w.level} ${jd.name}</div>
+          <div class="sub">${w.unpaid ? '⚠️ Unpaid — resting until payday. ' : ''}${verb} <b>${zoneLabel(w.zone)}</b>${seedLine} · wage ${$$(wage)}/day</div>
+        </div>`;
+      const acts = document.createElement('div');
+      acts.className = 'actions';
+      acts.style.flexWrap = 'wrap';
+
+      const cycleBtn = (label, cls, onTap) => {
+        const b = document.createElement('button');
+        b.className = 'mini' + (cls ? ' ' + cls : '');
+        b.textContent = label;
+        b.onclick = () => { SOUNDS.tap(); onTap(); renderSheet(); };
+        acts.appendChild(b);
+        return b;
+      };
+      cycleBtn('Job: ' + jd.name, '', () => {
+        const i = jobKeys.indexOf(w.job);
+        Game.assignWorker(w.uid, { job: jobKeys[(i + 1) % jobKeys.length] });
+      });
+      cycleBtn('Patch: ' + (w.zone === 'all' ? 'all' : 'plot ' + (w.zone + 1)), '', () => {
+        const i = ownedZones.indexOf(w.zone);
+        Game.assignWorker(w.uid, { zone: ownedZones[(i + 1) % ownedZones.length] });
+      });
+      if (w.job === 'plant') {
+        cycleBtn('Seed: ' + (D.ITEMS[w.seed] ? D.ITEMS[w.seed].emoji : '🌱'), '', () => {
+          const i = cropKeys.indexOf(w.seed);
+          Game.assignWorker(w.uid, { seed: cropKeys[(i + 1) % cropKeys.length] });
+        });
+      }
+      const upBtn = document.createElement('button');
+      upBtn.className = 'mini gold';
+      upBtn.textContent = maxed ? 'Max Lv' : 'Train ' + $$(Game.workerUpCost(w));
+      upBtn.disabled = maxed;
+      upBtn.onclick = () => { if (Game.upgradeWorker(w.uid)) { updateHud(); renderSheet(); } };
+      acts.appendChild(upBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'mini danger';
+      delBtn.textContent = 'Let go';
+      delBtn.onclick = () => {
+        SOUNDS.tap();
+        confirmBox(jd.emoji, `Let ${w.name} go? There's no refund on the signing fee.`, 'Let go', () => { Game.dismissWorker(w.uid); renderSheet(); });
+      };
+      acts.appendChild(delBtn);
+      card.appendChild(acts);
+      body.appendChild(card);
+    }
   }
 
   // ---------------- build placement ----------------
