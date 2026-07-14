@@ -1406,8 +1406,6 @@ const Game = (() => {
       type, home: bIdx,
       name: pickAnimalName(),
       fedUntil: state.now + D.DAY_LEN * 1.2,
-      happiness: 60,
-      sick: false,
       prodProg: 0,
     });
     emit('sound', 'plant');
@@ -1420,25 +1418,11 @@ const Game = (() => {
   function sellAnimal(index) {
     const a = state.animals[index];
     if (!a) return false;
-    const refund = Math.floor(D.ANIMALS[a.type].cost * 0.6 * (a.sick ? 0.5 : 1));
+    const refund = Math.floor(D.ANIMALS[a.type].cost * 0.6);
     state.animals.splice(index, 1);
     state.coins += refund;
     emit('sound', 'coin');
     toast(`${a.name} sold for ${D.$(refund)}`, 'good');
-    return true;
-  }
-
-  // a sick animal stops producing until you pay the vet
-  function vetAnimal(index) {
-    const a = state.animals[index];
-    if (!a || !a.sick) return false;
-    const cost = Math.ceil(D.ANIMALS[a.type].cost * D.VET_RATE);
-    if (state.coins < cost) { toast('Not enough cash for the vet!', 'bad'); return false; }
-    state.coins -= cost;
-    a.sick = false;
-    a.happiness = 50;
-    emit('sound', 'goal');
-    toast(`🩺 ${a.name} is healthy again!`, 'good');
     return true;
   }
 
@@ -1552,7 +1536,6 @@ const Game = (() => {
       state.coins -= cost.coins;
     }
     a.fedUntil = state.now + D.DAY_LEN * 1.2;
-    if (!a.sick) a.happiness = clamp(a.happiness + 8, 0, 100);
     dailyProgress('feed');
     return true;
   }
@@ -1570,7 +1553,7 @@ const Game = (() => {
     for (const a of state.animals) {
       if (a.home !== bIdx || a.prodProg < 1) continue;
       const def = D.ANIMALS[a.type];
-      const bonus = a.happiness >= 85 && rnd() < 0.25 ? 2 : 1; // happy animals sometimes give double
+      const bonus = rnd() < 0.15 ? 2 : 1; // a lucky collect sometimes gives double
       state.inventory[def.product] = (state.inventory[def.product] || 0) + bonus;
       if (state.produced) state.produced[def.product] = 1;
       a.prodProg = 0;
@@ -1673,7 +1656,7 @@ const Game = (() => {
   }
   function workerCollectAnimal(a, b) {
     const def = D.ANIMALS[a.type];
-    const bonus = a.happiness >= 85 && rnd() < 0.25 ? 2 : 1;
+    const bonus = rnd() < 0.15 ? 2 : 1;
     state.inventory[def.product] = (state.inventory[def.product] || 0) + bonus;
     if (state.produced) state.produced[def.product] = 1;
     a.prodProg = 0;
@@ -2123,17 +2106,6 @@ const Game = (() => {
       }
     }
 
-    // hungry animals lose happiness; at rock bottom they fall sick
-    // (half speed while away — an empty trough overnight isn't neglect)
-    for (const a of state.animals) {
-      if (state.now >= a.fedUntil) {
-        a.happiness = clamp(a.happiness - (state._offline ? 6 : 12), 0, 100);
-        if (a.happiness <= 0 && !a.sick && !state._offline) {
-          a.sick = true;
-          toast(`🤒 ${a.name} the ${D.ANIMALS[a.type].name.toLowerCase()} is sick from neglect — call the vet!`, 'bad');
-        }
-      }
-    }
 
     // market drift + hot item + fuel price — crashed prices climb back toward
     // normal (+0.08/day below 0.6×), so a deep dump recovers in ~5-8 days
@@ -2291,12 +2263,10 @@ const Game = (() => {
       if (!state._offline && state.now >= (state._flags.quietUntil || 0)) flushDeaths();
     }
 
-    // animals produce while fed and healthy
+    // animals produce while fed — a well-fed animal is a happy animal, that's the whole rule
     for (const a of state.animals) {
-      if (!a.sick && state.now < a.fedUntil && a.prodProg < 1) {
-        const speed = 0.75 + (a.happiness / 100) * 0.5; // 0.75x .. 1.25x
-        a.prodProg = Math.min(1, a.prodProg + (dt * speed) / D.ANIMALS[a.type].prodTime);
-      }
+      if (state.now < a.fedUntil && a.prodProg < 1)
+        a.prodProg = Math.min(1, a.prodProg + dt / D.ANIMALS[a.type].prodTime);
     }
 
     // meat livestock fatten while fed — slower once past market weight
@@ -2399,7 +2369,7 @@ const Game = (() => {
     smartAction, applyTool, till, plant, plantAll, tilledEmptyCount, water, harvest, clearDead, dig, refillCan,
     harvestAtRisk, digAtRisk,
     canPlaceBuilding, placeCheck, placeBuilding, sellBuilding, buyParcel,
-    buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
+    buyAnimal, sellAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,
     hireWorker, assignWorker, upgradeWorker, dismissWorker, workerWage, workerWageBill, workerUpCost, workerRate,
     buyLivestock, feedLivestock, feedAllLivestock, slaughter, slaughterReady,
     livestockIn, livestockDef, livestockReady, livestockMeatUnits, livestockValue,
