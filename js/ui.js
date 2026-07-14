@@ -1146,7 +1146,8 @@ const UI = (() => {
     setSheetHeader(I.building(b.type), def.name, def.capacity ? `Home for up to ${def.capacity} animals` : '');
     setTabs(null);
 
-    if (def.capacity) renderHousing(body, index, b, def);
+    if (b.type === 'pasture') renderPasture(body, index, b, def);
+    else if (def.capacity) renderHousing(body, index, b, def);
     else if (b.queue) renderProcessor(body, index, b, def);
     else if (b.type === 'mill') renderMill(body);
     else {
@@ -1267,6 +1268,104 @@ const UI = (() => {
       card.onclick = () => {
         if (Game.buyAnimal(id, index)) { updateHud(); renderSheet(); }
       };
+      grid.appendChild(card);
+    }
+    body.appendChild(grid);
+  }
+
+  function renderPasture(body, index, b, def) {
+    const s = Game.state;
+    const stock = Game.livestockIn(index);
+    const hasSlaughter = Game.hasBuilding('slaughterhouse');
+    const readyCount = stock.filter(Game.livestockReady).length;
+    const feedLabel = (s.feedCredits || 0) > 0 ? '1 feed ' + I.item('wheat') : null;
+
+    const top = document.createElement('div');
+    top.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
+    top.innerHTML = `
+      <button class="chunky green" style="flex:1">${I.item('wheat')} Feed all</button>
+      <button class="chunky gold" style="flex:1" ${readyCount && hasSlaughter ? '' : 'disabled'}>🔪 Slaughter ready${readyCount ? ' (' + readyCount + ')' : ''}</button>`;
+    const [feedBtn, slBtn] = top.querySelectorAll('button');
+    feedBtn.onclick = () => { Game.feedAllLivestock(index); updateHud(); renderSheet(); };
+    slBtn.onclick = () => { Game.slaughterReady(index); updateHud(); renderSheet(); };
+    body.appendChild(top);
+
+    if (!hasSlaughter) {
+      const n = document.createElement('div');
+      n.className = 'empty-note';
+      n.style.padding = '0 4px 10px';
+      n.innerHTML = '🔪 Build a <b>Slaughterhouse</b> (in the Shop) to turn fattened stock into meat you can sell.';
+      body.appendChild(n);
+    }
+    if (Game.hasBuilding('mill')) {
+      const n = document.createElement('div');
+      n.className = 'empty-note';
+      n.style.padding = '0 4px 10px';
+      n.innerHTML = `${I.item('wheat')} Feed credits: ${s.feedCredits || 0} — feeding uses 1 credit before cash.`;
+      body.appendChild(n);
+    }
+    if (!stock.length) {
+      const e = document.createElement('div');
+      e.className = 'empty-note';
+      e.textContent = `No livestock yet — buy some below! (capacity ${b.capacity})`;
+      body.appendChild(e);
+    }
+
+    for (const l of stock) {
+      const d = Game.livestockDef(l);
+      const fed = s.now < l.fedUntil;
+      const ready = Game.livestockReady(l);
+      const span = Math.max(0.01, d.maxWt - d.startWt);
+      const pct = Math.round(Math.min(1, Math.max(0, (l.weight - d.startWt) / span)) * 100);
+      const units = Game.livestockMeatUnits(l);
+      const value = Game.livestockValue(l);
+      const full = l.weight >= d.maxWt;
+      const status = ready
+        ? `✅ market weight → ${units} ${D.ITEMS[d.meat].name} (~${$$(value)})${full ? ' · fully grown' : ' · keep feeding for more'}`
+        : fed ? `fattening up — ${l.weight.toFixed(1)} of ${d.marketWt} to market` : '😋 hungry — feed to keep growing';
+      const costLabel = feedLabel || $$(d.feedCost);
+      const row = document.createElement('div');
+      row.className = 'row-card';
+      row.innerHTML = `
+        <div class="emoji">${d.emoji}</div>
+        <div class="info">
+          <div class="name">${esc(l.name)} <span class="name-soft">· ${d.name}</span></div>
+          <div class="sub">${status}</div>
+          <div class="minibar ${ready ? '' : 'blue'}"><div style="width:${pct}%"></div></div>
+          <div class="sub" style="margin-top:4px">⚖️ weight ${l.weight.toFixed(1)} / ${d.maxWt}${fed ? '' : ' · 😋 hungry'}</div>
+        </div>
+        <div class="actions">
+          <button class="mini" ${fed ? 'disabled' : ''}>Feed ${costLabel}</button>
+          <button class="mini gold" ${ready && hasSlaughter ? '' : 'disabled'}>🔪 ${ready ? (hasSlaughter ? $$(value) : 'Need 🔪') : 'Growing'}</button>
+        </div>`;
+      const btns = row.querySelectorAll('button');
+      btns[0].onclick = () => { if (Game.feedLivestock(l.uid)) { SOUNDS.plant(); updateHud(); renderSheet(); } };
+      btns[1].onclick = () => {
+        confirmBox('🔪', `Send ${l.name} to slaughter now for ${units} ${D.ITEMS[d.meat].name} (~${$$(value)})? Keep feeding and they'll be worth more.`, 'Slaughter', () => {
+          if (Game.slaughter(l.uid)) { updateHud(); renderSheet(); }
+        });
+      };
+      body.appendChild(row);
+    }
+
+    // buy young stock
+    const options = Object.entries(D.MEAT_ANIMALS).filter(([, a]) => a.home === b.type);
+    const label = document.createElement('div');
+    label.className = 'section-label';
+    label.textContent = `Buy livestock (${stock.length}/${b.capacity})`;
+    body.appendChild(label);
+    const grid = document.createElement('div');
+    grid.className = 'card-grid';
+    for (const [id, a] of options) {
+      const full = stock.length >= b.capacity;
+      const card = document.createElement('div');
+      card.className = 'item-card' + (full ? ' disabled' : '');
+      card.innerHTML = `
+        <span class="plate">${a.emoji}</span>
+        <div class="name">${a.name}</div>
+        <div class="sub">sells as ${I.item(a.meat)} ${D.ITEMS[a.meat].name}</div>
+        ${chip(a.buyCost, full ? 'muted' : '')}`;
+      card.onclick = () => { if (Game.buyLivestock(id, index)) { updateHud(); renderSheet(); } };
       grid.appendChild(card);
     }
     body.appendChild(grid);
