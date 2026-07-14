@@ -277,7 +277,7 @@ const DATA = (() => {
     { id: 'order',   icon: '📋', title: 'Complete 2 orders',             reward: 180,   check: s => [s.stats.orders, 2] },
     { id: 'equip',   icon: '🎃', title: 'Place a Scarecrow',             reward: 150,   check: s => [s.buildings.some(b => b && b.type === 'scarecrow') ? 1 : 0, 1] },
     { id: 'expand',  icon: '🚧', title: 'Buy your 2nd land parcel',      reward: 250,   check: s => [s.unlockedParcels.length - 1, 1] },
-    { id: 'fert',    icon: '✨', title: 'Fertilize 5 crops',             reward: 150,   check: s => [s.stats.fertilized, 5] },
+    { id: 'water10', icon: '💧', title: 'Water 10 crops',               reward: 150,   check: s => [s.stats.watered, 10] },
     { id: 'craft',   icon: '🍞', title: 'Craft 4 artisan goods',         reward: 300,   check: s => [s.stats.crafted, 4] },
     { id: 'herd',    icon: '🐄', title: 'Own 8 animals',                 reward: 400,   check: s => [s.animals.length, 8] },
     { id: 'earn2',   icon: '💰', title: 'Earn $10,000 lifetime',         reward: 600,   check: s => [Math.floor(s.stats.earned), 10000] },
@@ -304,12 +304,6 @@ const DATA = (() => {
     return Math.min(0.30, (level - 1) * 0.015);
   }
 
-  // fertilizer scales with the seed: 30% of seed price, minimum $8
-  function fertCost(cropId) {
-    const c = CROPS[cropId];
-    return Math.max(8, Math.round((c ? c.seed : 0) * 0.30));
-  }
-
   // processing buildings: extra parallel craft lanes (index = slot number)
   const SLOT_COSTS = [0, 0, 2000, 6000];
 
@@ -321,6 +315,6 @@ const DATA = (() => {
     WORKER_JOBS, WORKER, WORKER_NAMES,
     MEAT_ANIMALS, FATTEN_SLOWDOWN,
     CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS, FARM_TEMPLATES,
-    xpForLevel, repBonus, fertCost,
+    xpForLevel, repBonus,
   };
 })();

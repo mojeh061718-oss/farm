@@ -714,15 +714,6 @@ const UI = (() => {
       btns[1].onclick = () => { if (Game.buyFuel(20)) { updateHud(); renderSheet(); } };
       body.appendChild(fuelRow);
 
-      const fert = document.createElement('div');
-      fert.className = 'row-card';
-      fert.innerHTML = `
-        <div class="emoji">${I.icon('sparkle')}</div>
-        <div class="info">
-          <div class="name">Fertilizer · 30% of the seed price (min ${$$(8)})</div>
-          <div class="sub">Tap a growing crop and choose Fertilize: +25% growth speed and a 45% chance of a double harvest. Cheap crops pay ${$$(8)}, premium crops up to ${$$(D.fertCost('grapes'))}.</div>
-        </div>`;
-      body.appendChild(fert);
     }
 
     if (sheetTab === 'land') {
@@ -1522,7 +1513,7 @@ const UI = (() => {
         💰 Farm value: <b>${$$(Game.farmValue())}</b> · lifetime earned: <b>${$$(s.stats.earned)}</b><br>
         ⭐ Reputation: <b>level ${s.level}</b> (+${Math.round(D.repBonus(s.level) * 100)}% sell prices)<br>
         🧺 Harvested: <b>${s.stats.harvested.toLocaleString()}</b> · 🥀 crops lost: <b>${s.stats.lost}</b><br>
-        ⛽ Fuel: <b>${s.fuel.toFixed(1)} gal</b> · ✨ fertilized: <b>${s.stats.fertilized}</b><br>
+        ⛽ Fuel: <b>${s.fuel.toFixed(1)} gal</b><br>
         🐔 Animals: <b>${s.animals.length}</b> · 🏠 Buildings: <b>${s.buildings.filter(Boolean).length}</b><br>
         🚧 Land parcels: <b>${s.unlockedParcels.length}/${D.PARCELS.length}</b> · 📋 Orders done: <b>${s.stats.orders}</b>
       </div>`;
@@ -1758,7 +1749,7 @@ const UI = (() => {
       <div class="emoji">💡</div>
       <div class="info">
         <div class="name">How to play</div>
-        <div class="sub">Tap any tile to see what it can do — till, plant, water, fertilize, harvest. Keep crops watered or they die; harvest before they rot; plant in the right season. Feed your animals or they get sick. Powered equipment needs fuel!</div>
+        <div class="sub">Tap any tile to see what it can do — till, plant, water, harvest. Crops never die: dry ones pause until it rains or you water them, and out-of-season crops just grow slowly. Feed your animals to keep them producing.</div>
       </div>`;
     body.appendChild(help);
 
@@ -1981,14 +1972,6 @@ const UI = (() => {
         hint: empty ? 'refill at the well' : null,
         attention: !empty && ((c.wilt || 0) > 0.3 || !Game.seasonOK(c.id, x, y)),
         run: () => { if (Game.applyTool('water', x, y) === 'empty') toast('Watering can is empty — tap the Well! 💧', 'bad'); },
-      });
-    }
-    if (!c.fert && !Game.isBlessed(x, y)) {
-      const cost = D.fertCost(c.id);
-      acts.push({
-        cls: 'act-fert', icon: I.icon('sparkle'), label: 'Fertilize',
-        chip: I.icon('coin') + fmt(cost), chipCls: 'gold',
-        run: () => { if (Game.applyTool('fert', x, y) === 'broke') toast(`Fertilizer costs ${$$(cost)} for this crop (30% of its seed price)!`, 'bad'); },
       });
     }
     acts.push({ cls: 'act-dig', icon: I.icon('shovel'), label: 'Dig up', run: () => Game.applyTool('shovel', x, y) });

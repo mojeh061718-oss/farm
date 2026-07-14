@@ -748,7 +748,7 @@ const Game = (() => {
         } else if (!off) {
           const def = D.CROPS[c.id];
           const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
-          const speed = (c.fert || bl) ? 1.25 : 1;
+          const speed = bl ? 1.25 : 1;
           c.prog = Math.min(1, c.prog + (dt * speed) / growTime);
         }
       }
@@ -1056,23 +1056,9 @@ const Game = (() => {
     return true;
   }
 
-  function fertilize(x, y) {
-    const t = tileAt(x, y);
-    if (!t || !t.crop || t.crop.dead || t.crop.fert || t.crop.prog >= 1) return false;
-    if (isBlessed(x, y)) return false; // silent no-op: blessed soil already grows with love
-    const cost = D.fertCost(t.crop.id);
-    if (state.coins < cost) return 'broke';
-    state.coins -= cost;
-    t.crop.fert = true;
-    state.stats.fertilized++;
-    fx('burst', x + .5, y + .4, null, '#d9b23c');
-    checkGoal();
-    return true;
-  }
-
   function harvestYield(crop) {
-    // fertilizer and luck can double the harvest
-    const doubleChance = crop.fert ? 0.45 : 0.08;
+    // a lucky harvest sometimes yields double
+    const doubleChance = 0.15;
     return rnd() < doubleChance ? 2 : 1;
   }
 
@@ -1186,10 +1172,6 @@ const Game = (() => {
       }
       if (count) emit('sound', 'water');
       if (empty && !count) return 'empty';
-    } else if (tool === 'fert') {
-      const r = fertilize(x, y);
-      if (r === 'broke') return 'broke';
-      if (r === true) { count = 1; emit('sound', 'plant'); }
     } else if (tool === 'plant') {
       if (seed && plant(x, y, seed)) { count = 1; emit('sound', 'plant'); }
     } else if (tool === 'harvest') {
@@ -2296,7 +2278,7 @@ const Game = (() => {
       } else if (c.water > 0 || state._offline || bl) {
         const def = D.CROPS[c.id];
         const growTime = c.regrown && def.regrow ? def.regrow : def.grow;
-        let speed = (c.fert || bl) ? 1.25 : 1; // blessed / fertilized soil grows with love
+        let speed = bl ? 1.25 : 1; // blessed / fertilized soil grows with love
         if (off && !bl) speed *= 0.35; // out of season: slow going, but never fatal
         c.prog = Math.min(1, c.prog + (dt * speed) / growTime);
       }
@@ -2414,7 +2396,7 @@ const Game = (() => {
     atRiskCrops, runningJobs, orderRush, marketDayItems,
     todayLocal, regenDaily, claimDaily, dailyClaimable,
     // actions
-    smartAction, applyTool, till, plant, plantAll, tilledEmptyCount, water, fertilize, harvest, clearDead, dig, refillCan,
+    smartAction, applyTool, till, plant, plantAll, tilledEmptyCount, water, harvest, clearDead, dig, refillCan,
     harvestAtRisk, digAtRisk,
     canPlaceBuilding, placeCheck, placeBuilding, sellBuilding, buyParcel,
     buyAnimal, sellAnimal, vetAnimal, feedAnimal, feedAll, collectBuilding, grindGrain,

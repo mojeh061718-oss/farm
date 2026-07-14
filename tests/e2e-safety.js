@@ -44,11 +44,11 @@ function check(name, ok, detail) {
     out.grindBadItem = G.grindGrain('cheese', 5) === 0;
     // goal chain: a skipped goal never blocks later payouts
     s.stats.tilled = 10; s.stats.planted = 10; s.stats.watered = 10; s.stats.harvested = 10;
-    s.stats.earned = 500; s.stats.collected = 9; s.stats.fertilized = 9;
+    s.stats.earned = 500; s.stats.collected = 9;
     s.coins += 5000;
     G.placeBuilding('scarecrow', 8, 9); // 'equip' goal sits AFTER the orders goal
     const done = s.goalsDone || [];
-    out.laterGoalPaid = done.includes('equip') && done.includes('fert');
+    out.laterGoalPaid = done.includes('equip') && done.includes('water10');
     out.ordersGoalStillPending = !done.includes('order');
     return out;
   });
