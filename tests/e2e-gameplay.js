@@ -54,9 +54,6 @@ function check(name, ok, detail) {
     rep11: DATA.repBonus(11),
     rep21: DATA.repBonus(21),
     rep30: DATA.repBonus(30),
-    fertTurnip: DATA.fertCost('turnip'),
-    fertCabbage: DATA.fertCost('cabbage'),
-    fertGrapes: DATA.fertCost('grapes'),
     slotCosts: DATA.SLOT_COSTS,
   }));
   check('wheat $6 / $22 / 40s', nums.wheatSeed === 6 && nums.wheatBase === 22 && nums.wheatGrow === 40, nums);
@@ -69,7 +66,6 @@ function check(name, ok, detail) {
   check('tycoon sell bonus is +5%', nums.tycoonBonus === 1.05 && nums.tycoonBlurb.includes('+5%'), nums.tycoonBonus);
   check('reputation +1.5%/level', Math.abs(nums.rep11 - 0.15) < 1e-9, nums.rep11);
   check('reputation caps at +30% (level 21)', nums.rep21 === 0.30 && nums.rep30 === 0.30, nums);
-  check('fert cost = max(8, 30% of seed)', nums.fertTurnip === 8 && nums.fertCabbage === 19 && nums.fertGrapes === 29, nums);
   check('parallel slots cost $2k / $6k', nums.slotCosts[2] === 2000 && nums.slotCosts[3] === 6000, nums.slotCosts);
 
   // ================= core loop smoke (ported suite) =================
@@ -79,9 +75,6 @@ function check(name, ok, detail) {
     out.till = G.till(8, 6);
     out.plant = G.plant(8, 6, 'turnip');
     out.water = G.water(8, 6);
-    const c0 = s.coins;
-    out.fert = G.fertilize(8, 6);
-    out.fertCharge = c0 - s.coins; // dynamic: turnip → $8
     s.weather = 'sun'; s.forecast = 'rain';
     // pin the clock & disarm the midday crow: the page's own rAF loop has been
     // ticking real time, so t may sit just under 0.5 — a crow would eat the
@@ -150,8 +143,7 @@ function check(name, ok, detail) {
     out.buyParcel = G.buyParcel(1) && G.buyParcel(2);
     return out;
   });
-  check('till/plant/water/fertilize work', smoke.till && smoke.plant === true && smoke.water === true && smoke.fert === true, smoke);
-  check('fertilizing a turnip charges $8', smoke.fertCharge === 8, smoke.fertCharge);
+  check('till/plant/water work', smoke.till && smoke.plant === true && smoke.water === true, smoke);
   check('watered crop ripens and harvests', smoke.prog === 1 && smoke.harvest >= 1, smoke);
   check('regrow crop stays planted after harvest', smoke.regrow && smoke.regrow.regrown === true && smoke.regrow.prog === 0, smoke.regrow);
   check('selling items pays', smoke.sold === true);

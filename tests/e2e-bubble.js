@@ -112,21 +112,15 @@ function check(name, ok, detail) {
   check('a thirsty crop waters on a single tap — no bubble (a charge is spent)',
     autoWater.water > 0.9 && autoWater.can === 3 && !autoWater.bubble, autoWater);
 
-  // ---- a crop with a real choice (Fertilize) opens the bubble ----
+  // ---- a healthy growing crop opens the bubble with a deliberate Dig up ----
   await page.evaluate(() => {
-    Game.state.tiles[5][8].crop.fert = false; // now fertilizable
-    Game.state.tiles[5][8].crop.water = 1;    // not thirsty → only Fertilize / Dig remain
+    Game.state.tiles[5][8].crop.water = 1; // not thirsty → only the deliberate Dig remains
   });
   await tapTile(8, 5);
-  const growing = await page.evaluate(() => {
-    const fert = document.querySelector('#bubble .act-fert');
-    return {
-      acts: [...document.querySelectorAll('#bubble .bubble-act')].map(x => x.classList[1]),
-      fertChip: fert && fert.querySelector('.ba-chip') && fert.querySelector('.ba-chip').textContent,
-    };
-  });
-  check('a fertilizable crop opens the bubble with Fertilize + Dig up', growing.acts.join(',') === 'act-fert,act-dig', growing);
-  check('Fertilize shows its coin cost chip', !!growing.fertChip && /\d/.test(growing.fertChip), growing);
+  const growing = await page.evaluate(() => ({
+    acts: [...document.querySelectorAll('#bubble .bubble-act')].map(x => x.classList[1]),
+  }));
+  check('a healthy growing crop opens the bubble with just Dig up', growing.acts.join(',') === 'act-dig', growing);
 
   // ---- re-tap the same tile toggles the bubble away ----
   await tapTile(8, 5);
@@ -161,17 +155,19 @@ function check(name, ok, detail) {
   b = await bubbleState();
   check('starting a pan dismisses the bubble', !b.open, b);
 
-  // ---- Fertilize executes and closes the bubble ----
-  await page.evaluate(() => { Game.state.coins += 5000; Renderer.centerOn(8.5, 5.5); });
+  // ---- Dig up executes and closes the bubble ----
+  await page.evaluate(() => { Renderer.centerOn(8.5, 5.5); });
   await page.waitForTimeout(150);
   await tapTile(8, 5);
-  await page.tap('#bubble .act-fert');
+  await page.tap('#bubble .act-dig');
   await page.waitForTimeout(400);
-  const ferted = await page.evaluate(() => ({
-    fert: !!Game.state.tiles[5][8].crop.fert,
-    closed: document.getElementById('bubble').classList.contains('hidden'),
-  }));
-  check('Fertilize applies and closes the bubble', ferted.fert && ferted.closed, ferted);
+  const dug = await page.evaluate(() => {
+    const gone = !Game.state.tiles[5][8].crop;
+    const closed = document.getElementById('bubble').classList.contains('hidden');
+    Game.state.tiles[5][8].k = 'soil'; // tidy for the fixtures below
+    return { gone, closed };
+  });
+  check('Dig up removes the crop and closes the bubble', dug.gone && dug.closed, dug);
 
   // ---- empty can + thirsty crop → bubble with Water disabled + refill hint ----
   await page.evaluate(() => {
