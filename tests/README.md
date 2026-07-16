@@ -1,6 +1,6 @@
 # Harvest Empire — e2e test suites
 
-Eight Playwright suites drive the real game (via `file://…/index.html`) in headless
+Twelve Playwright suites drive the real game (via `file://…/index.html`) in headless
 Chromium, exercising the engine API, the touch UI, and the data-safety layer.
 
 | Suite | Covers |
@@ -13,6 +13,10 @@ Chromium, exercising the engine API, the touch UI, and the data-safety layer.
 | `e2e-toni.js` | THE Sunflower (the Toni Variety): rarity constants, dawn/action spawn rolls (never offline, never announced), parcel blessing (pinned water/wilt/rot, love-speed growth, storm/crow/frost immunity, self-harvest + frozen-snapshot replant, offline production), parcel lock, the 1930s newspaper → blessing card flow, two-step harvest → Glowing Seed (unsellable, mythic seed card), 1-in-25 seed reveal (both outcomes forced by stubbing `Math.random` — the spawn/reveal rolls read it live at roll time) |
 | `e2e-retention.js` | 3.0 Return Update: single-harvest crop rebalance + recipe margins, multiplicative market-crash fix (processed-goods exemption, multi-day drift recovery), produced-weighted orders + expiry floors (makeOrder & migration), goal-chip cycling (no false celebrate), daily tasks + streak (deterministic per local date via a shimmed `Date`, claims, reload persistence, day-7 jackpot), Market Day (deterministic picks, ×1.5, banner + sheet badges), quick fixes (backdrop-cancel, deferred level-up splash, disabled Deliver, type-count market badge, bubble seed-pick planting, Escape-to-close) |
 | `e2e-bubble.js` | The contextual tile action bubble: context rules per tile state (grass → Till; soil → Plant/Un-till; growing → Water 💧chip / Fertilize cost chip / Dig up; ripe → Harvest first; dead → Clear), empty-can disable + refill hint, wilt attention pulse, execute-and-close, toggle / outside-tap / pan dismissal, viewport clamping at 320×568, buildings & the toni keep their own tap behaviors |
+| `e2e-bigfarm.js` | Multi-farm Realtor flow: buying/switching whole properties, per-farm state isolation, home-valley layout migrations (20×15 and 34×26 → 40×30) |
+| `e2e-catchup.js` | Frozen-farm catch-up: crops fast-forward by the time you were away tending another farm, never for free |
+| `e2e-workers.js` | Farmhands: hire cost/cap, every job, zone restriction, dawn payroll (pay / can't-pay downs tools / resume), training, dismissal, save round-trip, per-farm isolation, offline no-op |
+| `e2e-meat.js` | The unified barnyard meat path (any animal sells for meat, bigger = more), the shop staying clean of the retired Pasture/Slaughterhouse, and the S3b migration that retires legacy pastures (stock banked as meat, buildings refunded) |
 
 ## Running
 
@@ -31,6 +35,10 @@ node e2e-return.js
 node e2e-retention.js
 node e2e-toni.js
 node e2e-bubble.js
+node e2e-bigfarm.js
+node e2e-catchup.js
+node e2e-workers.js
+node e2e-meat.js
 ```
 
 Each suite prints a ✔/✘ line per check, reports any page JS errors, and exits

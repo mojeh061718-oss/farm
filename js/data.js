@@ -9,9 +9,6 @@ const DATA = (() => {
   const DAY_LEN = 120;        // real seconds per in-game day (slower, calmer cycle)
   const SEASON_DAYS = 10;     // days per season
   const NIGHT_START = 0.87;   // fraction of day when night falls
-  const WILT_DAYS = 1.5;      // days a bone-dry crop survives before dying
-  const ROT_DAYS = 2;         // days a ripe crop lasts before rotting in the field
-  const VET_RATE = 0.4;       // vet bill as a fraction of the animal's price
 
   // money formatting
   const $ = n => '$' + Math.round(n).toLocaleString();
@@ -40,13 +37,14 @@ const DATA = (() => {
     [['snow', 50], ['cloud', 28], ['sun', 22]],                                // winter
   ];
 
-  // ---- Difficulty (chosen at farm creation — sets starting capital & event harshness) ----
-  // wiltDays: drought-survival window per mode (Cozy is forgiving for idlers);
-  // escalate: does weather harshness ramp up as the farm gets rich?
+  // ---- Difficulty (chosen at farm creation — sets starting capital & event liveliness) ----
+  // Crops never die from neglect, so the modes differ in starting capital, how
+  // often live-play weather events (crows, storms, frost) fire, and the sell bonus.
+  // escalate: do events fire more often as the farm gets rich?
   const DIFFICULTIES = [
-    { id: 'cozy',    name: 'Cozy',    emoji: '🌤️', coins: 6000, eventMult: 0.5, sellBonus: 1,   wiltDays: 3,   escalate: false, blurb: 'A big nest egg and gentle weather. Relax and build.' },
-    { id: 'classic', name: 'Classic', emoji: '🌾', coins: 3000, eventMult: 1,   sellBonus: 1,   wiltDays: 1.5, escalate: true,  blurb: 'A solid grubstake. Weather and crows play fair… mostly.' },
-    { id: 'tycoon',  name: 'Tycoon',  emoji: '⛈️', coins: 1500, eventMult: 1.4, sellBonus: 1.05, wiltDays: 1.2, escalate: true,  blurb: 'Thin wallet, harsh skies that worsen as you grow — but goods sell for +5%.' },
+    { id: 'cozy',    name: 'Cozy',    emoji: '🌤️', coins: 6000, eventMult: 0.5, sellBonus: 1,    escalate: false, blurb: 'A big nest egg and calm skies. Relax and build.' },
+    { id: 'classic', name: 'Classic', emoji: '🌾', coins: 3000, eventMult: 1,   sellBonus: 1,    escalate: true,  blurb: 'A solid grubstake. Crows and storms play fair… mostly.' },
+    { id: 'tycoon',  name: 'Tycoon',  emoji: '⛈️', coins: 1500, eventMult: 1.4, sellBonus: 1.05, escalate: true,  blurb: 'A thin wallet and busier skies as you grow — but goods sell for +5%.' },
   ];
 
   // ---- Fuel (powers the tiller, tractor and drones) ----
@@ -87,7 +85,7 @@ const DATA = (() => {
     wool:       { name: 'Wool',        emoji: '🧶', base: 150 },
     truffle:    { name: 'Truffle',     emoji: '🍄', base: 265 },
     truffle_oil:{ name: 'Truffle Oil', emoji: '🫒', base: 620 },
-    // meat (from fattened pasture livestock, sold by the unit at market)
+    // meat (any barnyard animal can be sold for meat; bigger = more units)
     chicken_meat:{ name: 'Chicken',    emoji: '🍗', base: 46 },
     pork:       { name: 'Pork',        emoji: '🥓', base: 96 },
     beef:       { name: 'Beef',        emoji: '🥩', base: 175 },
@@ -175,21 +173,6 @@ const DATA = (() => {
   };
   const WORKER_NAMES = ['Sam', 'Rosa', 'Ida', 'Gus', 'Pip', 'Nell', 'Cole', 'Bea', 'Milo', 'Fern', 'Otis', 'Hank', 'Lucy', 'Cass', 'Wade', 'June', 'Rye', 'Tess', 'Abe', 'Dot'];
 
-  // ---- Meat livestock (raised in the Pasture, sold as meat via the Slaughterhouse) ----
-  // A separate loop from the dairy/egg animals: you buy them young and cheap, feed
-  // them so they fatten (weight climbs), and once they hit market weight you either
-  // send them to slaughter for meat now, or keep feeding for a bigger payout — up to
-  // a max weight where gains taper off. Slaughtering yields meat by the unit
-  // (≈ the animal's weight), which sells at market and fills orders like any good.
-  const MEAT_ANIMALS = {
-    broiler: { name: 'Broiler',  emoji: '🐔', sprite: 'chicken', home: 'pasture', buyCost: 45,  growTime: 55,  startWt: 0.6, marketWt: 2,  maxWt: 3.4, meat: 'chicken_meat', feedCost: 4  },
-    hog:     { name: 'Hog',      emoji: '🐖', sprite: 'pig',     home: 'pasture', buyCost: 260, growTime: 130, startWt: 1,   marketWt: 4,  maxWt: 7,   meat: 'pork',         feedCost: 10 },
-    steer:   { name: 'Steer',    emoji: '🐄', sprite: 'cow',     home: 'pasture', buyCost: 720, growTime: 210, startWt: 1.2, marketWt: 6,  maxWt: 11,  meat: 'beef',         feedCost: 16 },
-  };
-  // fattening past market weight is slower (diminishing returns): the stretch to
-  // max weight takes this many × the base grow time.
-  const FATTEN_SLOWDOWN = 2.4;
-
   // ---- Buildings ----
   // No unlock levels anywhere — if you can afford it, you can build it.
   const BUILDINGS = {
@@ -205,8 +188,6 @@ const DATA = (() => {
     loom:       { name: 'Loom House',   emoji: '🧵', w: 2, h: 2, cost: 6500,  desc: 'Weaves wool into fine cloth and quilts.', roof: '#7d6a9e', wall: '#b0a4c4', sign: 'LOOM' },
     drone:      { name: 'Harvest Drone',emoji: '🤖', w: 1, h: 1, cost: 7500,  desc: 'Auto-harvests AND replants a 5×5 area every morning. Burns 1 gal of fuel per run.' },
     greenhouse: { name: 'Greenhouse',   emoji: '🪴', w: 2, h: 2, cost: 6000,  desc: 'Shelters a 6×6 zone around it: any crop grows there in any season, and frost never kills. Build several!', roof: '#9cc4d4' },
-    pasture:    { name: 'Pasture',      emoji: '🐄', w: 2, h: 2, cost: 1800,  capacity: 6, pasture: true, desc: 'Raise cattle, hogs & broilers for meat — buy them young and feed them to fatten up.', roof: '#6f9440', wall: '#cdbd8e', sign: 'PASTURE' },
-    slaughterhouse: { name: 'Slaughterhouse', emoji: '🔪', w: 2, h: 2, cost: 5000, desc: 'Processes fattened livestock into Beef, Pork & Chicken. Build one before you can send stock to slaughter.', roof: '#8a3d3d', wall: '#b9b0a6', sign: 'MEAT' },
     // decorative home — placed on the starting farm, never sold in the Shop
     farmhouse:  { name: 'Farmhouse',    emoji: '🏡', w: 2, h: 2, cost: 0, decor: true, desc: 'Your homestead — just for the view.', roof: '#b45c3a', wall: '#ecdcb8', sign: 'HOME' },
   };
@@ -315,11 +296,10 @@ const DATA = (() => {
 
   return {
     WORLD_W, WORLD_H, DAY_LEN, SEASON_DAYS, NIGHT_START,
-    WILT_DAYS, ROT_DAYS, VET_RATE, FUEL, TONI, $,
+    FUEL, TONI, $,
     SEASONS, WEATHERS, WEATHER_TABLE, DIFFICULTIES,
     ITEMS, CROPS, ANIMALS, ANIMAL_NAMES, ANIMAL_GROW, BUILDINGS, RECIPES,
     WORKER_JOBS, WORKER, WORKER_NAMES,
-    MEAT_ANIMALS, FATTEN_SLOWDOWN,
     CAN_TIERS, TILL_TIERS, PARCELS, GOALS, SLOT_COSTS, FARM_TEMPLATES,
     xpForLevel, repBonus,
   };

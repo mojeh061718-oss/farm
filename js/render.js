@@ -26,7 +26,6 @@ const Renderer = (() => {
   const floats = [];            // floating texts (iso px)
   const animalAnim = new Map(); // ephemeral animal FSM state, keyed by animal uid
   const workerAnim = new Map(); // ephemeral farmhand walk state, keyed by worker uid
-  const livestockAnim = new Map(); // ephemeral pasture-livestock roam state, keyed by uid
 
   // ---------------- projection ----------------
   function proj(gx, gy) { return { x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 }; }
@@ -2883,10 +2882,6 @@ const Renderer = (() => {
     loom:     { mat: 'timber', baseH: 42, roofH: 24, door: 'panel',
                 props: [['spool', 2.22, 1.3], ['spool', 2.3, 1.7], ['crate', 0.5, 2.32]] },
     greenhouse: { baseH: 34, roofH: 22, props: [['crate', 2.2, 1.5]] },
-    pasture:  { mat: 'plank', baseH: 40, roofH: 22, door: 'x', straw: true,
-                props: [['trough', 0.55, 2.32], ['hay', 2.28, 1.4]] },
-    slaughterhouse: { mat: 'siding', baseH: 42, roofH: 22, door: 'panel', chimney: true,
-                props: [['crate', 2.24, 1.4], ['barrel', -0.22, 1.55]] },
     farmhouse: { mat: 'siding', baseH: 46, roofH: 32, door: 'panel', chimney: true, awning: ['#7a9b56', '#f4ead2'],
                 props: [['crate', 2.2, 1.4], ['barrel', -0.22, 1.55], ['churn', 2.3, 1.8]] },
   };
@@ -5872,57 +5867,7 @@ const Renderer = (() => {
     ctx.restore();
   }
 
-  // ---------------- meat livestock (pasture stock that fattens up) ----------------
-  function updateLivestock(state, dt) {
-    const seen = new Set();
-    for (const l of (state.livestock || [])) {
-      const home = state.buildings[l.home];
-      if (!home) continue;
-      seen.add(l.uid);
-      const bdef = D.BUILDINGS[home.type];
-      let anim = livestockAnim.get(l.uid);
-      if (!anim) {
-        anim = { x: home.x + bdef.w / 2 + (Math.random() - 0.5), y: home.y + bdef.h + 0.5 + Math.random() * 0.9, tx: 0, ty: 0, timer: Math.random() * 3, st: 'idle', flip: Math.random() < 0.5 };
-        anim.tx = anim.x; anim.ty = anim.y;
-        livestockAnim.set(l.uid, anim);
-      }
-      anim.timer -= dt;
-      if (anim.st === 'walk') {
-        const dx = anim.tx - anim.x, dy = anim.ty - anim.y, dist = Math.hypot(dx, dy);
-        if (dist < 0.05) { anim.st = 'idle'; anim.timer = 1.5 + Math.random() * 3; }
-        else { anim.x += dx / dist * 0.22 * dt; anim.y += dy / dist * 0.22 * dt; anim.flip = dx < 0; }
-      } else if (anim.timer <= 0) {
-        if (anim.st !== 'graze' && Math.random() < 0.5) { anim.st = 'graze'; anim.timer = 2 + Math.random() * 3; }
-        else if (Math.random() < 0.6) {
-          anim.st = 'walk';
-          anim.tx = home.x + Math.random() * bdef.w + (Math.random() - 0.5) * 1.4;
-          anim.ty = home.y + bdef.h + 0.15 + Math.random() * 1.3;
-        } else { anim.st = 'idle'; anim.timer = 1 + Math.random() * 2.5; }
-      }
-    }
-    for (const uid of [...livestockAnim.keys()]) if (!seen.has(uid)) livestockAnim.delete(uid);
-  }
-  function drawLivestock(state, i) {
-    const l = state.livestock[i];
-    const d = D.MEAT_ANIMALS[l.type];
-    const anim = livestockAnim.get(l.uid);
-    if (!anim || !d) return;
-    const p = proj(anim.x, anim.y);
-    const span = Math.max(0.01, d.maxWt - d.startWt);
-    const grow = Math.min(1, Math.max(0, (l.weight - d.startWt) / span));
-    const scale = 0.72 + grow * 0.52; // young & scrawny → big & fat
-    posePool.moving = anim.st === 'walk';
-    posePool.sleep = SUN.dark > 0.5;
-    posePool.peck = anim.st === 'graze' ? Math.max(0, Math.sin(time * 3.2 + l.uid)) : 0;
-    posePool.hop = 0;
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.scale(scale, scale);
-    drawAnimalSprite(d.sprite, 0, 0, time, l.uid + 4096, anim.flip, posePool); // uid offset: distinct bob from real animals
-    ctx.restore();
-  }
-
-  const K_CROP = 0, K_DECOR = 1, K_BLDG = 2, K_SIGN = 3, K_ANIMAL = 4, K_FENCE = 5, K_TONI = 6, K_SPROUT = 7, K_WORKER = 8, K_LIVESTOCK = 9;
+  const K_CROP = 0, K_DECOR = 1, K_BLDG = 2, K_SIGN = 3, K_ANIMAL = 4, K_FENCE = 5, K_TONI = 6, K_SPROUT = 7, K_WORKER = 8;
   const entPool = [];
   let entN = 0;
   const drawArr = [];
@@ -6087,14 +6032,6 @@ const Renderer = (() => {
       pushEnt(a.x + a.y + 0.7, K_WORKER, i, 0);
     }
 
-    updateLivestock(state, dt);
-    if (state.livestock) for (let i = 0; i < state.livestock.length; i++) {
-      const a = livestockAnim.get(state.livestock[i].uid);
-      if (!a) continue;
-      if (a.x < vx0 - 1 || a.x > vx1 + 1 || a.y < vy0 - 1 || a.y > vy1 + 1) continue;
-      pushEnt(a.x + a.y, K_LIVESTOCK, i, 0);
-    }
-
     drawArr.length = entN;
     for (let i = 0; i < entN; i++) drawArr[i] = entPool[i];
     drawArr.sort(entCmp);
@@ -6115,7 +6052,6 @@ const Renderer = (() => {
         case K_SIGN: drawSign(state, e.a); break;
         case K_ANIMAL: drawAnimal(state, e.a); break;
         case K_WORKER: drawWorker(state, e.a); break;
-        case K_LIVESTOCK: drawLivestock(state, e.a); break;
         case K_FENCE: drawFenceFront(state, e.a); break;
         case K_TONI: if (state.tonis[e.a]) drawToni(state, e.a); break;
         case K_SPROUT: if (state.sprouts[e.a]) drawToniSprout(state, e.a); break;
